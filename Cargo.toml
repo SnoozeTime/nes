@@ -1,0 +1,7 @@
+[package]
+name = "nes-emulator"
+version = "0.1.0"
+authors = ["Benoit Eudier <benoit.eudier@gmail.com>"]
+
+[dependencies]
+ggez = "0.4"
