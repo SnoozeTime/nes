@@ -4,7 +4,7 @@ use std::io::prelude::*;
 use std::io::Error;
 
 mod cpu;
-use cpu::Nes;
+use cpu::cpu::Nes;
 
 fn load(filename: String) -> Result<Vec<u8>, Error> {
     let mut file = File::open(filename)?;
@@ -28,7 +28,6 @@ pub fn main() {
     loop {
         nes.next();
     }   
-    println!("Geez Rick!");
 }
 
 

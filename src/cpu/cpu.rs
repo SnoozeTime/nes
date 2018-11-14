@@ -1,3 +1,4 @@
+use super::instructions::Instruction;
 
 // memory layout
 // ---------------
@@ -54,13 +55,26 @@ impl Nes {
             P: 0,
         }
     }
-    
-    // Will fetch/decode/execute the next operation. This is a BIG switch statement.
-    pub fn next(&mut self) -> Result<(), Box<std::error::Error>> {
-    
-        let opcode = self.code[self.PC as usize];
-        self.PC += 1;
 
+    pub fn next(&mut self) -> Result<(), Box<std::error::Error>> {
+
+        let instruction = self.decode();
+        println!("{}", instruction.repr());
+
+        match instruction {
+            Instruction::LDA_immediate(_, operand) => self.A = operand,
+            _ => {}
+        }
+
+        Ok(())
+    }
+    
+    // Decode the next instruction
+    fn decode(&mut self) -> Instruction {
+
+     
+        let line = self.PC;
+        let opcode = self.advance();
 
         // let instruction_result = match { .... }
         match opcode {
@@ -68,11 +82,10 @@ impl Nes {
         // -------------------------------------
         // AND operations
         // ------------------------------------
-        0x29 => {
-            let zerop_loc = self.advance();
-            println!("AND #operand - Zero page at 0x{:x}", zerop_loc);
-        },
-        0x25 => println!("AND operand"),
+//         0x29 => {
+//             let zerop_loc = self.advance();
+//         },
+//         0x25 => println!("AND operand"),
 
         // ------------------------------------
         // LoaD Accumulator LDA
@@ -80,33 +93,34 @@ impl Nes {
         // -----------------------------------
         0xA9 => {
             let operand = self.advance();
-            self.A = operand;
+            Instruction::LDA_immediate(line, operand)
+            // self.A = operand;
         },
         // -------------------------------------
         // STX - Store X
         // Affect flags: None
         // ------------------------------------
-        0x86 => {
-            // Zero page
-            let zerop_loc = self.advance();
-            println!("STX Operand - Store X at 0x{:x}", zerop_loc);
-        },
-        0x96 => {
-            // Indexing zero page.
-            let zerop_loc = self.advance();
-            println!("STX Operand,Y - Store X at 0x{:x}+Y", zerop_loc);
-        },
-        0x8E => {
-            // absolute indexing
-            let lsb = self.advance();
-            let msb = self.advance();
-            let loc = ((msb as u16) << 8) | (lsb as u16);
-            println!("STX Operand - Absolute. Store X at 0x{:x}", loc);
-        },
-
-        _ => print!(""),
+//        0x86 => {
+//            // Zero page
+//            let zerop_loc = self.advance();
+//            println!("STX Operand - Store X at 0x{:x}", zerop_loc);
+//        },
+//        0x96 => {
+//            // Indexing zero page.
+//            let zerop_loc = self.advance();
+//            println!("STX Operand,Y - Store X at 0x{:x}+Y", zerop_loc);
+//        },
+//        0x8E => {
+//            // absolute indexing
+//            let lsb = self.advance();
+//            let msb = self.advance();
+//            let loc = ((msb as u16) << 8) | (lsb as u16);
+//            println!("STX Operand - Absolute. Store X at 0x{:x}", loc);
+//        },
+//
+        _ => Instruction::UNKNOWN(line),
         }
-        Ok( () )
+
     }
 
     // Get next instruction and increment PC
