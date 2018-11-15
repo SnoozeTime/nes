@@ -1,3 +1,4 @@
+use super::cpu::Nes;
 
 pub enum Instruction {
     
@@ -9,7 +10,9 @@ pub enum Instruction {
     // Absolute,Y    LDA $4400,Y   $B9  3   4+
     // Indirect,X    LDA ($44,X)   $A1  2   6
     // Indirect,Y    LDA ($44),Y   $B1  2   5+
-    LDA_immediate(u16, u8),
+    // 
+    // TODO add price.
+    LDA(u16, Box<Fn (&mut Nes) -> u8>),
 
     // unknown opcode at line
     UNKNOWN(u16),
@@ -21,8 +24,8 @@ impl Instruction {
     pub fn repr(&self) -> String {
 
         match *self {
-            Instruction::LDA_immediate(addr, operand) =>
-                format!("0x{:x}\tLDA immediate - 0xA9\tLoad 0x{:x} in A", addr, operand),
+            Instruction::LDA(addr, _) =>
+                format!("0x{:x}\tLDA\tLoad A", addr),
             Instruction::UNKNOWN(addr) => format!("0x{:x}\tUnknown opcode", addr),
             _ => String::from("Check code, should not happen"),
         }
@@ -31,7 +34,7 @@ impl Instruction {
     // How long it takes to execute
     fn time(&self) -> u8 {
         match *self {
-            Instruction::LDA_immediate(..) => 2,
+            Instruction::LDA(..) => 2,
             _ => 0,
         }
     }

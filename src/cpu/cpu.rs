@@ -1,4 +1,5 @@
 use super::instructions::Instruction;
+use super::memory;
 
 // memory layout
 // ---------------
@@ -21,7 +22,7 @@ pub struct Nes {
     // 0x0100-0x0200: Stack
     // 0x0200-0x0800: RAM
     // 0x0800-0x2000: Mirrors of previous (TODO Should we implement mirrors?)
-    RAM: Vec<u8>,
+    pub RAM: Vec<u8>,
 
     // Program counter. Hold the address of the next instruction to be executed
     PC: u16,
@@ -62,7 +63,7 @@ impl Nes {
         println!("{}", instruction.repr());
 
         match instruction {
-            Instruction::LDA_immediate(_, operand) => self.A = operand,
+            Instruction::LDA(_, addressing) => self.A = addressing(self),
             _ => {}
         }
 
@@ -93,7 +94,7 @@ impl Nes {
         // -----------------------------------
         0xA9 => {
             let operand = self.advance();
-            Instruction::LDA_immediate(line, operand)
+            Instruction::LDA(line, memory::immediate(operand))
             // self.A = operand;
         },
         // -------------------------------------
@@ -122,7 +123,6 @@ impl Nes {
         }
 
     }
-
     // Get next instruction and increment PC
     fn advance(&mut self) -> u8 {
         let code = self.code[self.PC as usize];
