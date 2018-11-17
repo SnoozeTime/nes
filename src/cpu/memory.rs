@@ -53,6 +53,12 @@ impl Memory {
 enum AddressingModeType {
     ZERO_PAGE,
     IMMEDIATE,
+    INDEXED_ZERO_PAGE,
+    ABSOLUTE,
+    INDEXED_ABSOLUTE,
+    INDIRECT,
+    PRE_INDEXED_INDIRECT,
+    POST_INDEXED_INDIRECT,
 }
 
 pub trait AddressingMode {
@@ -122,10 +128,215 @@ impl AddressingMode for ZeroPageAddressing {
     }
 }
 
+// Indexed zero page. The address + offset are used to fetch the memory
+//---------------------------------------------------------------------
+//
+pub struct IndexedZeroPageAddressing {
+    address: u8,
+    offset: u8, // value of a register
+}
+
+impl IndexedZeroPageAddressing {
+    pub fn new(address: u8, offset: u8) -> Box<IndexedZeroPageAddressing> {
+        Box::new(IndexedZeroPageAddressing { address, offset })
+    }
+}
+
+impl AddressingMode for IndexedZeroPageAddressing {
+    fn mode_type() -> AddressingModeType {
+        AddressingModeType::INDEXED_ZERO_PAGE
+    }
+
+    fn fetch(&self, mem: &Memory) -> u8 {
+        // Address + offset should always be in the zero-page area. So 0x00FF + 0x0001
+        // should be 0x0000 and not 0x0100. This is done here by keeping address and offset
+        // as u8.
+        mem.get(self.address.wrapping_add(self.offset) as usize)
+    }
+
+    fn debug(&self) -> String {
+        format!("Indexed Zero-page adressing at: 0x{:x} + 0x{:x}",
+                self.address,
+                self.offset)
+    }
+}
+
+// Absolute addressing mode. In  absolute  addressing,  the  address  of  the  data  to  operate on  is  specified  by  the  two  
+// operands supplied, least significant byte first
+// ----------------------------------------------------------------
+struct AbsoluteAddressing {
+    address: u16, // Create in new function
+}
+
+impl AbsoluteAddressing {
+    fn new(lsb: u8, msb: u8) -> Box<AbsoluteAddressing> {
+        let address = ((msb as u16) << 8) + (lsb as u16);
+        Box::new(AbsoluteAddressing{ address })
+    }
+}
+
+impl AddressingMode for AbsoluteAddressing {
+    fn mode_type() -> AddressingModeType {
+        AddressingModeType::ABSOLUTE
+    }
+
+    fn fetch(&self, mem: &Memory) -> u8 {
+        // memory super useless in that case.
+        mem.get(self.address as usize)
+    }
+
+    fn debug(&self) -> String {
+        format!("Absolute adressing at: 0x{:x}", self.address)
+    }
+
+}
+
+// Indexed absolute - Same as absolute but with offset
+// ----------------------------------------------------
+
+struct IndexedAbsoluteAddressing {
+    address: u16,
+    offset: u8,
+}
+
+impl IndexedAbsoluteAddressing {
+    fn new(lsb: u8, msb: u8, offset: u8) -> Box<IndexedAbsoluteAddressing> {
+        let address = ((msb as u16) << 8) + (lsb as u16);
+        Box::new(IndexedAbsoluteAddressing{ address, offset })
+    }
+}
+
+impl AddressingMode for IndexedAbsoluteAddressing {
+    fn mode_type() -> AddressingModeType {
+        AddressingModeType::INDEXED_ABSOLUTE
+    }
+
+    fn fetch(&self, mem: &Memory) -> u8 {
+        // memory super useless in that case.
+        mem.get((self.address as usize) + (self.offset as usize))
+    }
+
+    fn debug(&self) -> String {
+        format!("Indexed Absolute adressing at: 0x{:x}+0x{:x}",
+                self.address,
+                self.offset)
+    }
+
+}
+
+// Indirect addressing - meh
+// Indirect  addressing  takes  two  operands,  forming  a  16-bit  address,  which  identifies  the least significant byte of another address which is where the data can be found. For example if the operands are bb and cc, and ccbb contains xx and ccbb + 1 contains yy, then the real target address is yyxx. 
+struct IndirectAddressing {
+    lsb_location: u16,
+}
+
+impl IndirectAddressing {
+    fn new(lsb: u8, msb: u8) -> Box<IndirectAddressing> {
+        let lsb_location = ((msb as u16) << 8) + (lsb as u16);
+        Box::new(IndirectAddressing{ lsb_location })
+    }
+}
+
+impl AddressingMode for IndirectAddressing {
+    fn mode_type() -> AddressingModeType {
+        AddressingModeType::INDIRECT
+    }
+
+    fn fetch(&self, mem: &Memory) -> u8 {
+        // memory super useless in that case.
+        let lsb = mem.get(self.lsb_location as usize);
+        let msb = mem.get((self.lsb_location+1) as usize);
+
+        let address = ((msb as u16) << 8) + (lsb as u16);
+        mem.get(address as usize)
+    }
+
+    fn debug(&self) -> String {
+        format!("Indirect adressing at: 0x{:x}",
+                self.lsb_location)
+    }
+}
+
+
+// Indexed indirect (aka pre-indexed)... wtf.
+// E.g. LDA ($44, X)
+// --------------------------------------------
+struct PreIndexedIndirectAddressing {
+    address: u16, // address is u16 but is always 0x00XX
+    offset: u8,
+}
+
+impl PreIndexedIndirectAddressing {
+    fn new(address_byte: u8, offset: u8) -> Box<PreIndexedIndirectAddressing> {
+        let address = address_byte as u16;
+        Box::new(PreIndexedIndirectAddressing { address, offset })
+    }
+}
+
+impl AddressingMode for PreIndexedIndirectAddressing {
+    fn mode_type() -> AddressingModeType {
+        AddressingModeType::PRE_INDEXED_INDIRECT
+    }
+
+    fn fetch(&self, mem: &Memory) -> u8 {
+        // memory super useless in that case.
+        let lsb_location = self.address + (self.offset as u16);
+        let lsb = mem.get(lsb_location as usize);
+        let msb = mem.get((lsb_location+1) as usize);
+
+        let address = ((msb as u16) << 8) + (lsb as u16);
+        mem.get(address as usize)
+    }
+
+    fn debug(&self) -> String {
+        format!("Pre-index Indirect adressing at: 0x{:x}+0x{:x}",
+                self.address,
+                self.offset)
+    }
+}
+
+// Indirect indexed (aka post-indexed)... wtf.
+// E.g. LDA ($44), Y
+// --------------------------------------------
+struct PostIndexedIndirectAddressing {
+    address: u16, // address is u16 but is always 0x00XX
+    offset: u8,
+}
+
+impl PostIndexedIndirectAddressing {
+    fn new(address_byte: u8, offset: u8) -> Box<PostIndexedIndirectAddressing> {
+        let address = address_byte as u16;
+        Box::new(PostIndexedIndirectAddressing { address, offset })
+    }
+}
+
+impl AddressingMode for PostIndexedIndirectAddressing {
+    fn mode_type() -> AddressingModeType {
+        AddressingModeType::POST_INDEXED_INDIRECT
+    }
+
+    fn fetch(&self, mem: &Memory) -> u8 {
+        // memory super useless in that case.
+        let lsb = mem.get(self.address as usize);
+        let msb = mem.get((self.address+1) as usize);
+
+        let address = ((msb as u16) << 8) + (lsb as u16);
+        mem.get((address+ (self.offset as u16)) as usize)
+    }
+
+    fn debug(&self) -> String {
+        format!("Post-index Indirect adressing at: 0x{:x}+0x{:x}",
+                self.address,
+                self.offset)
+    }
+}
+
+// ------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
 
     use super::*;
+
     #[test]
     fn test_immediate() {
         let mut memory = Memory::new(vec![0;5]);
@@ -140,4 +351,68 @@ mod tests {
         let addressing = ZeroPageAddressing::new(0x02);
         assert_eq!(3, addressing.fetch(&memory));
     }
+
+    #[test]
+    fn test_indexed_zero_page_no_wrapping() {
+        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        memory.mem[0x02] = 3;
+        let addressing = IndexedZeroPageAddressing::new(0x01, 0x01);
+        assert_eq!(3, addressing.fetch(&memory));
+    }
+
+    #[test]
+    fn test_indexed_zero_page_with_wrapping() {
+        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        memory.mem[0x02] = 3;
+        let addressing = IndexedZeroPageAddressing::new(0xFF, 0x03);
+        assert_eq!(3, addressing.fetch(&memory));
+    }
+    
+    #[test]
+    fn test_absolute() {
+        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        memory.mem[0x21F5] = 3;
+        let addressing = AbsoluteAddressing::new(0xF5, 0x21);
+        assert_eq!(3, addressing.fetch(&memory));
+    }
+
+    #[test]
+    fn test_indexed_absolute() {
+        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        memory.mem[0x21F5] = 3;
+        let addressing = IndexedAbsoluteAddressing::new(0xF2, 0x21, 0x03);
+        assert_eq!(3, addressing.fetch(&memory));
+    }
+
+    #[test]
+    fn test_indirect() {
+        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        memory.mem[0x21F5] = 3;
+        memory.mem[0x1213] = 0xF5;
+        memory.mem[0x1214] = 0x21;
+        let addressing = IndirectAddressing::new(0x13, 0x12);
+        assert_eq!(3, addressing.fetch(&memory));
+    }
+
+    #[test]
+    fn test_pre_indexed_indirect() {
+        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        memory.mem[0x21F5] = 3;
+        memory.mem[0x0013] = 0xF5;
+        memory.mem[0x0014] = 0x21;
+        let addressing = PreIndexedIndirectAddressing::new(0x11, 0x02);
+        assert_eq!(3, addressing.fetch(&memory));
+    }
+    
+
+    #[test]
+    fn test_post_indexed_indirect() {
+        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        memory.mem[0x21F5] = 3;
+        memory.mem[0x0013] = 0xF3;
+        memory.mem[0x0014] = 0x21;
+        let addressing = PostIndexedIndirectAddressing::new(0x13, 0x02);
+        assert_eq!(3, addressing.fetch(&memory));
+    }
 }
+    
