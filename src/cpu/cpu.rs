@@ -1,28 +1,9 @@
 use super::instructions::Instruction;
-use super::memory;
+use super::memory::*;
 
-// memory layout
-// ---------------
-// Address range    Size    Device
-// $0000-$07FF  $0800   2KB internal RAM
-// $0800-$0FFF  $0800   Mirrors of $0000-$07FF
-// $1000-$17FF  $0800
-// $1800-$1FFF  $0800
-// $2000-$2007  $0008   NES PPU registers
-// $2008-$3FFF  $1FF8   Mirrors of $2000-2007 (repeats every 8 bytes)
-// $4000-$4017  $0018   NES APU and I/O registers
-// $4018-$401F  $0008   APU and I/O functionality that is normally disabled. See CPU Test Mode.
-// $4020-$FFFF  $BFE0   Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note) 
 pub struct Nes {
 
-    code: Vec<u8>, // contains the instructions.
-   
-    // RAM ! Layout is:
-    // 0x0000-0x0100 :zero page random-access memory.
-    // 0x0100-0x0200: Stack
-    // 0x0200-0x0800: RAM
-    // 0x0800-0x2000: Mirrors of previous (TODO Should we implement mirrors?)
-    pub RAM: Vec<u8>,
+    memory: Memory,
 
     // Program counter. Hold the address of the next instruction to be executed
     PC: u16,
@@ -46,9 +27,8 @@ impl Nes {
     // will create a new NES with the given code.
     pub fn new(code: Vec<u8>) -> Nes {
         Nes {
-            code,
-            RAM: vec![0; 0x800],
-            PC: 0,
+            memory: Memory::new(code),
+            PC: 0x8000,
             SP: 0xFF, 
             A: 0,
             X: 0,
@@ -63,7 +43,8 @@ impl Nes {
         println!("{}", instruction.repr());
 
         match instruction {
-            Instruction::LDA(_, addressing) => self.A = addressing(self),
+            Instruction::LDA(_, addressing, length) =>
+                self.A = addressing.fetch(&self.memory),
             _ => {}
         }
 
@@ -94,7 +75,7 @@ impl Nes {
         // -----------------------------------
         0xA9 => {
             let operand = self.advance();
-            Instruction::LDA(line, memory::immediate(operand))
+            Instruction::LDA(line, ImmediateAddressing::new(operand), 2)
             // self.A = operand;
         },
         // -------------------------------------
@@ -125,7 +106,7 @@ impl Nes {
     }
     // Get next instruction and increment PC
     fn advance(&mut self) -> u8 {
-        let code = self.code[self.PC as usize];
+        let code = self.memory.get(self.PC as usize);
         self.PC += 1;
         code
     }
@@ -144,10 +125,10 @@ mod tests {
         let code = vec![0xA9, 0x36]; 
 
         let mut nes = Nes::new(code);
-        assert_eq!(0, nes.PC);
+        assert_eq!(0x8000, nes.PC);
         nes.next();
 
-        assert_eq!(2, nes.PC);
+        assert_eq!(0x8002, nes.PC);
         assert_eq!(0x36, nes.A);
     }
 

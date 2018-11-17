@@ -1,4 +1,4 @@
-use super::cpu::Nes;
+use super::memory::AddressingMode;
 
 pub enum Instruction {
     
@@ -10,9 +10,9 @@ pub enum Instruction {
     // Absolute,Y    LDA $4400,Y   $B9  3   4+
     // Indirect,X    LDA ($44,X)   $A1  2   6
     // Indirect,Y    LDA ($44),Y   $B1  2   5+
-    // 
-    // TODO add price.
-    LDA(u16, Box<Fn (&mut Nes) -> u8>),
+    
+    // Line in memory, address mode, price
+    LDA(u16, Box<AddressingMode>, u8),
 
     // unknown opcode at line
     UNKNOWN(u16),
@@ -24,18 +24,10 @@ impl Instruction {
     pub fn repr(&self) -> String {
 
         match *self {
-            Instruction::LDA(addr, _) =>
-                format!("0x{:x}\tLDA\tLoad A", addr),
+            Instruction::LDA(addr, ref mode, price) =>
+                format!("0x{:x}\tLDA\tLoad A - {} - {}", addr, mode.debug(), price),
             Instruction::UNKNOWN(addr) => format!("0x{:x}\tUnknown opcode", addr),
             _ => String::from("Check code, should not happen"),
-        }
-    }
-
-    // How long it takes to execute
-    fn time(&self) -> u8 {
-        match *self {
-            Instruction::LDA(..) => 2,
-            _ => 0,
         }
     }
 }

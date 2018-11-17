@@ -1,3 +1,3 @@
 pub mod cpu;
 pub mod instructions;
-mod memory; 
+pub mod memory; 
