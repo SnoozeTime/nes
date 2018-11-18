@@ -51,14 +51,14 @@ impl Memory {
 //
 // This is nice to keep for debugging.
 enum AddressingModeType {
-    ZERO_PAGE,
-    IMMEDIATE,
-    INDEXED_ZERO_PAGE,
-    ABSOLUTE,
-    INDEXED_ABSOLUTE,
-    INDIRECT,
-    PRE_INDEXED_INDIRECT,
-    POST_INDEXED_INDIRECT,
+    ZeroPage,
+    Immediate,
+    IndexedZeroPage,
+    Absolute,
+    IndexedAbsolute,
+    Indirect,
+    PreIndexedIndirect,
+    PostIndexedIndirect,
 }
 
 pub trait AddressingMode {
@@ -86,7 +86,7 @@ impl ImmediateAddressing {
 
 impl AddressingMode for ImmediateAddressing {
     fn mode_type() -> AddressingModeType {
-        AddressingModeType::IMMEDIATE
+        AddressingModeType::Immediate
     }
 
     fn fetch(&self, _mem: &Memory) -> u8 {
@@ -115,7 +115,7 @@ impl ZeroPageAddressing {
 
 impl AddressingMode for ZeroPageAddressing {
     fn mode_type() -> AddressingModeType {
-        AddressingModeType::ZERO_PAGE
+        AddressingModeType::ZeroPage
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
@@ -144,7 +144,7 @@ impl IndexedZeroPageAddressing {
 
 impl AddressingMode for IndexedZeroPageAddressing {
     fn mode_type() -> AddressingModeType {
-        AddressingModeType::INDEXED_ZERO_PAGE
+        AddressingModeType::IndexedZeroPage
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
@@ -164,12 +164,12 @@ impl AddressingMode for IndexedZeroPageAddressing {
 // Absolute addressing mode. In  absolute  addressing,  the  address  of  the  data  to  operate on  is  specified  by  the  two  
 // operands supplied, least significant byte first
 // ----------------------------------------------------------------
-struct AbsoluteAddressing {
+pub struct AbsoluteAddressing {
     address: u16, // Create in new function
 }
 
 impl AbsoluteAddressing {
-    fn new(lsb: u8, msb: u8) -> Box<AbsoluteAddressing> {
+    pub fn new(lsb: u8, msb: u8) -> Box<AbsoluteAddressing> {
         let address = ((msb as u16) << 8) + (lsb as u16);
         Box::new(AbsoluteAddressing{ address })
     }
@@ -177,7 +177,7 @@ impl AbsoluteAddressing {
 
 impl AddressingMode for AbsoluteAddressing {
     fn mode_type() -> AddressingModeType {
-        AddressingModeType::ABSOLUTE
+        AddressingModeType::Absolute
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
@@ -194,13 +194,13 @@ impl AddressingMode for AbsoluteAddressing {
 // Indexed absolute - Same as absolute but with offset
 // ----------------------------------------------------
 
-struct IndexedAbsoluteAddressing {
+pub struct IndexedAbsoluteAddressing {
     address: u16,
     offset: u8,
 }
 
 impl IndexedAbsoluteAddressing {
-    fn new(lsb: u8, msb: u8, offset: u8) -> Box<IndexedAbsoluteAddressing> {
+    pub fn new(lsb: u8, msb: u8, offset: u8) -> Box<IndexedAbsoluteAddressing> {
         let address = ((msb as u16) << 8) + (lsb as u16);
         Box::new(IndexedAbsoluteAddressing{ address, offset })
     }
@@ -208,7 +208,7 @@ impl IndexedAbsoluteAddressing {
 
 impl AddressingMode for IndexedAbsoluteAddressing {
     fn mode_type() -> AddressingModeType {
-        AddressingModeType::INDEXED_ABSOLUTE
+        AddressingModeType::IndexedAbsolute
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
@@ -226,12 +226,12 @@ impl AddressingMode for IndexedAbsoluteAddressing {
 
 // Indirect addressing - meh
 // Indirect  addressing  takes  two  operands,  forming  a  16-bit  address,  which  identifies  the least significant byte of another address which is where the data can be found. For example if the operands are bb and cc, and ccbb contains xx and ccbb + 1 contains yy, then the real target address is yyxx. 
-struct IndirectAddressing {
+pub struct IndirectAddressing {
     lsb_location: u16,
 }
 
 impl IndirectAddressing {
-    fn new(lsb: u8, msb: u8) -> Box<IndirectAddressing> {
+    pub fn new(lsb: u8, msb: u8) -> Box<IndirectAddressing> {
         let lsb_location = ((msb as u16) << 8) + (lsb as u16);
         Box::new(IndirectAddressing{ lsb_location })
     }
@@ -239,7 +239,7 @@ impl IndirectAddressing {
 
 impl AddressingMode for IndirectAddressing {
     fn mode_type() -> AddressingModeType {
-        AddressingModeType::INDIRECT
+        AddressingModeType::Indirect
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
@@ -261,13 +261,13 @@ impl AddressingMode for IndirectAddressing {
 // Indexed indirect (aka pre-indexed)... wtf.
 // E.g. LDA ($44, X)
 // --------------------------------------------
-struct PreIndexedIndirectAddressing {
+pub struct PreIndexedIndirectAddressing {
     address: u16, // address is u16 but is always 0x00XX
     offset: u8,
 }
 
 impl PreIndexedIndirectAddressing {
-    fn new(address_byte: u8, offset: u8) -> Box<PreIndexedIndirectAddressing> {
+    pub fn new(address_byte: u8, offset: u8) -> Box<PreIndexedIndirectAddressing> {
         let address = address_byte as u16;
         Box::new(PreIndexedIndirectAddressing { address, offset })
     }
@@ -275,7 +275,7 @@ impl PreIndexedIndirectAddressing {
 
 impl AddressingMode for PreIndexedIndirectAddressing {
     fn mode_type() -> AddressingModeType {
-        AddressingModeType::PRE_INDEXED_INDIRECT
+        AddressingModeType::PreIndexedIndirect
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
@@ -298,13 +298,13 @@ impl AddressingMode for PreIndexedIndirectAddressing {
 // Indirect indexed (aka post-indexed)... wtf.
 // E.g. LDA ($44), Y
 // --------------------------------------------
-struct PostIndexedIndirectAddressing {
+pub struct PostIndexedIndirectAddressing {
     address: u16, // address is u16 but is always 0x00XX
     offset: u8,
 }
 
 impl PostIndexedIndirectAddressing {
-    fn new(address_byte: u8, offset: u8) -> Box<PostIndexedIndirectAddressing> {
+    pub fn new(address_byte: u8, offset: u8) -> Box<PostIndexedIndirectAddressing> {
         let address = address_byte as u16;
         Box::new(PostIndexedIndirectAddressing { address, offset })
     }
@@ -312,7 +312,7 @@ impl PostIndexedIndirectAddressing {
 
 impl AddressingMode for PostIndexedIndirectAddressing {
     fn mode_type() -> AddressingModeType {
-        AddressingModeType::POST_INDEXED_INDIRECT
+        AddressingModeType::PostIndexedIndirect
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
