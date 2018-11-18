@@ -1,7 +1,6 @@
 use super::instructions::Instruction;
 use super::memory::*;
 
-
 #[allow(non_snake_case)] // PC, SP ... are names in the specs.
 pub struct Nes {
 
@@ -112,6 +111,106 @@ impl Nes {
                 }
                 self.set_result_flags(result);
             },
+            Instruction::BCC(_, addressing, _lenght) => {
+                let offset = addressing.fetch(&self.memory);
+                if self.C == 0 { 
+                   // Carry clear let's take the branch.
+                    if (offset & 0x80) == 0x80 {
+                        // negative.
+                        self.PC -= 0x100 - offset as u16;
+                    } else {
+                        self.PC += offset as u16;
+                    }
+                }
+            },
+            Instruction::BCS(_, addressing, _lenght) => {
+                let offset = addressing.fetch(&self.memory);
+                if self.C != 0 { 
+                   // Carry clear let's take the branch.
+                    if (offset & 0x80) == 0x80 {
+                        // negative.
+                        self.PC -= 0x100 - offset as u16;
+                    } else {
+                        self.PC += offset as u16;
+                    }
+                }
+            },
+
+            Instruction::BEQ(_, addressing, _lenght) => {
+                let offset = addressing.fetch(&self.memory);
+                if self.Z != 0 { 
+                   // Carry clear let's take the branch.
+                    if (offset & 0x80) == 0x80 {
+                        // negative.
+                        self.PC -= 0x100 - offset as u16;
+                    } else {
+                        self.PC += offset as u16;
+                    }
+                }
+            },
+            Instruction::BMI(_, addressing, _lenght) => {
+                let offset = addressing.fetch(&self.memory);
+                if self.N != 0 { 
+                   // Carry clear let's take the branch.
+                    if (offset & 0x80) == 0x80 {
+                        // negative.
+                        self.PC -= 0x100 - offset as u16;
+                    } else {
+                        self.PC += offset as u16;
+                    }
+                }
+            },
+            Instruction::BNE(_, addressing, _lenght) => {
+                let offset = addressing.fetch(&self.memory);
+                if self.Z == 0 { 
+                   // Carry clear let's take the branch.
+                    if (offset & 0x80) == 0x80 {
+                        // negative.
+                        self.PC -= 0x100 - offset as u16;
+                    } else {
+                        self.PC += offset as u16;
+                    }
+                }
+            },
+            Instruction::BPL(_, addressing, _lenght) => {
+                let offset = addressing.fetch(&self.memory);
+                if self.N == 0 { 
+                   // Carry clear let's take the branch.
+                    if (offset & 0x80) == 0x80 {
+                        // negative.
+                        self.PC -= 0x100 - offset as u16;
+                    } else {
+                        self.PC += offset as u16;
+                    }
+                }
+            },
+            Instruction::BVC(_, addressing, _lenght) => {
+                let offset = addressing.fetch(&self.memory);
+                if self.V == 0 { 
+                   // Carry clear let's take the branch.
+                    if (offset & 0x80) == 0x80 {
+                        // negative.
+                        self.PC -= 0x100 - offset as u16;
+                    } else {
+                        self.PC += offset as u16;
+                    }
+                }
+            },
+            Instruction::BVS(_, addressing, _lenght) => {
+                let offset = addressing.fetch(&self.memory);
+                if self.V != 0 { 
+                   // Carry clear let's take the branch.
+                    if (offset & 0x80) == 0x80 {
+                        // negative.
+                        self.PC -= 0x100 - offset as u16;
+                    } else {
+                        self.PC += offset as u16;
+                    }
+                }
+            },
+
+
+
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
                 let result = addressing.fetch(&self.memory);
@@ -302,6 +401,68 @@ impl Nes {
                              IndexedAbsoluteAddressing::new(operand, operand1, self.X),
                              7)
         },
+        // --------------------------------
+        // BCC Branch if Carry Clear
+        // --------------------------------
+        0x90 => {
+            let operand = self.advance();
+            Instruction::BCC(line,
+                             RelativeAddressing::new(operand),
+                             2)
+        },
+        // ----------------------------------
+        // BCS Branch if Carry Set
+        // -------------------------------------
+        0xB0 => {
+            let operand = self.advance();
+            Instruction::BCS(line,
+                             RelativeAddressing::new(operand),
+                             2)
+        },
+        // ----------------------------
+        // BEQ - Branch if Equal
+        // -----------------------------
+        0xF0 => {
+            let operand = self.advance();
+            Instruction::BEQ(line, RelativeAddressing::new(operand), 2)
+        },
+        // ----------------------------
+        // BMI - Branch if Minus
+        // -----------------------------
+        0x30 => {
+            let operand = self.advance();
+            Instruction::BMI(line, RelativeAddressing::new(operand), 2)
+        },
+
+        // ----------------------------
+        // BNE - Branch if Not Equal
+        // -----------------------------
+        0xD0 => {
+            let operand = self.advance();
+            Instruction::BNE(line, RelativeAddressing::new(operand), 2)
+        },
+        // ----------------------------
+        // BPL - Branch if Positive
+        // -----------------------------
+        0x10 => {
+            let operand = self.advance();
+            Instruction::BPL(line, RelativeAddressing::new(operand), 2)
+        },
+        // ----------------------------
+        // BVC - Branch if overflow clear
+        // -----------------------------
+        0x50 => {
+            let operand = self.advance();
+            Instruction::BVC(line, RelativeAddressing::new(operand), 2)
+        },
+        // ----------------------------
+        // BVS - Branch if overflow set
+        // -----------------------------
+        0x70 => {
+            let operand = self.advance();
+            Instruction::BVS(line, RelativeAddressing::new(operand), 2)
+        },
+ 
         // ------------------------------------
         // LoaD Accumulator LDA
         // -----------------------------------
@@ -415,28 +576,6 @@ impl Nes {
                              IndexedAbsoluteAddressing::new(operand1, operand2, self.X),
                              4)
         },
-        // -------------------------------------
-        // STX - Store X
-        // Affect flags: None
-        // ------------------------------------
-//        0x86 => {
-//            // Zero page
-//            let zerop_loc = self.advance();
-//            println!("STX Operand - Store X at 0x{:x}", zerop_loc);
-//        },
-//        0x96 => {
-//            // Indexing zero page.
-//            let zerop_loc = self.advance();
-//            println!("STX Operand,Y - Store X at 0x{:x}+Y", zerop_loc);
-//        },
-//        0x8E => {
-//            // absolute indexing
-//            let lsb = self.advance();
-//            let msb = self.advance();
-//            let loc = ((msb as u16) << 8) | (lsb as u16);
-//            println!("STX Operand - Absolute. Store X at 0x{:x}", loc);
-//        },
-//
         _ => Instruction::UNKNOWN(line),
         }
 
@@ -449,6 +588,7 @@ impl Nes {
     }
 }
 
+#[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
 
@@ -463,7 +603,7 @@ mod tests {
 
         let mut nes = Nes::new(code);
         assert_eq!(0x8000, nes.PC);
-        nes.next();
+        nes.next().unwrap();
 
         assert_eq!(0x8002, nes.PC);
         assert_eq!(0x36, nes.A);
@@ -476,7 +616,7 @@ mod tests {
         let mut nes = Nes::new(code);
         nes.memory.set(0x06, 0x84);
         assert_eq!(0x8000, nes.PC);
-        nes.next();
+        nes.next().unwrap();
 
         assert_eq!(0x8002, nes.PC);
         assert_eq!(0x84, nes.A);
@@ -490,7 +630,7 @@ mod tests {
         let mut nes = Nes::new(code);
         nes.memory.set(0xA306, 0x00);
         assert_eq!(0x8000, nes.PC);
-        nes.next();
+        nes.next().unwrap();
 
         assert_eq!(0x8003, nes.PC);
         assert_eq!(0x00, nes.A);
@@ -503,7 +643,7 @@ mod tests {
         let mut nes = Nes::new(code);
         nes.Y = 0x02;
         nes.memory.set(0x06, 0x0A);
-        nes.next();
+        nes.next().unwrap();
         assert_eq!(0x0A, nes.X);
     }
 
@@ -515,7 +655,7 @@ mod tests {
         nes.X = 0x02;
         nes.memory.set(0xA308, 0x11);
         assert_eq!(0x8000, nes.PC);
-        nes.next();
+        nes.next().unwrap();
 
         assert_eq!(0x8003, nes.PC);
         assert_eq!(0x11, nes.Y);
@@ -527,8 +667,8 @@ mod tests {
         let code = vec![0xA9, 0x01, 0x69, 0x10]; // A should be 0x11
 
         let mut nes = Nes::new(code);
-        nes.next();
-        nes.next();
+        nes.next().unwrap();
+        nes.next().unwrap();
         assert_eq!(0x11, nes.A);
         assert_eq!(0, nes.C);
         assert_eq!(0, nes.V);
@@ -543,8 +683,8 @@ mod tests {
         // no overflow as operands are not the same sign.
         //
         let mut nes = Nes::new(code);
-        nes.next();
-        nes.next();
+        nes.next().unwrap();
+        nes.next().unwrap();
         assert_eq!(0x0A, nes.A);
         assert_eq!(1, nes.C);
         assert_eq!(0, nes.V);
@@ -556,8 +696,8 @@ mod tests {
 
         // if signed 0x64 (>0) + 0x64 (>0) = 0xc8 (< 0)
         let mut nes = Nes::new(code);
-        nes.next();
-        nes.next();
+        nes.next().unwrap();
+        nes.next().unwrap();
         assert_eq!(0xC8, nes.A);
         assert_eq!(0, nes.C);
         assert_eq!(1, nes.V);
@@ -569,8 +709,8 @@ mod tests {
         let code = vec![0xA9, 0x64, 0x29, 0xA0]; 
 
         let mut nes = Nes::new(code);
-        nes.next();
-        nes.next();
+        nes.next().unwrap();
+        nes.next().unwrap();
         assert_eq!(0x20, nes.A);
         assert_eq!(0, nes.Z);
         assert_eq!(0, nes.N);
@@ -582,8 +722,8 @@ mod tests {
     fn test_ASL_accumulator_nocarry() {
         let code = vec![0xA9, 0x64, 0x0A]; 
         let mut nes = Nes::new(code);
-        nes.next();
-        nes.next();
+        nes.next().unwrap();
+        nes.next().unwrap();
         assert_eq!(0xc8, nes.A);
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.N);
@@ -596,13 +736,123 @@ mod tests {
         let mut nes = Nes::new(code);
         nes.memory.set(0x07, 0x84);
         assert_eq!(0x8000, nes.PC);
-        nes.next();
+        nes.next().unwrap();
 
         assert_eq!(0x08, nes.memory.get(0x07 as usize));
         assert_eq!(0, nes.N); 
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.C);
     }
+
+    #[test]
+    fn test_bcc_not_taken() {
+        let code = vec![0x90, 0x07]; // offset is +7. 
+        let mut nes = Nes::new(code);
+        nes.C = 1; // C not clear so do not take the branch.
+        nes.next().unwrap();
+        assert_eq!(0x8002, nes.PC);
+    }
+
+    #[test]
+    fn test_bcc_taken_positive() {
+        let code = vec![0x90, 0x07]; // offset is +7. 
+        let mut nes = Nes::new(code);
+        nes.C = 0; 
+        nes.next().unwrap();
+        assert_eq!(0x8009, nes.PC);
+    }
+
+    #[test]
+    fn test_bcc_taken_negative() {
+        let code = vec![0x90, 0xF9]; // offset is -7. 
+        let mut nes = Nes::new(code);
+        nes.C = 0; 
+        nes.next().unwrap();
+        assert_eq!(0x7FFB, nes.PC);
+    }
+
+    #[test]
+    fn test_bcs_not_taken() {
+        let code = vec![0xB0, 0x07]; // offset is +7. 
+        let mut nes = Nes::new(code);
+        nes.C = 0; // C clear so do not take the branch.
+        nes.next().unwrap();
+        assert_eq!(0x8002, nes.PC);
+    }
+
+    #[test]
+    fn test_bcs_taken_positive() {
+        let code = vec![0xB0, 0x07]; // offset is +7. 
+        let mut nes = Nes::new(code);
+        nes.C = 1; 
+        nes.next().unwrap();
+        assert_eq!(0x8009, nes.PC);
+    }
+
+    #[test]
+    fn test_bcs_taken_negative() {
+        let code = vec![0xB0, 0xF9]; // offset is -7. 
+        let mut nes = Nes::new(code);
+        nes.C = 1; 
+        nes.next().unwrap();
+        assert_eq!(0x7FFB, nes.PC);
+    }
+
+    #[test]
+    fn test_beq() {
+        let code = vec![0xF0, 0xF9]; // offset is -7. 
+        let mut nes = Nes::new(code);
+        nes.Z = 1; 
+        nes.next().unwrap();
+        assert_eq!(0x7FFB, nes.PC);
+    }
+
+    #[test]
+    fn test_bnq() {
+        let code = vec![0xD0, 0xF9]; // offset is -7. 
+        let mut nes = Nes::new(code);
+        nes.Z = 0; 
+        nes.next().unwrap();
+        assert_eq!(0x7FFB, nes.PC);
+    }
+    
+    #[test]
+    fn test_bmi() {
+        let code = vec![0x30, 0xF9]; // offset is -7. 
+        let mut nes = Nes::new(code);
+        nes.N = 1; 
+        nes.next().unwrap();
+        assert_eq!(0x7FFB, nes.PC);
+    }
+
+    #[test]
+    fn test_bpl() {
+        let code = vec![0x10, 0xF9]; // offset is -7. 
+        let mut nes = Nes::new(code);
+        nes.N = 0; 
+        nes.next().unwrap();
+        assert_eq!(0x7FFB, nes.PC);
+    }
+    
+    #[test]
+    fn test_bvc() {
+        let code = vec![0x50, 0xF9]; // offset is -7. 
+        let mut nes = Nes::new(code);
+        nes.V = 0; 
+        nes.next().unwrap();
+        assert_eq!(0x7FFB, nes.PC);
+    }
+
+    #[test]
+    fn test_bvs() {
+        let code = vec![0x70, 0xF9]; // offset is -7. 
+        let mut nes = Nes::new(code);
+        nes.V = 1; 
+        nes.next().unwrap();
+        assert_eq!(0x7FFB, nes.PC);
+    }
+
+
 }
 
 

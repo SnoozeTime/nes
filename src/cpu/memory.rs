@@ -54,6 +54,7 @@ impl Memory {
 pub enum AddressingModeType {
     ZeroPage,
     Immediate,
+    Relative,
     IndexedZeroPage,
     Absolute,
     IndexedAbsolute,
@@ -103,6 +104,34 @@ impl AddressingMode for ImmediateAddressing {
 
     fn debug(&self) -> String {
         format!("Immediate adressing: 0x{:x}", self.value)
+    }
+}
+
+// Relative addressing
+// -----------------------------------
+pub struct RelativeAddressing {
+    offset: u8,
+}
+
+impl RelativeAddressing {
+    pub fn new(offset: u8) -> Box<RelativeAddressing> {
+        Box::new(RelativeAddressing { offset })
+    }
+}
+
+impl AddressingMode for RelativeAddressing {
+    fn mode_type(&self) -> AddressingModeType {
+        AddressingModeType::Relative
+    }
+
+    fn fetch(&self, _mem: &Memory) -> u8 {
+        self.offset
+    }
+
+    fn set(&self, _mem: &mut Memory, _v: u8) {}
+
+    fn debug(&self) -> String {
+        format!("Relative adressing: 0x{:x}", self.offset)
     }
 }
 
