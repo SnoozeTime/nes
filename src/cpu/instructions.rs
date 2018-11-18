@@ -51,6 +51,16 @@ pub enum Instruction {
     // Relative     $F0 2   2
     BEQ(u16, Box<RelativeAddressing>, u8),
 
+    // BIT - Bit Test
+    // The instruction is used to test if one or more bits are set in a target
+    // memory location. The mask pattern in A is ANDed with the value in memory to
+    // set or clear the zero flag. The result if not kept.
+    // Bits 7 and 6 of the value from memory are copied into the N and V flags
+    //
+    // ZeroPage $24 2   3
+    // Absolute $2C 3   4
+    BIT(u16, Box<AddressingMode>, u8),
+
     // BMI - Branch if minus
     // Take the branch if negative flag is set
     // Relative     $30 2 2
@@ -73,6 +83,27 @@ pub enum Instruction {
     // BVS - Branch if overflow set
     // Relative $70 2   2
     BVS(u16, Box<RelativeAddressing>, u8),
+    
+    // CLC - Clear carry flag.
+    // C = 0
+    // Implied, we don't need addressing modes.
+    // Implied  $18 1   2
+    CLC(u16, u8),
+
+    // CLD - Clear Decimal Mode
+    // D = 0
+    // Implied  $D8 1   2
+    CLD(u16, u8),
+
+    // CLI - Clear Interrupt Disable
+    // I = 0
+    // Implied $58  1   2
+    CLI(u16, u8),
+
+    // CLV - Clear overflow Flag
+    // V = 0
+    // Implied  $B8 1   2
+    CLV(u16, u8),
 
     // Immediate     LDA #$44      $A9  2   2
     // Zero Page     LDA $44       $A5  2   3
@@ -125,6 +156,8 @@ impl Instruction {
                 format!("0x{:x}\tBCS\tBranch if Carry Set - {} - {}", addr, mode.debug(), price),
             Instruction::BEQ(addr, ref mode, price) =>
                 format!("0x{:x}\tBEQ\tBranch if Equal - {} - {}", addr, mode.debug(), price),
+            Instruction::BIT(addr, ref mode, price) =>
+                format!("0x{:x}\tBIT\tBit test - {} - {}", addr, mode.debug(), price),
             Instruction::BMI(addr, ref mode, price) =>
                 format!("0x{:x}\tBMI\tBranch if Minus - {} - {}", addr, mode.debug(), price),
             Instruction::BNE(addr, ref mode, price) =>
@@ -135,6 +168,14 @@ impl Instruction {
                 format!("0x{:x}\tBVS\tBranch if overflow set - {} - {}", addr, mode.debug(), price),
             Instruction::BVC(addr, ref mode, price) =>
                 format!("0x{:x}\tBVC\tBranch if overflow clear - {} - {}", addr, mode.debug(), price),
+            Instruction::CLC(addr, price) =>
+                format!("0x{:x}\tCLC\tClear Carry- {}", addr, price),
+            Instruction::CLD(addr, price) =>
+                format!("0x{:x}\tCLD\tClear Decimal- {}", addr, price),
+            Instruction::CLI(addr, price) =>
+                format!("0x{:x}\tCLI\tClear Interrupt disable- {}", addr, price),
+            Instruction::CLV(addr, price) =>
+                format!("0x{:x}\tCLV\tClear Overflow- {}", addr, price),
             // Load instructions.
             Instruction::LDA(addr, ref mode, price) =>
                 format!("0x{:x}\tLDA\tLoad A - {} - {}", addr, mode.debug(), price),

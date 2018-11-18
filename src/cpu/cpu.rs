@@ -148,6 +148,18 @@ impl Nes {
                     }
                 }
             },
+            Instruction::BIT(_, addressing, _length) => {
+                let to_test = addressing.fetch(&self.memory);
+                // set Z if to_test & A == 0
+                if (to_test & self.A) == 0 {
+                    self.Z = 1;
+                } else {
+                    self.Z = 0;
+                }
+
+                self.V = (to_test >> 6) & 0x1;
+                self.N = (to_test >> 7) & 0x1;
+            },
             Instruction::BMI(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.N != 0 { 
@@ -209,7 +221,10 @@ impl Nes {
                 }
             },
 
-
+            Instruction::CLC(_, _length) => self.C = 0,
+            Instruction::CLD(_, _length) => self.D = 0,
+            Instruction::CLI(_, _length) => self.I = 0,
+            Instruction::CLV(_, _length) => self.V = 0,
 
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
@@ -427,6 +442,18 @@ impl Nes {
             Instruction::BEQ(line, RelativeAddressing::new(operand), 2)
         },
         // ----------------------------
+        // BIT - Bit test
+        // ---------------------------
+        0x24 => {
+            let operand = self.advance();
+            Instruction::BIT(line, ZeroPageAddressing::new(operand), 3)
+        },
+        0x2C => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::BIT(line, AbsoluteAddressing::new(operand, operand1), 4)
+        },
+        // ----------------------------
         // BMI - Branch if Minus
         // -----------------------------
         0x30 => {
@@ -462,7 +489,14 @@ impl Nes {
             let operand = self.advance();
             Instruction::BVS(line, RelativeAddressing::new(operand), 2)
         },
- 
+        
+        // -------------------------------
+        // Clear flag instructions
+        // -------------------------------
+        0x18 => Instruction::CLC(line, 2),
+        0xD8 => Instruction::CLD(line, 2),
+        0x58 => Instruction::CLI(line, 2),
+        0xB8 => Instruction::CLV(line, 2),
         // ------------------------------------
         // LoaD Accumulator LDA
         // -----------------------------------
@@ -852,6 +886,71 @@ mod tests {
         assert_eq!(0x7FFB, nes.PC);
     }
 
+    #[test]
+    fn test_bit_test_zeroflag() {
+       let code = vec![0x24, 0x02]; // Bit test for zero page location
+       let mut nes = Nes::new(code);
+
+       // this should set the overflow, negative and zero flag.
+       nes.memory.set(0x02, 0xF4); // '0b11110101'
+       nes.A = 0x02;
+
+       nes.next().unwrap();
+       assert_eq!(1, nes.Z);
+       assert_eq!(1, nes.N);
+       assert_eq!(1, nes.V);
+    }
+
+    #[test]
+    fn test_bit_test_notneg() {
+       let code = vec![0x24, 0x02]; // Bit test for zero page location
+       let mut nes = Nes::new(code);
+
+       // this should set the overflow, negative and zero flag.
+       nes.memory.set(0x02, 0x75); // '0b01110101'
+       nes.A = 0x04;
+
+       nes.next().unwrap();
+       assert_eq!(0, nes.Z);
+       assert_eq!(0, nes.N);
+       assert_eq!(1, nes.V);
+    }
+
+    #[test]
+    fn test_clear_carry() {
+       let code = vec![0x18];
+       let mut nes = Nes::new(code);
+       nes.C = 0x1;
+       nes.next().unwrap();
+       assert_eq!(0, nes.C);
+    }
+    
+    #[test]
+    fn test_clear_decimal() {
+       let code = vec![0xD8];
+       let mut nes = Nes::new(code);
+       nes.D = 0x1;
+       nes.next().unwrap();
+       assert_eq!(0, nes.D);
+    }
+
+    #[test]
+    fn test_clear_interrupt() {
+       let code = vec![0x58];
+       let mut nes = Nes::new(code);
+       nes.I = 0x1;
+       nes.next().unwrap();
+       assert_eq!(0, nes.I);
+    }
+
+    #[test]
+    fn test_clear_overflow() {
+       let code = vec![0xB8];
+       let mut nes = Nes::new(code);
+       nes.V = 0x1;
+       nes.next().unwrap();
+       assert_eq!(0, nes.V);
+    }
 
 }
 
