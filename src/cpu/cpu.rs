@@ -52,6 +52,10 @@ impl Nes {
         }
     }
 
+    pub fn A(&self) -> u8 {
+        self.A
+    }
+
     pub fn next(&mut self) -> Result<(), Box<std::error::Error>> {
 
         let instruction = self.decode();
@@ -90,7 +94,24 @@ impl Nes {
                 }
 
                 self.A = result;
-            }
+            },
+            Instruction::AND(_, addressing, _length) => {
+                let result = self.A & addressing.fetch(&self.memory);
+                self.set_result_flags(result);
+                self.A = result;
+            },
+            Instruction::ASL(_, addressing, _length) => {
+                // This is a funny one.
+                let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
+                let result = (shifted & 0xFF) as u8;
+                self.C = (shifted >> 8) as u8;
+
+                match &addressing.mode_type() {
+                    AddressingModeType::Accumulator => self.A = result,
+                    _ => addressing.set(&mut self.memory, result),
+                }
+                self.set_result_flags(result);
+            },
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
                 let result = addressing.fetch(&self.memory);
@@ -192,6 +213,95 @@ impl Nes {
                              5)
         },
 
+        // -----------------------------------
+        // AND
+        // ------------------------------------
+        0x29 => {
+            let operand = self.advance();
+            Instruction::AND(line,
+                             ImmediateAddressing::new(operand),
+                             2)
+        },
+        0x25 => {
+            let operand = self.advance();
+            Instruction::AND(line,
+                             ZeroPageAddressing::new(operand),
+                             3)
+        },
+        0x35 => {
+            let operand = self.advance();
+            Instruction::AND(line,
+                             IndexedZeroPageAddressing::new(operand, self.X),
+                             4)
+        },
+        0x2D => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::AND(line,
+                             AbsoluteAddressing::new(operand, operand1),
+                             4)
+        },
+        0x3D => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::AND(line,
+                             IndexedAbsoluteAddressing::new(operand, operand1, self.X),
+                             4)
+        },
+        0x39 => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::AND(line,
+                             IndexedAbsoluteAddressing::new(operand, operand1, self.Y),
+                             4)
+        },
+        0x21 => {
+            let operand = self.advance();
+            Instruction::AND(line,
+                             PreIndexedIndirectAddressing::new(operand, self.X),
+                             6)
+        },
+        0x31 => {
+            let operand = self.advance();
+            Instruction::AND(line,
+                             PostIndexedIndirectAddressing::new(operand, self.Y),
+                             5)
+        },
+        // -----------------------------------
+        // ASL arithmetic shift left
+        // -----------------------------------
+        0x0A => {
+            Instruction::ASL(line,
+                             AccumulatorAddressing::new(&self),
+                             2)
+        },
+        0x06 => {
+            let operand = self.advance();
+            Instruction::ASL(line,
+                             ZeroPageAddressing::new(operand),
+                             5)
+        }
+        0x16 => {
+            let operand = self.advance();
+            Instruction::ASL(line,
+                             IndexedZeroPageAddressing::new(operand, self.X),
+                             6)
+
+        },
+        0x0E => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::ASL(line,
+                             AbsoluteAddressing::new(operand, operand1),
+                             6)
+        },
+        0x1E => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::ASL(line,
+                             IndexedAbsoluteAddressing::new(operand, operand1, self.X),
+                             7)
+        },
         // ------------------------------------
         // LoaD Accumulator LDA
         // -----------------------------------
@@ -452,6 +562,46 @@ mod tests {
         assert_eq!(0, nes.C);
         assert_eq!(1, nes.V);
 
+    }
+
+    #[test]
+    fn test_AND() {
+        let code = vec![0xA9, 0x64, 0x29, 0xA0]; 
+
+        let mut nes = Nes::new(code);
+        nes.next();
+        nes.next();
+        assert_eq!(0x20, nes.A);
+        assert_eq!(0, nes.Z);
+        assert_eq!(0, nes.N);
+
+
+    }
+
+    #[test]
+    fn test_ASL_accumulator_nocarry() {
+        let code = vec![0xA9, 0x64, 0x0A]; 
+        let mut nes = Nes::new(code);
+        nes.next();
+        nes.next();
+        assert_eq!(0xc8, nes.A);
+        assert_eq!(0, nes.Z);
+        assert_eq!(1, nes.N);
+    }
+
+    #[test]
+    fn test_ASL_zeropage_with_carry() {
+        let code = vec![0x06, 0x07]; 
+
+        let mut nes = Nes::new(code);
+        nes.memory.set(0x07, 0x84);
+        assert_eq!(0x8000, nes.PC);
+        nes.next();
+
+        assert_eq!(0x08, nes.memory.get(0x07 as usize));
+        assert_eq!(0, nes.N); 
+        assert_eq!(0, nes.Z);
+        assert_eq!(1, nes.C);
     }
 }
 

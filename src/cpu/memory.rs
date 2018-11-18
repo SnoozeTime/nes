@@ -1,3 +1,4 @@
+use super::cpu::Nes;
 // Will contain memory layout and access methods
 //
 
@@ -50,7 +51,7 @@ impl Memory {
 // For example, ZeroPageAddressing will store the address of the value to fetch.
 //
 // This is nice to keep for debugging.
-enum AddressingModeType {
+pub enum AddressingModeType {
     ZeroPage,
     Immediate,
     IndexedZeroPage,
@@ -59,13 +60,17 @@ enum AddressingModeType {
     Indirect,
     PreIndexedIndirect,
     PostIndexedIndirect,
+    Accumulator,
 }
 
 pub trait AddressingMode {
-    fn mode_type() -> AddressingModeType where Self: Sized;
+    fn mode_type(&self) -> AddressingModeType;
 
     // Will get the value from memory.
     fn fetch(&self, mem: &Memory) -> u8;
+
+    // will set the value to memory
+    fn set(&self, mem: &mut Memory, value: u8);
 
     // Debug print
     fn debug(&self) -> String;
@@ -85,7 +90,7 @@ impl ImmediateAddressing {
 }
 
 impl AddressingMode for ImmediateAddressing {
-    fn mode_type() -> AddressingModeType {
+    fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Immediate
     }
 
@@ -93,6 +98,8 @@ impl AddressingMode for ImmediateAddressing {
         // memory super useless in that case.
         self.value
     }
+
+    fn set(&self, _mem: &mut Memory, _v: u8) {}
 
     fn debug(&self) -> String {
         format!("Immediate adressing: 0x{:x}", self.value)
@@ -114,13 +121,16 @@ impl ZeroPageAddressing {
 }
 
 impl AddressingMode for ZeroPageAddressing {
-    fn mode_type() -> AddressingModeType {
+    fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::ZeroPage
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        // memory super useless in that case.
         mem.get(self.address as usize)
+    }
+
+    fn set(&self, mem: &mut Memory, v: u8) {
+        mem.set(self.address as usize, v);
     }
 
     fn debug(&self) -> String {
@@ -143,7 +153,7 @@ impl IndexedZeroPageAddressing {
 }
 
 impl AddressingMode for IndexedZeroPageAddressing {
-    fn mode_type() -> AddressingModeType {
+    fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::IndexedZeroPage
     }
 
@@ -152,6 +162,10 @@ impl AddressingMode for IndexedZeroPageAddressing {
         // should be 0x0000 and not 0x0100. This is done here by keeping address and offset
         // as u8.
         mem.get(self.address.wrapping_add(self.offset) as usize)
+    }
+
+    fn set(&self, mem: &mut Memory, v: u8) {
+        mem.set(self.address.wrapping_add(self.offset) as usize, v);
     }
 
     fn debug(&self) -> String {
@@ -176,15 +190,18 @@ impl AbsoluteAddressing {
 }
 
 impl AddressingMode for AbsoluteAddressing {
-    fn mode_type() -> AddressingModeType {
+    fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Absolute
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        // memory super useless in that case.
         mem.get(self.address as usize)
     }
 
+    fn set(&self, mem: &mut Memory, v: u8) {
+        mem.set(self.address as usize, v);
+    }
+    
     fn debug(&self) -> String {
         format!("Absolute adressing at: 0x{:x}", self.address)
     }
@@ -207,15 +224,18 @@ impl IndexedAbsoluteAddressing {
 }
 
 impl AddressingMode for IndexedAbsoluteAddressing {
-    fn mode_type() -> AddressingModeType {
+    fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::IndexedAbsolute
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        // memory super useless in that case.
         mem.get((self.address as usize) + (self.offset as usize))
     }
 
+    fn set(&self, mem: &mut Memory, v: u8) {
+        mem.set((self.address as usize) + (self.offset as usize), v)
+    }
+    
     fn debug(&self) -> String {
         format!("Indexed Absolute adressing at: 0x{:x}+0x{:x}",
                 self.address,
@@ -238,17 +258,24 @@ impl IndirectAddressing {
 }
 
 impl AddressingMode for IndirectAddressing {
-    fn mode_type() -> AddressingModeType {
+    fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Indirect
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        // memory super useless in that case.
         let lsb = mem.get(self.lsb_location as usize);
         let msb = mem.get((self.lsb_location+1) as usize);
 
         let address = ((msb as u16) << 8) + (lsb as u16);
         mem.get(address as usize)
+    }
+
+    fn set(&self, mem: &mut Memory, v: u8) {
+        let lsb = mem.get(self.lsb_location as usize);
+        let msb = mem.get((self.lsb_location+1) as usize);
+
+        let address = ((msb as u16) << 8) + (lsb as u16);
+        mem.set(address as usize, v);
     }
 
     fn debug(&self) -> String {
@@ -274,12 +301,11 @@ impl PreIndexedIndirectAddressing {
 }
 
 impl AddressingMode for PreIndexedIndirectAddressing {
-    fn mode_type() -> AddressingModeType {
+    fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::PreIndexedIndirect
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        // memory super useless in that case.
         let lsb_location = self.address + (self.offset as u16);
         let lsb = mem.get(lsb_location as usize);
         let msb = mem.get((lsb_location+1) as usize);
@@ -288,6 +314,15 @@ impl AddressingMode for PreIndexedIndirectAddressing {
         mem.get(address as usize)
     }
 
+    fn set(&self, mem: &mut Memory, v: u8) {
+        let lsb_location = self.address + (self.offset as u16);
+        let lsb = mem.get(lsb_location as usize);
+        let msb = mem.get((lsb_location+1) as usize);
+
+        let address = ((msb as u16) << 8) + (lsb as u16);
+        mem.set(address as usize, v);
+    }
+    
     fn debug(&self) -> String {
         format!("Pre-index Indirect adressing at: 0x{:x}+0x{:x}",
                 self.address,
@@ -311,17 +346,24 @@ impl PostIndexedIndirectAddressing {
 }
 
 impl AddressingMode for PostIndexedIndirectAddressing {
-    fn mode_type() -> AddressingModeType {
+    fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::PostIndexedIndirect
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        // memory super useless in that case.
         let lsb = mem.get(self.address as usize);
         let msb = mem.get((self.address+1) as usize);
 
         let address = ((msb as u16) << 8) + (lsb as u16);
         mem.get((address+ (self.offset as u16)) as usize)
+    }
+
+    fn set(&self, mem: &mut Memory, v: u8) {
+        let lsb = mem.get(self.address as usize);
+        let msb = mem.get((self.address+1) as usize);
+        let address = ((msb as u16) << 8) + (lsb as u16);
+
+        mem.set((address+(self.offset as u16)) as usize, v);
     }
 
     fn debug(&self) -> String {
@@ -331,6 +373,37 @@ impl AddressingMode for PostIndexedIndirectAddressing {
     }
 }
 
+// Accumulator. Return the accumulator directly.
+// ---------------------------------------------
+pub struct AccumulatorAddressing {
+    A: u8,
+}
+
+impl AccumulatorAddressing {
+    pub fn new(nes: &Nes) -> Box<AccumulatorAddressing> {
+        Box::new(AccumulatorAddressing { A: nes.A() })
+    }
+}
+
+impl AddressingMode for AccumulatorAddressing {
+    fn mode_type(&self) -> AddressingModeType {
+        AddressingModeType::Accumulator
+    }
+
+    fn fetch(&self, _mem: &Memory) -> u8 {
+        self.A
+    }
+
+    fn set(&self, _mem: &mut Memory, _v: u8) {
+        // exceptional case. A is set directly
+        // in cpu.rs
+    }
+
+    fn debug(&self) -> String {
+        format!("Accumulator adressing : 0x{:x}",
+                self.A)
+    }
+}
 // ------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
@@ -414,5 +487,6 @@ mod tests {
         let addressing = PostIndexedIndirectAddressing::new(0x13, 0x02);
         assert_eq!(3, addressing.fetch(&memory));
     }
+
 }
     
