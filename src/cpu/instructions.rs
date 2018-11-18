@@ -105,6 +105,12 @@ pub enum Instruction {
     // Implied  $B8 1   2
     CLV(u16, u8),
 
+    // --------------------------------------------
+    // Load/store operations. Transfer a single byte
+    // between registers and memory. Loading affect flags
+    // N and Z
+    // --------------------------------------------
+    
     // Immediate     LDA #$44      $A9  2   2
     // Zero Page     LDA $44       $A5  2   3
     // Zero Page,X   LDA $44,X     $B5  2   4
@@ -132,6 +138,56 @@ pub enum Instruction {
     //
     LDY(u16, Box<AddressingMode>, u8),
 
+    // STA Store accumulator
+    // Store content of acc in memory.
+    // ZeroPage     $85 2   3
+    // ZeroPage,X   $95 2   4
+    // Absolute     $8D 3   4
+    // Absolute,X   $9D 3   5
+    // Absolute,Y   $99 3   5
+    // (Indirect,X) $81 2   6
+    // (Indirect),Y $91 2   6
+    STA(u16, Box<AddressingMode>, u8),
+
+    // STX Store X register
+    // M = X
+    // ZeroPage     $86 2   3
+    // ZeroPage,Y   $96 2   4
+    // Absolute     $8E 3   4
+    STX(u16, Box<AddressingMode>, u8),
+    
+    // STY Store Y register
+    // M = Y
+    // ZeroPage     $84 2   3
+    // ZeroPage,X   $94 2   4
+    // Absolute     $8C 3   4
+    STY(u16, Box<AddressingMode>, u8),
+    
+    // -----------------------------------
+    // Register transfer. X and Y can be moved
+    // to and from A
+    // ------------------------------------
+    
+    // TAX - Transfer A to X
+    // Set N and Z
+    // X = A
+    // Implied  $AA 1   2
+    TAX(u16, u8),
+
+    // TAY - Transfer A to X
+    // Y = A
+    // Implied  $A8 1   2
+    TAY(u16, u8),
+
+    // TXA Transfer X to A
+    // A = X
+    // Implied  $8A 1   2
+    TXA(u16, u8),
+
+    // TYA transfer Y to A
+    // A = Y
+    // Implied $98  1   2
+    TYA(u16, u8),
     // unknown opcode at line
     UNKNOWN(u16),
 }
@@ -176,6 +232,7 @@ impl Instruction {
                 format!("0x{:x}\tCLI\tClear Interrupt disable- {}", addr, price),
             Instruction::CLV(addr, price) =>
                 format!("0x{:x}\tCLV\tClear Overflow- {}", addr, price),
+                
             // Load instructions.
             Instruction::LDA(addr, ref mode, price) =>
                 format!("0x{:x}\tLDA\tLoad A - {} - {}", addr, mode.debug(), price),
@@ -183,6 +240,22 @@ impl Instruction {
                 format!("0x{:x}\tLDX\tLoad X - {} - {}", addr, mode.debug(), price),
             Instruction::LDY(addr, ref mode, price) =>
                 format!("0x{:x}\tLDY\tLoad Y - {} - {}", addr, mode.debug(), price),
+            Instruction::STY(addr, ref mode, price) =>
+                format!("0x{:x}\tSTY\tStore Y - {} - {}", addr, mode.debug(), price),
+            Instruction::STA(addr, ref mode, price) =>
+                format!("0x{:x}\tSTA\tStore A - {} - {}", addr, mode.debug(), price),
+            Instruction::STX(addr, ref mode, price) =>
+                format!("0x{:x}\tSTX\tStore X - {} - {}", addr, mode.debug(), price),
+
+            // Transfer instructions
+            Instruction::TAX(addr, price) =>
+                format!("0x{:x}\tTAX\t X = A - {}", addr, price),
+            Instruction::TAY(addr, price) =>
+                format!("0x{:x}\tTAY\t Y = A - {}", addr, price),
+            Instruction::TXA(addr, price) =>
+                format!("0x{:x}\tTXA\t A = X- {}", addr, price),
+            Instruction::TYA(addr, price) =>
+                format!("0x{:x}\tTYA\t A = Y - {}", addr, price),
 
             Instruction::UNKNOWN(addr) => format!("0x{:x}\tUnknown opcode", addr),
             _ => panic!("Check code, should not happen"),

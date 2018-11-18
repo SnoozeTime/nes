@@ -242,7 +242,37 @@ impl Nes {
                 self.Y = result;
                 self.set_result_flags(result);
             },
+            Instruction::STA(_, addressing, _length) => {
+                addressing.set(&mut self.memory, self.A);
+            },
+            Instruction::STX(_, addressing, _length) => {
+                addressing.set(&mut self.memory, self.X);
+            },
+            Instruction::STY(_, addressing, _length) => {
+                addressing.set(&mut self.memory, self.Y);
+            },
 
+            Instruction::TAX(_, _length) => {
+                let result = self.A;
+                self.X = result;
+                self.set_result_flags(result);
+            },
+            Instruction::TAY(_, _length) => {
+                let result = self.A;
+                self.Y = result;
+                self.set_result_flags(result);
+            },
+            Instruction::TXA(_, _length) => {
+                let result = self.X;
+                self.A = result;
+                self.set_result_flags(result);
+            },
+            Instruction::TYA(_, _length) => {
+                let result = self.Y;
+                self.A = result;
+                self.set_result_flags(result);
+
+            },
             _ => {}
         }
 
@@ -610,6 +640,93 @@ impl Nes {
                              IndexedAbsoluteAddressing::new(operand1, operand2, self.X),
                              4)
         },
+        // ------------------------------
+        // STA - Store A
+        // -----------------------------
+        0x85 => {
+            let operand = self.advance();
+            Instruction::STA(line, ZeroPageAddressing::new(operand), 3)
+        },
+        0x95 => {
+            let operand = self.advance();
+            Instruction::STA(line, IndexedZeroPageAddressing::new(operand, self.X), 4)
+        },
+        0x8D => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::STA(line, AbsoluteAddressing::new(operand, operand1), 4)
+        },
+        0x9D => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::STA(line,
+                             IndexedAbsoluteAddressing::new(operand, operand1, self.X),
+                             5)
+        },
+        0x99 => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::STA(line,
+                             IndexedAbsoluteAddressing::new(operand, operand1, self.Y),
+                             5)
+        },
+        0x81 => {
+            let operand = self.advance();
+            Instruction::STA(line,
+                             PreIndexedIndirectAddressing::new(operand, self.X),
+                             6)
+        },
+        0x91 => {
+            let operand = self.advance();
+            Instruction::STA(line,
+                             PostIndexedIndirectAddressing::new(operand, self.Y),
+                             6)
+        },
+        // ----------------------------------------
+        // STX - Store X
+        // -----------------------------------------
+        0x86 => {
+            let operand = self.advance();
+            Instruction::STX(line,
+                             ZeroPageAddressing::new(operand),
+                             3)
+        },
+        0x96 => {
+            let operand = self.advance();
+            Instruction::STX(line, IndexedZeroPageAddressing::new(operand, self.Y), 4)
+        },
+        0x8E => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::STX(line, AbsoluteAddressing::new(operand, operand1), 4)
+        },
+        // ----------------------------------------
+        // STY - Store Y
+        // -----------------------------------------
+        0x84 => {
+            let operand = self.advance();
+            Instruction::STY(line,
+                             ZeroPageAddressing::new(operand),
+                             3)
+        },
+        0x94 => {
+            let operand = self.advance();
+            Instruction::STY(line, IndexedZeroPageAddressing::new(operand, self.X), 4)
+        },
+        0x8C => {
+            let operand = self.advance();
+            let operand1 = self.advance();
+            Instruction::STY(line, AbsoluteAddressing::new(operand, operand1), 4)
+        },
+
+        // ---------------------------
+        // Transfer X,Y to A
+        // ---------------------------
+        0xAA => Instruction::TAX(line, 2),
+        0xA8 => Instruction::TAY(line, 2),
+        0x8A => Instruction::TXA(line, 2),
+        0x98 => Instruction::TYA(line, 2),
+ 
         _ => Instruction::UNKNOWN(line),
         }
 
@@ -950,6 +1067,74 @@ mod tests {
        nes.V = 0x1;
        nes.next().unwrap();
        assert_eq!(0, nes.V);
+    }
+
+    #[test]
+    fn test_store_A() {
+        let code = vec![0x85, 0x04];
+        let mut nes = Nes::new(code);
+        nes.A = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.memory.get(0x04));
+    }
+
+    #[test]
+    fn test_store_X() {
+        let code = vec![0x86, 0x04];
+        let mut nes = Nes::new(code);
+        nes.X = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.memory.get(0x04));
+    }
+
+    #[test]
+    fn test_store_Y() {
+        let code = vec![0x84, 0x04];
+        let mut nes = Nes::new(code);
+        nes.Y = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.memory.get(0x04));
+    }
+
+
+    #[test]
+    fn test_transfer_A_to_X() {
+        //TAX
+        let code = vec![0xAA];
+        let mut nes = Nes::new(code);
+        nes.A = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.X);
+    }
+
+    #[test]
+    fn test_transfer_A_to_Y() {
+        //TAY
+        let code = vec![0xA8];
+        let mut nes = Nes::new(code);
+        nes.A = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.Y);
+    }
+
+    #[test]
+    fn test_transfer_X_to_A() {
+        //TXA
+        let code = vec![0x8A];
+        let mut nes = Nes::new(code);
+        nes.X = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.A);
+    }
+
+    #[test]
+    fn test_transfer_Y_to_A() {
+        //TYA
+        let code = vec![0x98];
+        let mut nes = Nes::new(code);
+        nes.Y = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.Y);
     }
 
 }
