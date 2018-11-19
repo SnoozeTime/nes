@@ -38,6 +38,7 @@ impl Memory {
         self.mem[address]
     }
 }
+
 // ----------------------------------------------
 // Addressing modes
 // ================
@@ -52,16 +53,59 @@ impl Memory {
 //
 // This is nice to keep for debugging.
 pub enum AddressingModeType {
+    Implied,
     ZeroPage,
     Immediate,
     Relative,
+    ZeroPageX,
+    ZeroPageY,
     IndexedZeroPage,
     Absolute,
+    AbsoluteX,
+    AbsoluteY,
     IndexedAbsolute,
     Indirect,
     PreIndexedIndirect,
     PostIndexedIndirect,
     Accumulator,
+}
+
+pub fn create_addressing(addressing_type: AddressingModeType,
+                         nes: &mut Nes) -> Box<AddressingMode> {
+    use self::AddressingModeType::*;
+    match addressing_type {
+    Accumulator => AccumulatorAddressing::new(&nes),
+    Implied => ImpliedAddressing::new(),
+    Immediate => ImmediateAddressing::new(nes.advance()),
+    ZeroPage => ZeroPageAddressing::new(nes.advance()),
+    ZeroPageX => IndexedZeroPageAddressing::new(nes.advance(), nes.X()),
+    ZeroPageY => IndexedZeroPageAddressing::new(nes.advance(), nes.Y()),
+    Relative => RelativeAddressing::new(nes.advance()),
+    Absolute => {
+        let op1 = nes.advance();
+        let op2 = nes.advance();
+        AbsoluteAddressing::new(op1, op2)
+    },
+    AbsoluteX => {
+        let op1 = nes.advance();
+        let op2 = nes.advance();
+        IndexedAbsoluteAddressing::new(op1, op2, nes.X())
+    },
+    AbsoluteY => {
+        let op1 = nes.advance();
+        let op2 = nes.advance();
+        IndexedAbsoluteAddressing::new(op1, op2, nes.Y())
+    },
+    PreIndexedIndirect => {
+        let op = nes.advance();
+        PreIndexedIndirectAddressing::new(op, nes.X())
+    },
+    PostIndexedIndirect => {
+        let op = nes.advance();
+        PostIndexedIndirectAddressing::new(op, nes.Y())
+    },
+    _ => panic!("not implemented"),
+    }
 }
 
 pub trait AddressingMode {
@@ -73,9 +117,34 @@ pub trait AddressingMode {
     // will set the value to memory
     fn set(&self, mem: &mut Memory, value: u8);
 
-    // Debug print
     fn debug(&self) -> String;
 }
+
+// Implied. Nothinig to fetch. All the instruction is implied by opcode
+// --------------------------------------------------------------------
+pub struct ImpliedAddressing {}
+impl ImpliedAddressing {
+    pub fn new() -> Box<ImpliedAddressing> {
+        Box::new(ImpliedAddressing{})
+    }
+}
+
+impl AddressingMode for ImpliedAddressing {
+    fn mode_type(&self) -> AddressingModeType {
+        AddressingModeType::Implied
+    }
+
+    fn fetch(&self, _mem: &Memory) -> u8 {
+        0
+    }
+
+    fn set(&self, _mem: &mut Memory, _v: u8) {}
+
+    fn debug(&self) -> String {
+        format!("Implied Addressing")
+    }
+}
+
 
 // Immediate addressing. Just get the value from the next instruction
 // -----------------------------------------------------------------

@@ -55,10 +55,22 @@ impl Nes {
         self.A
     }
 
+    pub fn X(&self) -> u8 {
+        self.X
+    }
+
+    pub fn Y(&self) -> u8 {
+        self.Y
+    }
+
+    pub fn PC(&self) -> u16 {
+        self.PC
+    }
+
     pub fn next(&mut self) -> Result<(), Box<std::error::Error>> {
 
-        let instruction = self.decode();
-        println!("{}", instruction.repr());
+        let instruction = Instruction::decode(self).unwrap();
+        println!("{:?}", instruction);
 
         match instruction {
             Instruction::ADC(_, addressing, _length) => {
@@ -221,10 +233,10 @@ impl Nes {
                 }
             },
 
-            Instruction::CLC(_, _length) => self.C = 0,
-            Instruction::CLD(_, _length) => self.D = 0,
-            Instruction::CLI(_, _length) => self.I = 0,
-            Instruction::CLV(_, _length) => self.V = 0,
+            Instruction::CLC(_, _, _length) => self.C = 0,
+            Instruction::CLD(_, _, _length) => self.D = 0,
+            Instruction::CLI(_, _, _length) => self.I = 0,
+            Instruction::CLV(_, _, _length) => self.V = 0,
 
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
@@ -252,22 +264,22 @@ impl Nes {
                 addressing.set(&mut self.memory, self.Y);
             },
 
-            Instruction::TAX(_, _length) => {
+            Instruction::TAX(_, _, _length) => {
                 let result = self.A;
                 self.X = result;
                 self.set_result_flags(result);
             },
-            Instruction::TAY(_, _length) => {
+            Instruction::TAY(_, _, _length) => {
                 let result = self.A;
                 self.Y = result;
                 self.set_result_flags(result);
             },
-            Instruction::TXA(_, _length) => {
+            Instruction::TXA(_, _, _length) => {
                 let result = self.X;
                 self.A = result;
                 self.set_result_flags(result);
             },
-            Instruction::TYA(_, _length) => {
+            Instruction::TYA(_, _, _length) => {
                 let result = self.Y;
                 self.A = result;
                 self.set_result_flags(result);
@@ -292,447 +304,8 @@ impl Nes {
         self.N = result >> 7;
     }
     
-    // Decode the next instruction
-    fn decode(&mut self) -> Instruction {
-
-     
-        let line = self.PC;
-        let opcode = self.advance();
-
-        // let instruction_result = match { .... }
-        match opcode {
-
-        // -----------------------------------
-        // Add with Carry ADC
-        // -----------------------------------
-        0x69 => {
-            let operand = self.advance();
-            Instruction::ADC(line,
-                             ImmediateAddressing::new(operand),
-                             2)
-        },
-        0x65 => {
-            let operand = self.advance();
-            Instruction::ADC(line,
-                             ZeroPageAddressing::new(operand),
-                             3)
-        },
-        0x75 => {
-            let operand = self.advance();
-            Instruction::ADC(line,
-                             IndexedZeroPageAddressing::new(operand, self.X),
-                             4)
-        },
-        0x6D => {
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::ADC(line,
-                             AbsoluteAddressing::new(operand1, operand2),
-                             4)
-        },
-        0x7D => {
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::ADC(line,
-                             IndexedAbsoluteAddressing::new(operand1, operand2, self.X),
-                             4)
-        },
-        0x79 => {
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::ADC(line,
-                             IndexedAbsoluteAddressing::new(operand1, operand2, self.Y),
-                             4)
-        },
-        0x61 => {
-            let operand = self.advance();
-            Instruction::ADC(line,
-                             PreIndexedIndirectAddressing::new(operand, self.X),
-                             6)
-        },
-        0x71 => {
-            let operand = self.advance();
-            Instruction::ADC(line,
-                             PostIndexedIndirectAddressing::new(operand, self.Y),
-                             5)
-        },
-
-        // -----------------------------------
-        // AND
-        // ------------------------------------
-        0x29 => {
-            let operand = self.advance();
-            Instruction::AND(line,
-                             ImmediateAddressing::new(operand),
-                             2)
-        },
-        0x25 => {
-            let operand = self.advance();
-            Instruction::AND(line,
-                             ZeroPageAddressing::new(operand),
-                             3)
-        },
-        0x35 => {
-            let operand = self.advance();
-            Instruction::AND(line,
-                             IndexedZeroPageAddressing::new(operand, self.X),
-                             4)
-        },
-        0x2D => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::AND(line,
-                             AbsoluteAddressing::new(operand, operand1),
-                             4)
-        },
-        0x3D => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::AND(line,
-                             IndexedAbsoluteAddressing::new(operand, operand1, self.X),
-                             4)
-        },
-        0x39 => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::AND(line,
-                             IndexedAbsoluteAddressing::new(operand, operand1, self.Y),
-                             4)
-        },
-        0x21 => {
-            let operand = self.advance();
-            Instruction::AND(line,
-                             PreIndexedIndirectAddressing::new(operand, self.X),
-                             6)
-        },
-        0x31 => {
-            let operand = self.advance();
-            Instruction::AND(line,
-                             PostIndexedIndirectAddressing::new(operand, self.Y),
-                             5)
-        },
-        // -----------------------------------
-        // ASL arithmetic shift left
-        // -----------------------------------
-        0x0A => {
-            Instruction::ASL(line,
-                             AccumulatorAddressing::new(&self),
-                             2)
-        },
-        0x06 => {
-            let operand = self.advance();
-            Instruction::ASL(line,
-                             ZeroPageAddressing::new(operand),
-                             5)
-        }
-        0x16 => {
-            let operand = self.advance();
-            Instruction::ASL(line,
-                             IndexedZeroPageAddressing::new(operand, self.X),
-                             6)
-
-        },
-        0x0E => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::ASL(line,
-                             AbsoluteAddressing::new(operand, operand1),
-                             6)
-        },
-        0x1E => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::ASL(line,
-                             IndexedAbsoluteAddressing::new(operand, operand1, self.X),
-                             7)
-        },
-        // --------------------------------
-        // BCC Branch if Carry Clear
-        // --------------------------------
-        0x90 => {
-            let operand = self.advance();
-            Instruction::BCC(line,
-                             RelativeAddressing::new(operand),
-                             2)
-        },
-        // ----------------------------------
-        // BCS Branch if Carry Set
-        // -------------------------------------
-        0xB0 => {
-            let operand = self.advance();
-            Instruction::BCS(line,
-                             RelativeAddressing::new(operand),
-                             2)
-        },
-        // ----------------------------
-        // BEQ - Branch if Equal
-        // -----------------------------
-        0xF0 => {
-            let operand = self.advance();
-            Instruction::BEQ(line, RelativeAddressing::new(operand), 2)
-        },
-        // ----------------------------
-        // BIT - Bit test
-        // ---------------------------
-        0x24 => {
-            let operand = self.advance();
-            Instruction::BIT(line, ZeroPageAddressing::new(operand), 3)
-        },
-        0x2C => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::BIT(line, AbsoluteAddressing::new(operand, operand1), 4)
-        },
-        // ----------------------------
-        // BMI - Branch if Minus
-        // -----------------------------
-        0x30 => {
-            let operand = self.advance();
-            Instruction::BMI(line, RelativeAddressing::new(operand), 2)
-        },
-
-        // ----------------------------
-        // BNE - Branch if Not Equal
-        // -----------------------------
-        0xD0 => {
-            let operand = self.advance();
-            Instruction::BNE(line, RelativeAddressing::new(operand), 2)
-        },
-        // ----------------------------
-        // BPL - Branch if Positive
-        // -----------------------------
-        0x10 => {
-            let operand = self.advance();
-            Instruction::BPL(line, RelativeAddressing::new(operand), 2)
-        },
-        // ----------------------------
-        // BVC - Branch if overflow clear
-        // -----------------------------
-        0x50 => {
-            let operand = self.advance();
-            Instruction::BVC(line, RelativeAddressing::new(operand), 2)
-        },
-        // ----------------------------
-        // BVS - Branch if overflow set
-        // -----------------------------
-        0x70 => {
-            let operand = self.advance();
-            Instruction::BVS(line, RelativeAddressing::new(operand), 2)
-        },
-        
-        // -------------------------------
-        // Clear flag instructions
-        // -------------------------------
-        0x18 => Instruction::CLC(line, 2),
-        0xD8 => Instruction::CLD(line, 2),
-        0x58 => Instruction::CLI(line, 2),
-        0xB8 => Instruction::CLV(line, 2),
-        // ------------------------------------
-        // LoaD Accumulator LDA
-        // -----------------------------------
-        0xA9 => {
-            // LDA #$44
-            let operand = self.advance();
-            Instruction::LDA(line, ImmediateAddressing::new(operand), 2)
-        },
-        0xA5 => {
-            // LDA $44
-            let operand = self.advance();
-            Instruction::LDA(line, ZeroPageAddressing::new(operand), 3)
-        },
-        0xB5 => {
-            // LDA $44,X
-            let operand = self.advance();
-            Instruction::LDA(line, IndexedZeroPageAddressing::new(operand, self.X), 4)
-        },
-        0xAD => {
-            // LDA $4400
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::LDA(line, AbsoluteAddressing::new(operand1, operand2), 4)
-        },
-        0xBD => {
-            // LDA $4400,X
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::LDA(line,
-                             IndexedAbsoluteAddressing::new(operand1,
-                                                            operand2,
-                                                            self.X),
-                             4)
-        },
-        0xB9 => {
-            // LDA $4400,Y
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::LDA(line,
-                             IndexedAbsoluteAddressing::new(operand1,
-                                                            operand2,
-                                                            self.Y),
-                             4)
-
-        },
-        0xA1 => {
-            // LDA ($44, X)
-            let operand = self.advance();
-            Instruction::LDA(line,
-                             PreIndexedIndirectAddressing::new(operand, self.X),
-                             6)
-        },
-        0xB1 => {
-            // LDA ($44), Y
-            let operand = self.advance();
-            Instruction::LDA(line,
-                             PostIndexedIndirectAddressing::new(operand, self.Y),
-                             5)
-        },
-        // ------------------------------------
-        // LDX - Load X
-        // ------------------------------------
-        0xA2 => {
-            let operand = self.advance();
-            Instruction::LDX(line, ImmediateAddressing::new(operand), 2)
-        },
-        0xA6 => {
-            let operand = self.advance();
-            Instruction::LDX(line, ZeroPageAddressing::new(operand), 3)
-        },
-        0xB6 => {
-            let operand = self.advance();
-            Instruction::LDX(line, IndexedZeroPageAddressing::new(operand, self.Y), 4)
-        },
-        0xAE => {
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::LDX(line, AbsoluteAddressing::new(operand1, operand2), 4)
-        },
-        0xBE => {
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::LDX(line,
-                             IndexedAbsoluteAddressing::new(operand1, operand2, self.Y),
-                             4)
-        },
-        // ------------------------------------
-        // LDY - Load Y
-        // ------------------------------------
-        0xA0 => {
-            let operand = self.advance();
-            Instruction::LDY(line, ImmediateAddressing::new(operand), 2)
-        },
-        0xA4 => {
-            let operand = self.advance();
-            Instruction::LDY(line, ZeroPageAddressing::new(operand), 3)
-        },
-        0xB4 => {
-            let operand = self.advance();
-            Instruction::LDY(line, IndexedZeroPageAddressing::new(operand, self.X), 4)
-        },
-        0xAC => {
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::LDY(line, AbsoluteAddressing::new(operand1, operand2), 4)
-        },
-        0xBC => {
-            let operand1 = self.advance();
-            let operand2 = self.advance();
-            Instruction::LDY(line,
-                             IndexedAbsoluteAddressing::new(operand1, operand2, self.X),
-                             4)
-        },
-        // ------------------------------
-        // STA - Store A
-        // -----------------------------
-        0x85 => {
-            let operand = self.advance();
-            Instruction::STA(line, ZeroPageAddressing::new(operand), 3)
-        },
-        0x95 => {
-            let operand = self.advance();
-            Instruction::STA(line, IndexedZeroPageAddressing::new(operand, self.X), 4)
-        },
-        0x8D => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::STA(line, AbsoluteAddressing::new(operand, operand1), 4)
-        },
-        0x9D => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::STA(line,
-                             IndexedAbsoluteAddressing::new(operand, operand1, self.X),
-                             5)
-        },
-        0x99 => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::STA(line,
-                             IndexedAbsoluteAddressing::new(operand, operand1, self.Y),
-                             5)
-        },
-        0x81 => {
-            let operand = self.advance();
-            Instruction::STA(line,
-                             PreIndexedIndirectAddressing::new(operand, self.X),
-                             6)
-        },
-        0x91 => {
-            let operand = self.advance();
-            Instruction::STA(line,
-                             PostIndexedIndirectAddressing::new(operand, self.Y),
-                             6)
-        },
-        // ----------------------------------------
-        // STX - Store X
-        // -----------------------------------------
-        0x86 => {
-            let operand = self.advance();
-            Instruction::STX(line,
-                             ZeroPageAddressing::new(operand),
-                             3)
-        },
-        0x96 => {
-            let operand = self.advance();
-            Instruction::STX(line, IndexedZeroPageAddressing::new(operand, self.Y), 4)
-        },
-        0x8E => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::STX(line, AbsoluteAddressing::new(operand, operand1), 4)
-        },
-        // ----------------------------------------
-        // STY - Store Y
-        // -----------------------------------------
-        0x84 => {
-            let operand = self.advance();
-            Instruction::STY(line,
-                             ZeroPageAddressing::new(operand),
-                             3)
-        },
-        0x94 => {
-            let operand = self.advance();
-            Instruction::STY(line, IndexedZeroPageAddressing::new(operand, self.X), 4)
-        },
-        0x8C => {
-            let operand = self.advance();
-            let operand1 = self.advance();
-            Instruction::STY(line, AbsoluteAddressing::new(operand, operand1), 4)
-        },
-
-        // ---------------------------
-        // Transfer X,Y to A
-        // ---------------------------
-        0xAA => Instruction::TAX(line, 2),
-        0xA8 => Instruction::TAY(line, 2),
-        0x8A => Instruction::TXA(line, 2),
-        0x98 => Instruction::TYA(line, 2),
- 
-        _ => Instruction::UNKNOWN(line),
-        }
-
-    }
     // Get next instruction and increment PC
-    fn advance(&mut self) -> u8 {
+    pub fn advance(&mut self) -> u8 {
         let code = self.memory.get(self.PC as usize);
         self.PC += 1;
         code
