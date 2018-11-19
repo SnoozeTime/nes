@@ -1,4 +1,5 @@
 use std::fmt;
+use std::fmt::Debug;
 use super::cpu::Nes;
 // Will contain memory layout and access methods
 //
@@ -117,14 +118,17 @@ pub trait AddressingMode {
 
     // will set the value to memory
     fn set(&self, mem: &mut Memory, value: u8);
-}
 
-impl fmt::Debug for Box<dyn AddressingMode> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Data {{ ... }}")
     }
 }
 
+impl fmt::Debug for AddressingMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.debug_fmt(f)
+    }
+}
 
 // Implied. Nothinig to fetch. All the instruction is implied by opcode
 // --------------------------------------------------------------------
@@ -145,6 +149,10 @@ impl AddressingMode for ImpliedAddressing {
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
+    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
+    }
 }
 
 
@@ -179,6 +187,11 @@ impl AddressingMode for ImmediateAddressing {
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
+    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
+    }
+
 }
 
 impl fmt::Debug for ImmediateAddressing {
@@ -209,7 +222,12 @@ impl AddressingMode for RelativeAddressing {
         self.offset
     }
 
-    fn set(&self, _mem: &mut Memory, _v: u8) {}
+    fn set(&self, _mem: &mut Memory, _v: u8) {}    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
+    }
+
+
 }
 
 impl fmt::Debug for RelativeAddressing {
@@ -243,7 +261,12 @@ impl AddressingMode for ZeroPageAddressing {
 
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
+    }    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
+
+
 }
 
 impl fmt::Debug for ZeroPageAddressing {
@@ -280,7 +303,12 @@ impl AddressingMode for IndexedZeroPageAddressing {
 
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address.wrapping_add(self.offset) as usize, v);
+    }    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
+
+
 }
 
 impl fmt::Debug for IndexedZeroPageAddressing {
@@ -316,7 +344,12 @@ impl AddressingMode for AbsoluteAddressing {
 
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
+    }    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
+
+
 }
 
 impl fmt::Debug for AbsoluteAddressing {
@@ -350,7 +383,12 @@ impl AddressingMode for IndexedAbsoluteAddressing {
 
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set((self.address as usize) + (self.offset as usize), v)
+    }    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
+
+
 }
 
 impl fmt::Debug for IndexedAbsoluteAddressing {
@@ -393,7 +431,12 @@ impl AddressingMode for IndirectAddressing {
 
         let address = ((msb as u16) << 8) + (lsb as u16);
         mem.set(address as usize, v);
+    }    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
+
+
 }
 
 impl fmt::Debug for IndirectAddressing {
@@ -439,7 +482,12 @@ impl AddressingMode for PreIndexedIndirectAddressing {
 
         let address = ((msb as u16) << 8) + (lsb as u16);
         mem.set(address as usize, v);
+    }    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
+
+
 }
 
 impl fmt::Debug for PreIndexedIndirectAddressing {
@@ -484,7 +532,12 @@ impl AddressingMode for PostIndexedIndirectAddressing {
         let address = ((msb as u16) << 8) + (lsb as u16);
 
         mem.set((address+(self.offset as u16)) as usize, v);
+    }    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
+
+
 }
 
 impl fmt::Debug for PostIndexedIndirectAddressing {
@@ -520,7 +573,12 @@ impl AddressingMode for AccumulatorAddressing {
     fn set(&self, _mem: &mut Memory, _v: u8) {
         // exceptional case. A is set directly
         // in cpu.rs
+    }    
+    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
+
+
 }
 
 impl fmt::Debug for AccumulatorAddressing {

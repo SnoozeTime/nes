@@ -18,7 +18,7 @@ macro_rules! instructions {
 
                 match self {
                 $(
-                    Instruction::$name(line, _, cost) => write!(f, "0x{:x}\t{}\tcycles: {}", line, stringify!($name), cost)
+                    Instruction::$name(line, method, cost) => write!(f, "0x{:x}\t{}\t{:?}\tcycles: {}", line, stringify!($name), *method, cost)
                 ),+
                 ,
                 Instruction::UNKNOWN(line, opcode) => write!(f, "0x{:x}\tUnknown opcode: 0x{:x}", line, opcode),
