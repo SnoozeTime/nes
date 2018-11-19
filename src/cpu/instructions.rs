@@ -8,7 +8,9 @@ macro_rules! instructions {
 
         #[allow(non_snake_case)] 
         pub enum Instruction {
-            $($name(u16, Box<AddressingMode>, u8)),+
+            $($name(u16, Box<dyn AddressingMode>, u8)),+
+            ,
+            UNKNOWN(u16, u8)
         }
 
         impl fmt::Debug for Instruction {
@@ -16,26 +18,28 @@ macro_rules! instructions {
 
                 match self {
                 $(
-                    Instruction::$name(_, _, cost) => write!(f, "{}- cycles: {}", stringify!($name), cost)
+                    Instruction::$name(line, _, cost) => write!(f, "0x{:x}\t{}\tcycles: {}", line, stringify!($name), cost)
                 ),+
+                ,
+                Instruction::UNKNOWN(line, opcode) => write!(f, "0x{:x}\tUnknown opcode: 0x{:x}", line, opcode),
                 }
             }
         }
 
         impl Instruction {
-            pub fn decode(nes: &mut Nes) -> Option<Instruction> {
+            pub fn decode(nes: &mut Nes) -> Instruction {
                 let line = nes.PC();
                 let opcode = nes.advance();
                 match opcode {
                 $(
                     $(
-                        $code => Some(Instruction::$name(line,
-                                                          create_addressing($other, nes), 
-                                                          $cost))
+                        $code => Instruction::$name(line,
+                                                    create_addressing($other, nes), 
+                                                    $cost)
                     ),+
                 ),+
                 ,
-                _ => None 
+                _ => Instruction::UNKNOWN(line, opcode)
                 }
             }
         }

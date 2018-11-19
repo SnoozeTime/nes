@@ -26,7 +26,10 @@ pub fn main() {
     let mut nes = Nes::new(bytes);
 
     loop {
-        nes.next();
+        if let Err(x) = nes.next() {
+            println!("{}", x);
+            break;
+        }
     }   
 }
 

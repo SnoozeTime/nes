@@ -1,3 +1,4 @@
+use std::fmt;
 use super::cpu::Nes;
 // Will contain memory layout and access methods
 //
@@ -116,9 +117,14 @@ pub trait AddressingMode {
 
     // will set the value to memory
     fn set(&self, mem: &mut Memory, value: u8);
-
-    fn debug(&self) -> String;
 }
+
+impl fmt::Debug for Box<dyn AddressingMode> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 
 // Implied. Nothinig to fetch. All the instruction is implied by opcode
 // --------------------------------------------------------------------
@@ -139,9 +145,12 @@ impl AddressingMode for ImpliedAddressing {
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
+}
 
-    fn debug(&self) -> String {
-        format!("Implied Addressing")
+
+impl fmt::Debug for ImpliedAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Implied Addressing")
     }
 }
 
@@ -170,11 +179,14 @@ impl AddressingMode for ImmediateAddressing {
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
+}
 
-    fn debug(&self) -> String {
-        format!("Immediate adressing: 0x{:x}", self.value)
+impl fmt::Debug for ImmediateAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Immediate Addressing -> {}", self.value)
     }
 }
+
 
 // Relative addressing
 // -----------------------------------
@@ -198,9 +210,11 @@ impl AddressingMode for RelativeAddressing {
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
+}
 
-    fn debug(&self) -> String {
-        format!("Relative adressing: 0x{:x}", self.offset)
+impl fmt::Debug for RelativeAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Relative adressing: 0x{:x}", self.offset)
     }
 }
 
@@ -230,9 +244,11 @@ impl AddressingMode for ZeroPageAddressing {
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
     }
+}
 
-    fn debug(&self) -> String {
-        format!("Zero-page adressing at: 0x{:x}", self.address)
+impl fmt::Debug for ZeroPageAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Zero-page adressing at: 0x{:x}", self.address)
     }
 }
 
@@ -265,9 +281,11 @@ impl AddressingMode for IndexedZeroPageAddressing {
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address.wrapping_add(self.offset) as usize, v);
     }
+}
 
-    fn debug(&self) -> String {
-        format!("Indexed Zero-page adressing at: 0x{:x} + 0x{:x}",
+impl fmt::Debug for IndexedZeroPageAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Indexed Zero-page adressing at: 0x{:x} + 0x{:x}",
                 self.address,
                 self.offset)
     }
@@ -299,13 +317,13 @@ impl AddressingMode for AbsoluteAddressing {
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
     }
-    
-    fn debug(&self) -> String {
-        format!("Absolute adressing at: 0x{:x}", self.address)
-    }
-
 }
 
+impl fmt::Debug for AbsoluteAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Absolute adressing at: 0x{:x}", self.address)
+    }
+}
 // Indexed absolute - Same as absolute but with offset
 // ----------------------------------------------------
 
@@ -333,13 +351,14 @@ impl AddressingMode for IndexedAbsoluteAddressing {
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set((self.address as usize) + (self.offset as usize), v)
     }
-    
-    fn debug(&self) -> String {
-        format!("Indexed Absolute adressing at: 0x{:x}+0x{:x}",
-                self.address,
-                self.offset)
-    }
+}
 
+impl fmt::Debug for IndexedAbsoluteAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Indexed Absolute adressing at: 0x{:x}+0x{:x}",
+                  self.address,
+                  self.offset)
+    }
 }
 
 // Indirect addressing - meh
@@ -375,13 +394,14 @@ impl AddressingMode for IndirectAddressing {
         let address = ((msb as u16) << 8) + (lsb as u16);
         mem.set(address as usize, v);
     }
-
-    fn debug(&self) -> String {
-        format!("Indirect adressing at: 0x{:x}",
-                self.lsb_location)
-    }
 }
 
+impl fmt::Debug for IndirectAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Indirect adressing at: 0x{:x}",
+               self.lsb_location)
+    }
+}
 
 // Indexed indirect (aka pre-indexed)... wtf.
 // E.g. LDA ($44, X)
@@ -420,9 +440,11 @@ impl AddressingMode for PreIndexedIndirectAddressing {
         let address = ((msb as u16) << 8) + (lsb as u16);
         mem.set(address as usize, v);
     }
-    
-    fn debug(&self) -> String {
-        format!("Pre-index Indirect adressing at: 0x{:x}+0x{:x}",
+}
+
+impl fmt::Debug for PreIndexedIndirectAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Pre-index Indirect adressing at: 0x{:x}+0x{:x}",
                 self.address,
                 self.offset)
     }
@@ -463,23 +485,26 @@ impl AddressingMode for PostIndexedIndirectAddressing {
 
         mem.set((address+(self.offset as u16)) as usize, v);
     }
+}
 
-    fn debug(&self) -> String {
-        format!("Post-index Indirect adressing at: 0x{:x}+0x{:x}",
-                self.address,
-                self.offset)
+impl fmt::Debug for PostIndexedIndirectAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,
+               "Post-index Indirect adressing at: 0x{:x}+0x{:x}",
+               self.address,
+               self.offset)
     }
 }
 
 // Accumulator. Return the accumulator directly.
 // ---------------------------------------------
 pub struct AccumulatorAddressing {
-    A: u8,
+    accumulator: u8,
 }
 
 impl AccumulatorAddressing {
     pub fn new(nes: &Nes) -> Box<AccumulatorAddressing> {
-        Box::new(AccumulatorAddressing { A: nes.A() })
+        Box::new(AccumulatorAddressing { accumulator: nes.A() })
     }
 }
 
@@ -489,19 +514,21 @@ impl AddressingMode for AccumulatorAddressing {
     }
 
     fn fetch(&self, _mem: &Memory) -> u8 {
-        self.A
+        self.accumulator
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {
         // exceptional case. A is set directly
         // in cpu.rs
     }
+}
 
-    fn debug(&self) -> String {
-        format!("Accumulator adressing : 0x{:x}",
-                self.A)
+impl fmt::Debug for AccumulatorAddressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Accumulator Addressing -> {}", self.accumulator)
     }
 }
+
 // ------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {

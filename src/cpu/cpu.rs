@@ -67,9 +67,13 @@ impl Nes {
         self.PC
     }
 
-    pub fn next(&mut self) -> Result<(), Box<std::error::Error>> {
+    pub fn next(&mut self) -> Result<(), &'static str> {
 
-        let instruction = Instruction::decode(self).unwrap();
+        if (self.PC > 0xFFFF) {
+            return Err("Finished");
+        }
+
+        let instruction = Instruction::decode(self);
         println!("{:?}", instruction);
 
         match instruction {
@@ -285,7 +289,7 @@ impl Nes {
                 self.set_result_flags(result);
 
             },
-            _ => {}
+            Instruction::UNKNOWN(_,_) => {}
         }
 
         Ok(())
