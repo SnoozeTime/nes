@@ -67,6 +67,40 @@ impl Nes {
         self.PC
     }
 
+    fn push(&mut self, value: u8) {
+        let addr = 0x0100 + (self.SP as u16);
+        self.memory.set(addr as usize, value);
+        self.SP -= 1;
+    }
+
+    fn pull(&mut self) -> u8 {
+        let addr = 0x0100 + (self.SP as u16);
+        self.SP += 1;
+        self.memory.get(addr as usize)
+    }
+
+    // used to push flags to the stacks.
+    fn flags_to_u8(&self) -> u8 {
+        // http://wiki.nesdev.com/w/index.php/Status_flags
+        let b = ((self.N as u8) << 7)
+            + ((self.V as u8) << 6)
+            + (1 << 5) + (1 << 4) // always. ignored when pulling
+            + ((self.D as u8) << 3)
+            + ((self.I as u8) << 2)
+            + ((self.Z as u8) << 1)
+            + (self.C as u8);
+        b
+    }
+
+    fn u8_to_flags(&mut self, b: u8) {
+        self.N = (b >> 7) & 0x1 as u8;
+        self.V = (b >> 6) & 0x1 as u8;
+        self.D = (b >> 3) & 0x1 as u8;
+        self.I = (b >> 2) & 0x1 as u8;
+        self.Z = (b >> 1) & 0x1 as u8;
+        self.C = (b >> 0) & 0x1 as u8;
+    }
+
     pub fn next(&mut self) -> Result<(), &'static str> {
 
         if (self.PC > 0xFFFF) {
@@ -267,7 +301,7 @@ impl Nes {
             Instruction::STY(_, addressing, _length) => {
                 addressing.set(&mut self.memory, self.Y);
             },
-
+            // transfer instructions
             Instruction::TAX(_, _, _length) => {
                 let result = self.A;
                 self.X = result;
@@ -288,6 +322,33 @@ impl Nes {
                 self.A = result;
                 self.set_result_flags(result);
 
+            },
+
+            // stack instructions
+            Instruction::TSX(_, _, _length) => {
+                let result = self.SP;
+                self.X = result;
+                self.set_result_flags(result);
+            },
+            Instruction::TXS(_, _, _length) => {
+                self.SP = self.X;
+            }
+            Instruction::PHA(_, _, _length) => {
+                let to_push = self.A;
+                self.push(to_push);
+            },
+            Instruction::PLA(_, _, _length) => {
+                let result = self.pull();
+                self.A = result;
+                self.set_result_flags(result);
+            },
+            Instruction::PHP(_, _, _length) => {
+                let to_push = self.flags_to_u8();
+                self.push(to_push);
+            },
+            Instruction::PLP(_, _, _length) => {
+                let result = self.pull();
+                self.u8_to_flags(result);
             },
             Instruction::UNKNOWN(_,_) => {}
         }
@@ -714,6 +775,74 @@ mod tests {
         assert_eq!(0xF1, nes.Y);
     }
 
+    #[test]
+    fn test_transfer_X_to_SP() {
+        //TXA
+        let code = vec![0x9A];
+        let mut nes = Nes::new(code);
+        nes.X = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.SP);
+    }
+
+    #[test]
+    fn test_transfer_SP_to_X() {
+        //TYA
+        let code = vec![0xBA];
+        let mut nes = Nes::new(code);
+        nes.SP = 0xF1;
+        nes.next().unwrap();
+        assert_eq!(0xF1, nes.X);
+        assert_eq!(0x0, nes.Z);
+        assert_eq!(0x1, nes.N);
+    }
+
+    #[test]
+    fn test_stack_accumulator() {
+        let code = vec![0x48, 0x68];//push pull
+        let mut nes = Nes::new(code);
+        nes.A = 0x44;
+
+        nes.next().unwrap();
+        nes.A = 0x00;
+        assert_eq!(0xFE, nes.SP);
+        assert_eq!(0x44, nes.memory.get(0x01FF));
+
+        nes.next().unwrap();
+        assert_eq!(0xFF, nes.SP);
+        assert_eq!(0x44, nes.A);
+    }
+
+    #[test]
+    fn test_stack_processor_flag() {
+        let code = vec![0x08, 0x28];//push pull
+        let mut nes = Nes::new(code);
+        
+        nes.C = 1;
+        nes.Z = 1;
+        nes.V = 1;
+        nes.N = 0;
+        nes.I = 0;
+
+        nes.next().unwrap();
+         
+        nes.C = 0;
+        nes.Z = 0;
+        nes.V = 0;
+        nes.N = 0;
+        nes.I = 0;
+
+        assert_eq!(0xFE, nes.SP);
+        //assert_eq!(0x44, nes.memory.get(0x01FF));
+
+        nes.next().unwrap();
+        assert_eq!(0xFF, nes.SP);
+        assert_eq!(1, nes.C);
+        assert_eq!(1, nes.Z);
+        assert_eq!(1, nes.V);
+        assert_eq!(0, nes.N);
+        assert_eq!(0, nes.I);
+    }
 }
 
 

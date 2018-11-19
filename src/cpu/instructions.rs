@@ -275,5 +275,51 @@ instructions!{
     // A = Y
     TYA => {
         0x98 => (AddressingModeType::Implied, 2)
+    },
+
+    // Stack Operations.
+    // The 6502 processor supports a 256 bytes stack fixed between $0100 and $01FF.
+    // A special 8-bit register, SP, is used to keep track of the next free byte of space.
+    // The Stack is descending. When pusing a byte to the stack, SP is decremented.
+    
+    // TSX Transfer stack pointer to X.
+    // X = S
+    // Copies the current contents of the stack register and set Z and N
+    TSX => {
+        0xBA => (AddressingModeType::Implied, 2)
+    },
+
+    // TXS - Transfer X to SP
+    // SP = X
+    // Copied X into the stack register. Flags not affeected
+    TXS => {
+        0x9A => (AddressingModeType::Implied, 2)
+    },
+
+    // PHA - PusH Accumulator
+    // Push a copy of the accumulator on to the stack. will decrease SP.
+    // Flags not affected
+    PHA => {
+        0x48 => (AddressingModeType::Implied, 3)
+    },
+
+    // PLA - PulL Accumulator
+    // Pulls a value from the stack into the accumulator. Z and N flags impacted
+    PLA => {
+        0x68 => (AddressingModeType::Implied, 4)
+    },
+    
+    // PHP - Push processor status
+    PHP => {
+        0x08 => (AddressingModeType::Implied, 3)
+    },
+
+    // PLP - Pull processor status.
+    // Affect all
+    PLP => {
+        0x28 => (AddressingModeType::Implied, 4)
     }
+
+
+
 }
