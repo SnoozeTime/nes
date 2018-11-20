@@ -56,20 +56,6 @@ instructions!{
         0x75 => (AddressingModeType::ZeroPageX, 4)
     },
 
-
-    // AND - A logical AND is performed, bit by bit, on the accumulator content
-    // using the contents of a byte in memory.
-    AND => {
-        0x29 => (AddressingModeType::Immediate, 2),
-        0x25 => (AddressingModeType::ZeroPage, 3),
-        0x35 => (AddressingModeType::ZeroPageX, 4),
-        0x2D => (AddressingModeType::Absolute, 4),
-        0x3D => (AddressingModeType::AbsoluteX, 4),
-        0x39 => (AddressingModeType::AbsoluteY, 4),
-        0x21 => (AddressingModeType::PreIndexedIndirect, 6),
-        0x31 => (AddressingModeType::PostIndexedIndirect, 5)
-    },
-
      // ASL - Arithmetic Shift Left
     // A, Z, C, N = M*2 or M,Z,C,N = M*2 - Same effect as multiplication by 2.
     // Bit 0 is set to 0 and bit 7 is placed in carry. Ignoring 2's complement.
@@ -104,6 +90,49 @@ instructions!{
         0xF0 => (AddressingModeType::Relative, 2)
     },
 
+    //---------------------------------------------------
+    // Logical. Perform logical operations on the contents
+    // of the accumulator and another value in memory
+    // --------------------------------------------------
+    // AND - A logical AND is performed, bit by bit, on the accumulator content
+    // using the contents of a byte in memory.
+    AND => {
+        0x29 => (AddressingModeType::Immediate, 2),
+        0x25 => (AddressingModeType::ZeroPage, 3),
+        0x35 => (AddressingModeType::ZeroPageX, 4),
+        0x2D => (AddressingModeType::Absolute, 4),
+        0x3D => (AddressingModeType::AbsoluteX, 4),
+        0x39 => (AddressingModeType::AbsoluteY, 4),
+        0x21 => (AddressingModeType::PreIndexedIndirect, 6),
+        0x31 => (AddressingModeType::PostIndexedIndirect, 5)
+    },
+
+    // EOR - Exclusive OR
+    // A,Z,M = A^M
+    // An exclusive OR
+    EOR => {
+        0x49 => (AddressingModeType::Immediate, 2),
+        0x45 => (AddressingModeType::ZeroPage, 3),
+        0x55 => (AddressingModeType::ZeroPageX, 4),
+        0x4D => (AddressingModeType::Absolute, 4),
+        0x5D => (AddressingModeType::AbsoluteX, 4),
+        0x59 => (AddressingModeType::AbsoluteY, 4),
+        0x41 => (AddressingModeType::PreIndexedIndirect, 6),
+        0x51 => (AddressingModeType::PostIndexedIndirect, 5)
+    },
+
+    // ORA - Logical inclusive OR
+    // A,Z,N = A|M
+    ORA => {
+        0x09 => (AddressingModeType::Immediate, 2),
+        0x05 => (AddressingModeType::ZeroPage, 3),
+        0x15 => (AddressingModeType::ZeroPageX, 4),
+        0x0D => (AddressingModeType::Absolute, 4),
+        0x1D => (AddressingModeType::AbsoluteX, 4),
+        0x19 => (AddressingModeType::AbsoluteY, 4),
+        0x01 => (AddressingModeType::PreIndexedIndirect, 6),
+        0x11 => (AddressingModeType::PostIndexedIndirect, 5)
+    },
 
     // BIT - Bit Test
     // The instruction is used to test if one or more bits are set in a target
@@ -113,6 +142,43 @@ instructions!{
     BIT => {
         0x24 => (AddressingModeType::ZeroPage, 3),
         0x2C => (AddressingModeType::Absolute, 4)
+    },
+
+    // Increment and decrements
+    // Increment and decrement a memory locatin or one of the X or Y registers by one
+    // INC - INCrement a memory location
+    // M,Z,N = M + 1
+    INC => {
+        0xE6 => (AddressingModeType::ZeroPage, 5), 
+        0xF6 => (AddressingModeType::ZeroPageX, 6), 
+        0xEE => (AddressingModeType::Absolute, 6), 
+        0xFE => (AddressingModeType::AbsoluteX, 7) 
+    },
+
+    // INX - INCrement X
+    INX => {
+        0xE8 => (AddressingModeType::Implied, 2)
+    },
+
+    // INY - INCrement Y
+    INY => {
+        0xC8 => (AddressingModeType::Implied, 2)
+    },
+
+    // DEC - DEcrement value in memory
+    DEC => {
+        0xC6 => (AddressingModeType::ZeroPage, 5), 
+        0xD6 => (AddressingModeType::ZeroPageX, 6), 
+        0xCE => (AddressingModeType::Absolute, 6), 
+        0xDE => (AddressingModeType::AbsoluteX, 7) 
+    },
+
+    DEX => {
+        0xCA => (AddressingModeType::Implied, 2)
+    },
+
+    DEY => {
+        0x88 => (AddressingModeType::Implied, 2)
     },
 
     // BMI - Branch if minus

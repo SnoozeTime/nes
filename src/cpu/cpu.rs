@@ -210,6 +210,51 @@ impl Nes {
                 self.V = (to_test >> 6) & 0x1;
                 self.N = (to_test >> 7) & 0x1;
             },
+            Instruction::EOR(_, addressing, _length) => {
+                let operand = addressing.fetch(&self.memory);
+                println!("0x{:b} ^ 0x{:b} = 0x{:x}", self.A, operand, self.A^operand);
+                let result = self.A ^ operand;
+                self.set_result_flags(result);
+                self.A = result;
+            },
+            Instruction::ORA(_, addressing, _length) => {
+                println!("BOUM ORA");
+                let result = self.A | addressing.fetch(&self.memory);
+                self.set_result_flags(result);
+                self.A = result;
+            },
+
+            // INCREMENTS AND DECREMENTS
+            Instruction::INC(_, addressing, _cycles) => {
+                let result = addressing.fetch(&self.memory) + 1;
+                self.set_result_flags(result);
+                addressing.set(&mut self.memory, result);
+            },
+            Instruction::INX(_, _addressing, _cycles) => {
+                let result = self.X + 1;
+                self.set_result_flags(result);
+                self.X = result;
+            },
+            Instruction::INY(_, _addressing, _cycles) => {
+                let result = self.Y + 1;
+                self.set_result_flags(result);
+                self.Y = result;
+            },
+            Instruction::DEC(_, addressing, _cycles) => {
+                let result = addressing.fetch(&self.memory) - 1;
+                self.set_result_flags(result);
+                addressing.set(&mut self.memory, result);
+            },
+            Instruction::DEX(_, _addressing, _cycles) => {
+                let result = self.X - 1;
+                self.set_result_flags(result);
+                self.X = result;
+            },
+            Instruction::DEY(_, _addressing, _cycles) => {
+                let result = self.Y - 1;
+                self.set_result_flags(result);
+                self.Y = result;
+            },           
             Instruction::BMI(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.N != 0 { 
@@ -843,6 +888,57 @@ mod tests {
         assert_eq!(0, nes.N);
         assert_eq!(0, nes.I);
     }
+
+    #[test]
+    fn test_exclusive_eor() {
+        let code = vec![0x49, 0x3];//push pull
+        let mut nes = Nes::new(code);
+        nes.A = 0x6;
+        nes.next().unwrap();
+        assert_eq!(0x5, nes.A);
+    }
+
+    #[test]
+    fn test_exclusive_ora() {
+        let code = vec![0x09, 0x03];//push pull
+        let mut nes = Nes::new(code);
+        nes.A = 0x06;
+        nes.next().unwrap();
+        assert_eq!(0x7, nes.A);
+    }
+
+    #[test]
+    fn test_inc_dec_mem() {
+        let code = vec![0xE6, 0x02, 0xC6, 0x02];
+        let mut nes = Nes::new(code);
+        nes.next().unwrap();
+        assert_eq!(1, nes.memory.get(0x02 as usize));
+        nes.next().unwrap();
+        
+        assert_eq!(0, nes.memory.get(0x02 as usize));
+    }
+
+
+    #[test]
+    fn test_inx_dex() {
+        let code = vec![0xE8, 0xCA];
+        let mut nes = Nes::new(code);
+        nes.next().unwrap();
+        assert_eq!(1, nes.X);
+        nes.next().unwrap();
+        assert_eq!(0, nes.X);
+    }
+
+    #[test]
+    fn test_iny_dey() {
+        let code = vec![0xC8, 0x88];
+        let mut nes = Nes::new(code);
+        nes.next().unwrap();
+        assert_eq!(1, nes.Y);
+        nes.next().unwrap();
+        assert_eq!(0, nes.Y);
+    }
+
 }
 
 
