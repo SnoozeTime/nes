@@ -37,7 +37,7 @@ impl Nes {
         Nes {
             memory: Memory::new(code),
             PC: 0x8000,
-            SP: 0xFF, 
+            SP: 0xFD, 
             A: 0,
             X: 0,
             Y: 0,
@@ -74,8 +74,8 @@ impl Nes {
     }
 
     fn pull(&mut self) -> u8 {
-        let addr = 0x0100 + (self.SP as u16);
         self.SP += 1;
+        let addr = 0x0100 + (self.SP as u16);
         self.memory.get(addr as usize)
     }
 
@@ -805,11 +805,11 @@ mod tests {
 
         nes.next().unwrap();
         nes.A = 0x00;
-        assert_eq!(0xFE, nes.SP);
-        assert_eq!(0x44, nes.memory.get(0x01FF));
+        assert_eq!(0xFC, nes.SP);
+        assert_eq!(0x44, nes.memory.get(0x01FD));
 
         nes.next().unwrap();
-        assert_eq!(0xFF, nes.SP);
+        assert_eq!(0xFD, nes.SP);
         assert_eq!(0x44, nes.A);
     }
 
@@ -832,11 +832,11 @@ mod tests {
         nes.N = 0;
         nes.I = 0;
 
-        assert_eq!(0xFE, nes.SP);
+        assert_eq!(0xFC, nes.SP);
         //assert_eq!(0x44, nes.memory.get(0x01FF));
 
         nes.next().unwrap();
-        assert_eq!(0xFF, nes.SP);
+        assert_eq!(0xFD, nes.SP);
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.Z);
         assert_eq!(1, nes.V);
