@@ -110,6 +110,7 @@ impl Nes {
         let instruction = Instruction::decode(self);
         println!("{:?}", instruction);
 
+        let mut again_extra_cycles: u8 = 0;
         match &instruction {
             Instruction::ADC(_, addressing, _length) => {
                 // http://www.6502.org/tutorials/vflag.html
@@ -164,38 +165,58 @@ impl Nes {
             Instruction::BCC(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.C == 0 { 
-                   // Carry clear let's take the branch.
+                    let mut cycles = 1;
+                    let original_pc = self.PC;
+                    // Carry clear let's take the branch.
                     if (offset & 0x80) == 0x80 {
                         // negative.
                         self.PC -= 0x100 - offset as u16;
                     } else {
                         self.PC += offset as u16;
                     }
+                    // we do one byte offset (0xFF max) so if the upper
+                    // bytes are not the same it means we crossed a page.
+                    if (original_pc >> 8) != (self.PC >> 8) {
+                        cycles += 1;
+                    }
+                    again_extra_cycles += cycles;
                 }
             },
             Instruction::BCS(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.C != 0 { 
-                   // Carry clear let's take the branch.
+                    let mut cycles = 1;
+                    let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
                         self.PC -= 0x100 - offset as u16;
                     } else {
                         self.PC += offset as u16;
                     }
+                    if (original_pc >> 8) != (self.PC >> 8) {
+                        cycles += 1;
+                    }
+                    again_extra_cycles += cycles;
+
                 }
             },
 
             Instruction::BEQ(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.Z != 0 { 
-                   // Carry clear let's take the branch.
+                    let mut cycles = 1;
+                    let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
                         self.PC -= 0x100 - offset as u16;
                     } else {
                         self.PC += offset as u16;
                     }
+                    if (original_pc >> 8) != (self.PC >> 8) {
+                        cycles += 1;
+                    }
+                    again_extra_cycles += cycles;
+
                 }
             },
             Instruction::BIT(_, addressing, _length) => {
@@ -259,69 +280,105 @@ impl Nes {
             Instruction::BMI(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.N != 0 { 
-                   // Carry clear let's take the branch.
+                    let mut cycles = 1;
+                    let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
                         self.PC -= 0x100 - offset as u16;
                     } else {
                         self.PC += offset as u16;
                     }
+                    if (original_pc >> 8) != (self.PC >> 8) {
+                        cycles += 1;
+                    }
+                    again_extra_cycles += cycles;
                 }
             },
             Instruction::BNE(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.Z == 0 { 
-                   // Carry clear let's take the branch.
+                    let mut cycles = 1;
+                    let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
                         self.PC -= 0x100 - offset as u16;
                     } else {
                         self.PC += offset as u16;
                     }
+                    if (original_pc >> 8) != (self.PC >> 8) {
+                        cycles += 1;
+                    }
+                    again_extra_cycles += cycles;
+
                 }
             },
             Instruction::BPL(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.N == 0 { 
-                   // Carry clear let's take the branch.
+                    let mut cycles = 1;
+                    let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
                         self.PC -= 0x100 - offset as u16;
                     } else {
                         self.PC += offset as u16;
                     }
+                    if (original_pc >> 8) != (self.PC >> 8) {
+                        cycles += 1;
+                    }
+                    again_extra_cycles += cycles;
+
                 }
             },
             Instruction::BVC(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.V == 0 { 
-                   // Carry clear let's take the branch.
+                    let mut cycles = 1;
+                    let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
                         self.PC -= 0x100 - offset as u16;
                     } else {
                         self.PC += offset as u16;
                     }
+                    if (original_pc >> 8) != (self.PC >> 8) {
+                        cycles += 1;
+                    }
+                    again_extra_cycles += cycles;
+
                 }
             },
             Instruction::BVS(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.V != 0 { 
-                   // Carry clear let's take the branch.
+                    let mut cycles = 1;
+                    let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
                         self.PC -= 0x100 - offset as u16;
                     } else {
                         self.PC += offset as u16;
                     }
+                    if (original_pc >> 8) != (self.PC >> 8) {
+                        cycles += 1;
+                    }
+                    again_extra_cycles += cycles;
                 }
+
             },
 
-            Instruction::CLC(_, _, _length) => self.C = 0,
-            Instruction::CLD(_, _, _length) => self.D = 0,
-            Instruction::CLI(_, _, _length) => self.I = 0,
-            Instruction::CLV(_, _, _length) => self.V = 0,
-
+            Instruction::CLC(_, _, _length) => {
+                self.C = 0;
+            },
+            Instruction::CLD(_, _, _length) => {
+                self.D = 0;
+            },
+            Instruction::CLI(_, _, _length) => {
+                self.I = 0;
+            },
+            Instruction::CLV(_, _, _length) => {
+                self.V = 0;
+            },
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
                 let result = addressing.fetch(&self.memory);
@@ -378,7 +435,7 @@ impl Nes {
             },
             Instruction::TXS(_, _, _length) => {
                 self.SP = self.X;
-            }
+            },
             Instruction::PHA(_, _, _length) => {
                 let to_push = self.A;
                 self.push(to_push);
@@ -399,8 +456,8 @@ impl Nes {
             Instruction::UNKNOWN(_,_) => {}
         };
 
-        let cycles = instruction.get_cycles();
-        Ok(cycles)
+        let total_cycles = instruction.get_cycles() + again_extra_cycles;
+        Ok(total_cycles)
     }
 
     // set negative or zero flag depending on result of operation.
