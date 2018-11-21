@@ -101,7 +101,7 @@ impl Nes {
         self.C = (b >> 0) & 0x1 as u8;
     }
 
-    pub fn next(&mut self) -> Result<(), &'static str> {
+    pub fn next(&mut self) -> Result<u8, &'static str> {
 
         if (self.PC > 0xFFFF) {
             return Err("Finished");
@@ -110,7 +110,7 @@ impl Nes {
         let instruction = Instruction::decode(self);
         println!("{:?}", instruction);
 
-        match instruction {
+        match &instruction {
             Instruction::ADC(_, addressing, _length) => {
                 // http://www.6502.org/tutorials/vflag.html
                 // A,Z,C,N,V = A+M+C
@@ -226,32 +226,33 @@ impl Nes {
 
             // INCREMENTS AND DECREMENTS
             Instruction::INC(_, addressing, _cycles) => {
-                let result = addressing.fetch(&self.memory) + 1;
+                let result = addressing.fetch(&self.memory).wrapping_add(1);
                 self.set_result_flags(result);
                 addressing.set(&mut self.memory, result);
             },
             Instruction::INX(_, _addressing, _cycles) => {
-                let result = self.X + 1;
+                // TODO Wrapping add?
+                let result = self.X.wrapping_add(1);
                 self.set_result_flags(result);
                 self.X = result;
             },
             Instruction::INY(_, _addressing, _cycles) => {
-                let result = self.Y + 1;
+                let result = self.Y.wrapping_add(1);
                 self.set_result_flags(result);
                 self.Y = result;
             },
             Instruction::DEC(_, addressing, _cycles) => {
-                let result = addressing.fetch(&self.memory) - 1;
+                let result = addressing.fetch(&self.memory).wrapping_sub(1);
                 self.set_result_flags(result);
                 addressing.set(&mut self.memory, result);
             },
             Instruction::DEX(_, _addressing, _cycles) => {
-                let result = self.X - 1;
+                let result = self.X.wrapping_sub(1);
                 self.set_result_flags(result);
                 self.X = result;
             },
             Instruction::DEY(_, _addressing, _cycles) => {
-                let result = self.Y - 1;
+                let result = self.Y.wrapping_sub(1);
                 self.set_result_flags(result);
                 self.Y = result;
             },           
@@ -396,9 +397,10 @@ impl Nes {
                 self.u8_to_flags(result);
             },
             Instruction::UNKNOWN(_,_) => {}
-        }
+        };
 
-        Ok(())
+        let cycles = instruction.get_cycles();
+        Ok(cycles)
     }
 
     // set negative or zero flag depending on result of operation.

@@ -42,6 +42,16 @@ macro_rules! instructions {
                 _ => Instruction::UNKNOWN(line, opcode)
                 }
             }
+
+            pub fn get_cycles(&self) -> u8 {
+            match &self {
+                 $(
+                    Instruction::$name(line, method, cost) => method.extra_cycles() + cost
+                ),+
+                ,
+                Instruction::UNKNOWN(..) => 0
+            }
+            }
         }
     };
 }

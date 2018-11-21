@@ -119,6 +119,9 @@ pub trait AddressingMode {
     // will set the value to memory
     fn set(&self, mem: &mut Memory, value: u8);
 
+    // return extra cycles when crossing a page
+    fn extra_cycles(&self) -> u8 { 0 }
+
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Data {{ ... }}")
     }
@@ -388,6 +391,15 @@ impl AddressingMode for IndexedAbsoluteAddressing {
         self.fmt(f)
     }
 
+    fn extra_cycles(&self) -> u8 {
+        let (_, overflow) = ((self.address & 0xFF) as u8).overflowing_add(self.offset);
+        if overflow {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
 
 }
 
@@ -487,6 +499,14 @@ impl AddressingMode for PreIndexedIndirectAddressing {
         self.fmt(f)
     }
 
+    fn extra_cycles(&self) -> u8 {
+       let (_, overflow) = ((self.address & 0xFF) as u8).overflowing_add(self.offset);
+       if overflow {
+           return 1;
+       } else {
+           return 0;
+       }
+    }
 
 }
 
