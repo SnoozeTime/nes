@@ -115,6 +115,9 @@ pub trait AddressingMode {
 
     // Will get the value from memory.
     fn fetch(&self, mem: &Memory) -> u8;
+    fn fetch16(&self, mem: &Memory) -> u16 {    
+        return 0;
+    }
 
     // will set the value to memory
     fn set(&self, mem: &mut Memory, value: u8);
@@ -345,6 +348,10 @@ impl AddressingMode for AbsoluteAddressing {
         mem.get(self.address as usize)
     }
 
+    fn fetch16(&self, _mem: &Memory) -> u16 {
+        self.address
+    }
+
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
     }    
@@ -413,6 +420,8 @@ impl fmt::Debug for IndexedAbsoluteAddressing {
 
 // Indirect addressing - meh
 // Indirect  addressing  takes  two  operands,  forming  a  16-bit  address,  which  identifies  the least significant byte of another address which is where the data can be found. For example if the operands are bb and cc, and ccbb contains xx and ccbb + 1 contains yy, then the real target address is yyxx. 
+// NB: Only JMP is using this addressing. It has a bug (yeaaa) so if self.lsb_location
+// ends with 0xFF, +1 will not correctly cross the page.
 pub struct IndirectAddressing {
     lsb_location: u16,
 }
@@ -430,11 +439,18 @@ impl AddressingMode for IndirectAddressing {
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        let lsb = mem.get(self.lsb_location as usize);
-        let msb = mem.get((self.lsb_location+1) as usize);
+        0    
+    }
 
+    fn fetch16(&self, mem: &Memory) -> u16 {
+        let lsb = mem.get(self.lsb_location as usize);
+        let mut next_loc = self.lsb_location + 1;
+        if (self.lsb_location & 0xFF) as u8 == 0xFF {
+            next_loc = self.lsb_location & 0xFF00;
+        }
+        let msb = mem.get(next_loc as usize);
         let address = ((msb as u16) << 8) + (lsb as u16);
-        mem.get(address as usize)
+        address
     }
 
     fn set(&self, mem: &mut Memory, v: u8) {
@@ -667,7 +683,7 @@ mod tests {
         memory.mem[0x1213] = 0xF5;
         memory.mem[0x1214] = 0x21;
         let addressing = IndirectAddressing::new(0x13, 0x12);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(0x21F5, addressing.fetch16(&memory));
     }
 
     #[test]

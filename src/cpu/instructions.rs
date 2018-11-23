@@ -167,7 +167,38 @@ instructions!{
         0x6E => (AddressingModeType::Absolute, 6),
         0x6E => (AddressingModeType::AbsoluteX, 7)
     },
- 
+
+    // --------------------------------------------------------------------
+    // Jumps and calls
+    // The Instructions modify the program counter causing a break to normal
+    // sequential execution. the JSR pushes the old PC onto the stack before
+    // changing it to the new location. Allowing a subsequent RTS to return
+    // to the instruction after the call
+    // --------------------------------------------------------------------
+    
+    // JMP - Sets PC to the address specified by the operand.
+    // NB:
+    // An original 6502 has does not correctly fetch the target address if the indirect
+    // vector falls on a page boundary (e.g. $xxFF where xx is any value from $00 to $FF).
+    // In this case fetches the LSB from $xxFF as expected but takes the MSB from $xx00.
+    // This is fixed in some later chips like the 65SC02 so for compatibility always
+    // ensure the indirect vector is not at the end of the page.
+    JMP => {
+        0x4C => (AddressingModeType::Absolute, 3),
+        0x6C => (AddressingModeType::Indirect, 5)
+    },
+
+    // The JSR instruction pushes the address (minus one) of the return point on to the stack and
+    // then sets the program counter to the target memory address.
+    JSR => {
+        0x20 => (AddressingModeType::Absolute, 6)
+    },
+
+    // RTS - Return from Subroutine
+    RTS => {
+        0x60 => (AddressingModeType::Implied, 6)
+    },
+
     // BCC - Branch if Carry Clear
     // If the carry flag is clear then add the relative displacement to the program
     // counter to cause a branch to a new location.
@@ -189,6 +220,39 @@ instructions!{
     // Relative     $F0 2   2
     BEQ => {
         0xF0 => (AddressingModeType::Relative, 2)
+    },
+
+    // BMI - Branch if minus
+    // Take the branch if negative flag is set
+    // Relative     $30 2 2
+    BMI => {
+        0x30 => (AddressingModeType::Relative, 2)
+    },
+
+    // BNE - Branch not equal
+    // Opposite of BEQ
+    // Relative     $D0 2   2
+    BNE => {
+        0xD0 => (AddressingModeType::Relative, 2)
+    },
+
+    // BPL - Branch if positive
+    // Opposite of BMI
+    // Relative $10 2   2
+    BPL => {
+        0x10 => (AddressingModeType::Relative, 2)
+    },
+   
+    // BVC - Branch if overflow clear
+    // Relative $50 2   2
+    BVC => {
+        0x50 => (AddressingModeType::Relative, 2)
+    },
+
+    // BVS - Branch if overflow set
+    // Relative $70 2   2
+    BVS => {
+        0x70 => (AddressingModeType::Relative, 2)
     },
 
     //---------------------------------------------------
@@ -281,41 +345,6 @@ instructions!{
     DEY => {
         0x88 => (AddressingModeType::Implied, 2)
     },
-
-    // BMI - Branch if minus
-    // Take the branch if negative flag is set
-    // Relative     $30 2 2
-    BMI => {
-        0x30 => (AddressingModeType::Relative, 2)
-    },
-
-    // BNE - Branch not equal
-    // Opposite of BEQ
-    // Relative     $D0 2   2
-    BNE => {
-        0xD0 => (AddressingModeType::Relative, 2)
-    },
-
-    // BPL - Branch if positive
-    // Opposite of BMI
-    // Relative $10 2   2
-    BPL => {
-        0x10 => (AddressingModeType::Relative, 2)
-    },
-
-   
-    // BVC - Branch if overflow clear
-    // Relative $50 2   2
-    BVC => {
-        0x50 => (AddressingModeType::Relative, 2)
-    },
-
-    // BVS - Branch if overflow set
-    // Relative $70 2   2
-    BVS => {
-        0x70 => (AddressingModeType::Relative, 2)
-    },
-
     // CLC - Clear carry flag.
     // C = 0
     // Implied, we don't need addressing modes.
@@ -343,6 +372,24 @@ instructions!{
     // Implied  $B8 1   2
     CLV => {
         0xB8 => (AddressingModeType::Implied, 2)
+    },
+
+    // SEC - Set Carry Flag
+    // C = 1
+    SEC => {
+        0x38 => (AddressingModeType::Implied, 2)
+    },
+
+    // SED - Set Decimal Flag
+    // D = 1
+    SED => {
+        0xF8 => (AddressingModeType::Implied, 2)
+    },
+
+    // SEI - Set Interrupt Disable
+    // I = 1
+    SEI => {
+        0x78 => (AddressingModeType::Implied, 2)
     },
 
     // --------------------------------------------
@@ -485,8 +532,24 @@ instructions!{
     // Affect all
     PLP => {
         0x28 => (AddressingModeType::Implied, 4)
+    },
+
+    // --------------------------------------------
+    // System functions.
+    // --------------------------------------------
+    
+    // Force an interruption
+    BRK => {
+        0x00 => (AddressingModeType::Implied, 7)
+    },
+
+    // No-Operation
+    NOP => {
+        0xEA => (AddressingModeType::Implied, 2)
+    },
+
+    // RTI - Return from Interrupt
+    RTI => {
+        0x40 => (AddressingModeType::Implied, 6)
     }
-
-
-
 }

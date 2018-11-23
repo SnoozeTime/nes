@@ -248,6 +248,27 @@ impl Nes {
                 self.set_result_flags(result);
 
             },
+            // -------------------------------------
+            // Jumps
+            // ----------------------------------
+            Instruction::JMP(_, addressing, _length) => {
+                self.PC = addressing.fetch16(&self.memory);
+            },
+            Instruction::JSR(_, addressing, _) => {
+                let return_addr = self.PC - 1;
+                self.push(((return_addr & 0xFF00) >> 8) as u8);
+                self.push((return_addr & 0xFF) as u8);
+                self.PC = addressing.fetch16(&self.memory);
+            },
+            Instruction::RTS(_, _, _) => {
+                let lsb = self.pull();
+                let msb = self.pull();
+                self.PC = lsb as u16 + ((msb as u16) << 8) + 1;
+            },
+
+            // ----------------------------------------
+            // branches
+            // ----------------------------------------
             Instruction::BCC(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.C == 0 { 
@@ -465,6 +486,15 @@ impl Nes {
             Instruction::CLV(_, _, _length) => {
                 self.V = 0;
             },
+            Instruction::SEC(_, _, _) => {
+                self.C = 1;
+            },
+            Instruction::SED(_,_,_) => {
+                self.D = 1;
+            },
+            Instruction::SEI(_,_,_) => {
+                self.I = 1;
+            },
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
                 let result = addressing.fetch(&self.memory);
@@ -538,6 +568,30 @@ impl Nes {
             Instruction::PLP(_, _, _length) => {
                 let result = self.pull();
                 self.u8_to_flags(result);
+            },
+            Instruction::BRK(_,_,_) => {
+                // IRQ interrupt vector is at $FFFE/F
+                
+                // push PC and Status flag
+                let pc = self.PC;
+                self.push(((pc & 0xFF00) >> 8) as u8);
+                self.push((pc & 0xFF) as u8);
+                let flags = self.flags_to_u8();
+                self.push(flags);
+
+                let lsb = self.memory.get(0xFFFE as usize) as u16;
+                let msb = self.memory.get(0xFFFF as usize) as u16;
+                self.PC = lsb + (msb << 8);
+            },
+            Instruction::RTI(_,_,_) => {
+                let flags = self.pull();
+                self.u8_to_flags(flags);
+                let lsb = self.pull();
+                let msb = self.pull();
+                self.PC = lsb as u16 + ((msb as u16) << 8) + 1;
+            },
+            Instruction::NOP(_,_,_) => {
+                // nothing to see here.
             },
             Instruction::UNKNOWN(_,_) => {}
         };
