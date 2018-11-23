@@ -1,5 +1,5 @@
 use super::memory::{AddressingMode, RelativeAddressing, create_addressing, AddressingModeType};
-use super::cpu::Nes;
+use super::cpu::Cpu;
 use std::fmt;
 
 macro_rules! instructions {
@@ -27,7 +27,7 @@ macro_rules! instructions {
         }
 
         impl Instruction {
-            pub fn decode(nes: &mut Nes) -> Instruction {
+            pub fn decode(nes: &mut Cpu) -> Instruction {
                 let line = nes.PC();
                 let opcode = nes.advance();
                 match opcode {

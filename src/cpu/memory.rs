@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fmt::Debug;
-use super::cpu::Nes;
+use super::cpu::Cpu;
 // Will contain memory layout and access methods
 //
 
@@ -73,7 +73,7 @@ pub enum AddressingModeType {
 }
 
 pub fn create_addressing(addressing_type: AddressingModeType,
-                         nes: &mut Nes) -> Box<AddressingMode> {
+                         nes: &mut Cpu) -> Box<AddressingMode> {
     use self::AddressingModeType::*;
     match addressing_type {
     Accumulator => AccumulatorAddressing::new(&nes),
@@ -592,7 +592,7 @@ pub struct AccumulatorAddressing {
 }
 
 impl AccumulatorAddressing {
-    pub fn new(nes: &Nes) -> Box<AccumulatorAddressing> {
+    pub fn new(nes: &Cpu) -> Box<AccumulatorAddressing> {
         Box::new(AccumulatorAddressing { accumulator: nes.A() })
     }
 }
