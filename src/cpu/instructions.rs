@@ -57,13 +57,67 @@ macro_rules! instructions {
 }
 
 instructions!{
+    // -----------------------------------------------
+    // Arithmetic operations perform addition and subtractions
+    // on the contents of the accumulator.
+    // ---------------------------------------------------
     // ADC add with carry 
     // This instruction adds the contents of a memory location to A together
     // with the carry bit.
     ADC => {
         0x69 => (AddressingModeType::Immediate, 2),
         0x65 => (AddressingModeType::ZeroPage, 3),
-        0x75 => (AddressingModeType::ZeroPageX, 4)
+        0x75 => (AddressingModeType::ZeroPageX, 4),
+        0x6D => (AddressingModeType::Absolute, 4),
+        0x7D => (AddressingModeType::AbsoluteX, 4),
+        0x79 => (AddressingModeType::AbsoluteY, 4),
+        0x61 => (AddressingModeType::PreIndexedIndirect, 6),
+        0x71 => (AddressingModeType::PostIndexedIndirect, 5)
+    },
+
+    // SBC - Subtract iwth carry.
+    // A,Z,C,N = A-M-(1-C)
+    SBC => {
+        0xE9 => (AddressingModeType::Immediate, 2),
+        0xE5 => (AddressingModeType::ZeroPage, 3),
+        0xF5 => (AddressingModeType::ZeroPageX, 4),
+        0xED => (AddressingModeType::Absolute, 4),
+        0xFD => (AddressingModeType::AbsoluteX, 4),
+        0xF9 => (AddressingModeType::AbsoluteY, 4),
+        0xE1 => (AddressingModeType::PreIndexedIndirect, 6),
+        0xF1 => (AddressingModeType::PostIndexedIndirect, 5)
+    },
+
+    // CMP - Compare
+    // Z,C,N = A - M
+    // Carry flag set if A >= M
+    // Zero Flag if A = M
+    // N
+    CMP => {
+        0xC9 => (AddressingModeType::Immediate, 2),
+        0xC5 => (AddressingModeType::ZeroPage, 3),
+        0xD5 => (AddressingModeType::ZeroPageX, 4),
+        0xCD => (AddressingModeType::Absolute, 4),
+        0xDD => (AddressingModeType::AbsoluteX, 4),
+        0xD9 => (AddressingModeType::AbsoluteY, 4),
+        0xC1 => (AddressingModeType::PreIndexedIndirect, 6),
+        0xD1 => (AddressingModeType::PostIndexedIndirect, 5)
+    },
+
+    // CPX - Compare X register
+    // Z, C, N = X - M 
+    // Same as CMP
+    CPX => {
+        0xE0 => (AddressingModeType::Immediate, 2),
+        0xE4 => (AddressingModeType::ZeroPage, 3),
+        0xEC => (AddressingModeType::Absolute, 4)
+    },
+
+    // CPY - Compare Y Register
+    CPY => {
+        0xC0 => (AddressingModeType::Immediate, 2),
+        0xC4 => (AddressingModeType::ZeroPage, 3),
+        0xCC => (AddressingModeType::Absolute, 4)
     },
 
      // ASL - Arithmetic Shift Left

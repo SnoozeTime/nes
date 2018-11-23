@@ -145,6 +145,57 @@ impl Nes {
 
                 self.A = result;
             },
+            Instruction::SBC(_, addressing, _) => {
+                let rhs = addressing.fetch(&self.memory);
+                let sum: u16 = (self.A as u16)
+                    + (!rhs as u16) - (1 - self.C as u16);
+                let result = (sum & 0xFF) as u8; 
+                self.C = (sum >> 8) as u8;
+
+                self.set_result_flags(result);
+                if (rhs ^ self.A) >> 7 == 0 {
+                    // same sign
+                    if (rhs ^ result) >> 7 == 1 {
+                        self.V = 1;
+                    } else {
+                        self.V = 0;
+                    }
+                } else {
+                    self.V = 0;
+                }
+
+                self.A = result;
+            },
+            Instruction::CMP(_, addressing, _) => {
+                let m = addressing.fetch(&self.memory);
+                let (result, overflow) = self.A.overflowing_sub(m);
+                if overflow {
+                    self.C = 0;
+                } else {
+                    self.C = 1;
+                }
+                self.set_result_flags(result);
+            },
+            Instruction::CPX(_, addressing, _) => {
+                let m = addressing.fetch(&self.memory);
+                let (result, overflow) = self.X.overflowing_sub(m);
+                 if overflow {
+                    self.C = 0;
+                } else {
+                    self.C = 1;
+                }
+                self.set_result_flags(result);
+            },
+            Instruction::CPY(_, addressing, _) => {
+                let m = addressing.fetch(&self.memory);
+                let (result, overflow) = self.Y.overflowing_sub(m);
+                if overflow {
+                    self.C = 0;
+                } else {
+                    self.C = 1;
+                }
+                self.set_result_flags(result);
+            },
             Instruction::AND(_, addressing, _length) => {
                 let result = self.A & addressing.fetch(&self.memory);
                 self.set_result_flags(result);
@@ -998,6 +1049,110 @@ mod tests {
         assert_eq!(0, nes.Y);
     }
 
+    #[test]
+    fn test_cmp_a_gt_m() {
+        let code = vec![0xC9, 0x2];
+        let mut nes = Nes::new(code);
+        nes.A = 0x05;
+        nes.next().unwrap();
+
+        assert_eq!(1, nes.C);
+        assert_eq!(0, nes.Z);
+    }
+
+    #[test]
+    fn test_cmp_a_eq_m() {
+        let code = vec![0xC9, 0x2];
+        let mut nes = Nes::new(code);
+        nes.A = 0x02;
+        nes.next().unwrap();
+
+        assert_eq!(1, nes.C);
+        assert_eq!(1, nes.Z);
+
+    }
+
+    #[test]
+    fn test_cmp_a_lt_m() {
+        let code = vec![0xC9, 0x7];
+        let mut nes = Nes::new(code);
+        nes.A = 0x05;
+        nes.next().unwrap();
+
+        assert_eq!(0, nes.C);
+        assert_eq!(0, nes.Z);
+        assert_eq!(1, nes.N);
+    }
+    
+    #[test]
+    fn test_cmp_x_gt_m() {
+        let code = vec![0xE0, 0x2];
+        let mut nes = Nes::new(code);
+        nes.X = 0x05;
+        nes.next().unwrap();
+
+        assert_eq!(1, nes.C);
+        assert_eq!(0, nes.Z);
+    }
+
+    #[test]
+    fn test_cmp_x_eq_m() {
+        let code = vec![0xE0, 0x2];
+        let mut nes = Nes::new(code);
+        nes.X = 0x02;
+        nes.next().unwrap();
+
+        assert_eq!(1, nes.C);
+        assert_eq!(1, nes.Z);
+
+    }
+
+    #[test]
+    fn test_cmp_x_lt_m() {
+        let code = vec![0xE0, 0x7];
+        let mut nes = Nes::new(code);
+        nes.X = 0x05;
+        nes.next().unwrap();
+
+        assert_eq!(0, nes.C);
+        assert_eq!(0, nes.Z);
+        assert_eq!(1, nes.N);
+    }
+    
+    #[test]
+    fn test_cmp_y_gt_m() {
+        let code = vec![0xC0, 0x2];
+        let mut nes = Nes::new(code);
+        nes.Y = 0x05;
+        nes.next().unwrap();
+
+        assert_eq!(1, nes.C);
+        assert_eq!(0, nes.Z);
+    }
+
+    #[test]
+    fn test_cmp_y_eq_m() {
+        let code = vec![0xC0, 0x2];
+        let mut nes = Nes::new(code);
+        nes.Y = 0x02;
+        nes.next().unwrap();
+
+        assert_eq!(1, nes.C);
+        assert_eq!(1, nes.Z);
+
+    }
+
+    #[test]
+    fn test_cmp_y_lt_m() {
+        let code = vec![0xC0, 0x7];
+        let mut nes = Nes::new(code);
+        nes.Y = 0x05;
+        nes.next().unwrap();
+
+        assert_eq!(0, nes.C);
+        assert_eq!(0, nes.Z);
+        assert_eq!(1, nes.N);
+    }
 }
 
 
