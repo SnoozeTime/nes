@@ -213,6 +213,41 @@ impl Nes {
                 }
                 self.set_result_flags(result);
             },
+            Instruction::LSR(_, addressing, _length) => {
+                let operand = addressing.fetch(&self.memory);
+                self.C = operand & 1;
+                let result = operand >> 1;
+                match &addressing.mode_type() {
+                    AddressingModeType::Accumulator => self.A = result,
+                    _ => addressing.set(&mut self.memory, result),
+                }
+                self.set_result_flags(result);
+            },
+            Instruction::ROL(_, addressing, _) => {
+                let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
+                println!("memory 0x{:x}", addressing.fetch(&self.memory));
+                println!("${:x} & 0xFF ", shifted & 0xFF);
+                let result = (shifted & 0xFF) as u8 | (self.C & 1);
+                self.C = (shifted >> 8) as u8;
+
+                match &addressing.mode_type() {
+                    AddressingModeType::Accumulator => self.A = result,
+                    _ => addressing.set(&mut self.memory, result),
+                }
+                self.set_result_flags(result);
+
+            },
+            Instruction::ROR(_, addressing, _) => {
+                let operand = addressing.fetch(&self.memory);
+                let result = operand >> 1 | (self.C << 7);
+                self.C = operand & 1;
+                match &addressing.mode_type() {
+                    AddressingModeType::Accumulator => self.A = result,
+                    _ => addressing.set(&mut self.memory, result),
+                }
+                self.set_result_flags(result);
+
+            },
             Instruction::BCC(_, addressing, _lenght) => {
                 let offset = addressing.fetch(&self.memory);
                 if self.C == 0 { 
@@ -684,6 +719,47 @@ mod tests {
 
         assert_eq!(0x08, nes.memory.get(0x07 as usize));
         assert_eq!(0, nes.N); 
+        assert_eq!(0, nes.Z);
+        assert_eq!(1, nes.C);
+    }
+
+    #[test]
+    fn test_lsr_acc() {
+        let code = vec![0x4A]; 
+        let mut nes = Nes::new(code);
+        nes.A = 0x4B;
+        nes.next().unwrap();
+
+        assert_eq!(0x25, nes.A);
+        assert_eq!(0, nes.N); 
+        assert_eq!(0, nes.Z);
+        assert_eq!(1, nes.C);
+    }
+
+    #[test]
+    fn test_rol_acc() {
+        let code = vec![0x2A]; 
+        let mut nes = Nes::new(code);
+        nes.A = 0x4B;
+        nes.C = 1;
+        nes.next().unwrap();
+
+        assert_eq!(0x97, nes.A);
+        assert_eq!(1, nes.N); 
+        assert_eq!(0, nes.Z);
+        assert_eq!(0, nes.C);
+    }
+
+    #[test]
+    fn test_ror_mem() {
+        let code = vec![0x66, 0x02]; 
+        let mut nes = Nes::new(code);
+        nes.memory.set(0x02, 0x4B);
+        nes.C = 1;
+        nes.next().unwrap();
+
+        assert_eq!(0xa5, nes.memory.get(0x02));
+        assert_eq!(1, nes.N); 
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.C);
     }

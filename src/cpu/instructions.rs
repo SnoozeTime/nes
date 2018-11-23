@@ -120,7 +120,12 @@ instructions!{
         0xCC => (AddressingModeType::Absolute, 4)
     },
 
-     // ASL - Arithmetic Shift Left
+
+    // ------------------------------------------------------
+    // Shifts
+    // ------------------------------------------------------
+    
+    // ASL - Arithmetic Shift Left
     // A, Z, C, N = M*2 or M,Z,C,N = M*2 - Same effect as multiplication by 2.
     // Bit 0 is set to 0 and bit 7 is placed in carry. Ignoring 2's complement.
     ASL => {
@@ -131,6 +136,38 @@ instructions!{
         0x1E => (AddressingModeType::AbsoluteX, 7)
     },
 
+    // LSR - Logical shift Left
+    // A,C,Z,N = A / 2 or M,C,Z,N = M/2
+    // Each of the bits in A or M is shift one place to the right. The bit that
+    // was in bit 0 is shifted into the carry. bit 7 is 0.
+    LSR => {
+        0x4A => (AddressingModeType::Accumulator, 2),
+        0x46 => (AddressingModeType::ZeroPage, 5),
+        0x56 => (AddressingModeType::ZeroPageX, 6),
+        0x4E => (AddressingModeType::Absolute, 6),
+        0x5E => (AddressingModeType::AbsoluteX, 7)
+    },
+
+    // ROL - Rotate Left
+    // Shit to the left. Bit 7 is put in carry and old carry is put at bit 0. 
+    ROL => {
+        0x2A => (AddressingModeType::Accumulator, 2),
+        0x26 => (AddressingModeType::ZeroPage, 5),
+        0x36 => (AddressingModeType::ZeroPageX, 6),
+        0x2E => (AddressingModeType::Absolute, 6),
+        0x3E => (AddressingModeType::AbsoluteX, 7)
+    },
+    
+    // ROR - Rotate Right
+    // Opposite of ROR
+    ROR => {
+        0x6A => (AddressingModeType::Accumulator, 2),
+        0x66 => (AddressingModeType::ZeroPage, 5),
+        0x76 => (AddressingModeType::ZeroPageX, 6),
+        0x6E => (AddressingModeType::Absolute, 6),
+        0x6E => (AddressingModeType::AbsoluteX, 7)
+    },
+ 
     // BCC - Branch if Carry Clear
     // If the carry flag is clear then add the relative displacement to the program
     // counter to cause a branch to a new location.
