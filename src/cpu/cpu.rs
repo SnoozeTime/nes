@@ -36,7 +36,7 @@ impl Nes {
     pub fn new(code: Vec<u8>) -> Nes {
         Nes {
             memory: Memory::new(code),
-            PC: 0x8000,
+            PC: 0x8000,// TODO set the correct
             SP: 0xFD, 
             A: 0,
             X: 0,
@@ -65,6 +65,10 @@ impl Nes {
 
     pub fn PC(&self) -> u16 {
         self.PC
+    }
+
+    pub fn set_pc(&mut self, pc: u16) {
+        self.PC = pc;
     }
 
     fn push(&mut self, value: u8) {
@@ -579,8 +583,8 @@ impl Nes {
                 let flags = self.flags_to_u8();
                 self.push(flags);
 
-                let lsb = self.memory.get(0xFFFE as usize) as u16;
-                let msb = self.memory.get(0xFFFF as usize) as u16;
+                let lsb = self.memory.get(0xFFFE-1 as usize) as u16;
+                let msb = self.memory.get(0xFFFF-1 as usize) as u16;
                 self.PC = lsb + (msb << 8);
             },
             Instruction::RTI(_,_,_) => {
@@ -648,10 +652,8 @@ mod tests {
 
         let mut nes = Nes::new(code);
         nes.memory.set(0x06, 0x84);
-        assert_eq!(0x8000, nes.PC);
         nes.next().unwrap();
 
-        assert_eq!(0x8002, nes.PC);
         assert_eq!(0x84, nes.A);
         assert_eq!(1, nes.N); 
     }
@@ -662,10 +664,8 @@ mod tests {
 
         let mut nes = Nes::new(code);
         nes.memory.set(0xA306, 0x00);
-        assert_eq!(0x8000, nes.PC);
         nes.next().unwrap();
 
-        assert_eq!(0x8003, nes.PC);
         assert_eq!(0x00, nes.A);
         assert_eq!(0x01, nes.Z);
     }
@@ -687,10 +687,8 @@ mod tests {
         let mut nes = Nes::new(code);
         nes.X = 0x02;
         nes.memory.set(0xA308, 0x11);
-        assert_eq!(0x8000, nes.PC);
         nes.next().unwrap();
 
-        assert_eq!(0x8003, nes.PC);
         assert_eq!(0x11, nes.Y);
     }
 
@@ -768,7 +766,6 @@ mod tests {
 
         let mut nes = Nes::new(code);
         nes.memory.set(0x07, 0x84);
-        assert_eq!(0x8000, nes.PC);
         nes.next().unwrap();
 
         assert_eq!(0x08, nes.memory.get(0x07 as usize));

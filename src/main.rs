@@ -23,14 +23,24 @@ pub fn main() {
 
     let filename = args[1].clone();
     let bytes = load(filename).unwrap();
-    let mut nes = Nes::new(bytes);
 
-    loop {
-        if let Err(x) = nes.next() {
-            println!("{}", x);
+    for (i, b) in bytes.iter().enumerate() {
+
+        println!("0x{:x} - 0x{:x}", 0xC000+i, b);
+
+        if (0xFFFF < (0xC000+i)) {
             break;
         }
-    }   
+    }
+
+    //let mut nes = Nes::new(bytes);
+
+   // loop {
+     //   if let Err(x) = nes.next() {
+       //     println!("{}", x);
+         //   break;
+        //}
+    //}   
 }
 
 
