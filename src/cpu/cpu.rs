@@ -1,4 +1,5 @@
 use super::instructions::Instruction;
+use rom;
 use super::memory::*;
 
 #[allow(non_snake_case)] // PC, SP ... are names in the specs.
@@ -30,6 +31,13 @@ pub struct Cpu {
     N: u8, // negative
 }
 
+impl std::fmt::Debug for Cpu {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "PC ${:x} SP ${:x} A ${:x} X ${:x} Y ${:x} 0x02h ${:x} 0x03h ${:x}", self.PC, self.SP, self.A, self.X, self.Y, self.memory.get(0x02 as usize), self.memory.get(0x03 as usize)) 
+    }
+}
+
 impl Cpu {
    
     // will create a new NES with the given code.
@@ -38,6 +46,25 @@ impl Cpu {
             memory: Memory::new(code),
             PC: 0x8000,// TODO set the correct
             SP: 0xFD, 
+            A: 0,
+            X: 0,
+            Y: 0,
+            C: 0,
+            Z: 0,
+            I: 0,
+            D: 0,
+            B: 0,
+            V: 0,
+            N: 0,
+        }
+    }
+
+    pub fn create(ines: &rom::INesFile) -> Cpu {
+        let memory = Memory::create(ines).expect("Problem with INES");
+        Cpu {
+            memory,
+            PC: 0xC000,
+            SP: 0xFD,
             A: 0,
             X: 0,
             Y: 0,
@@ -113,6 +140,7 @@ impl Cpu {
 
         let instruction = Instruction::decode(self);
         println!("{:?}", instruction);
+        println!("{:?}", &self);
 
         let mut again_extra_cycles: u8 = 0;
         match &instruction {
@@ -344,13 +372,11 @@ impl Cpu {
             },
             Instruction::EOR(_, addressing, _length) => {
                 let operand = addressing.fetch(&self.memory);
-                println!("0x{:b} ^ 0x{:b} = 0x{:x}", self.A, operand, self.A^operand);
                 let result = self.A ^ operand;
                 self.set_result_flags(result);
                 self.A = result;
             },
             Instruction::ORA(_, addressing, _length) => {
-                println!("BOUM ORA");
                 let result = self.A | addressing.fetch(&self.memory);
                 self.set_result_flags(result);
                 self.A = result;

@@ -1,9 +1,10 @@
 use std::fmt;
 use std::fmt::Debug;
 use super::cpu::Cpu;
+use rom;
 // Will contain memory layout and access methods
 //
-
+const PAGE_SIZE: usize = 16 * 1024;
 // memory layout
 // ---------------
 // Address range    Size    Device
@@ -17,19 +18,38 @@ use super::cpu::Cpu;
 // $4018-$401F  $0008   APU and I/O functionality that is normally disabled. See CPU Test Mode.
 // $4020-$FFFF  $BFE0   Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note) 
 pub struct Memory {
-    mem: [u8; 0xFFFF],    
+    mem: [u8; 0x10000],    
 }
 
 impl Memory {
 
+    // Deprecated?
     pub fn new(rom: Vec<u8>) -> Memory {
-        let mut mem: [u8; 0xFFFF] = [0; 0xFFFF];
+        let mut mem: [u8; 0x10000] = [0; 0x10000];
         // $8000-$FFFF = Usual ROM, commonly with Mapper Registers (see MMC1 and UxROM for example)
         for (i, b) in rom.iter().enumerate() {
             mem[0x8000+i] = *b;
         }
 
         Memory { mem }
+    }
+
+
+    pub fn create(ines: &rom::INesFile) -> Result<Memory, String> {
+        let mut mem = [0; 0x10000];
+
+        // if only one page, mirror it.
+        let page_nb = ines.get_prg_rom_pages();
+
+        if page_nb == 1 {
+            let page = ines.get_prg_rom(1)?;
+            for (i, b) in page.iter().enumerate() {
+                mem[0x8000+i] = *b;
+                mem[0xC000+i] = *b;
+            }
+        }
+
+        Ok(Memory { mem })
     }
 
     pub fn set(&mut self, address: usize, value: u8) {
@@ -98,12 +118,18 @@ pub fn create_addressing(addressing_type: AddressingModeType,
         let op2 = nes.advance();
         IndexedAbsoluteAddressing::new(op1, op2, nes.Y())
     },
+    Indirect => {
+        let op1 = nes.advance();
+        let op2 = nes.advance();
+        IndirectAddressing::new(op1, op2)
+    },
     PreIndexedIndirect => {
         let op = nes.advance();
         PreIndexedIndirectAddressing::new(op, nes.X())
     },
     PostIndexedIndirect => {
         let op = nes.advance();
+        println!("WILL DO POST INDEXED -> OPERAND ${:x} Y {:x}", op, nes.Y());
         PostIndexedIndirectAddressing::new(op, nes.Y())
     },
     _ => panic!("not implemented"),
@@ -388,11 +414,13 @@ impl AddressingMode for IndexedAbsoluteAddressing {
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        mem.get((self.address as usize) + (self.offset as usize))
+        let target = self.address.wrapping_add(self.offset as u16);
+        mem.get(target as usize)
     }
 
     fn set(&self, mem: &mut Memory, v: u8) {
-        mem.set((self.address as usize) + (self.offset as usize), v)
+        let target = self.address.wrapping_add(self.offset as u16);
+        mem.set(target as usize, v)
     }    
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
@@ -559,15 +587,17 @@ impl AddressingMode for PostIndexedIndirectAddressing {
         let msb = mem.get((self.address+1) as usize);
 
         let address = ((msb as u16) << 8) + (lsb as u16);
-        mem.get((address+ (self.offset as u16)) as usize)
+        let fetch_addr: u16 = address.wrapping_add(self.offset as u16);
+        println!("Address is ${:x}", fetch_addr);
+        mem.get(fetch_addr as usize)
     }
 
     fn set(&self, mem: &mut Memory, v: u8) {
         let lsb = mem.get(self.address as usize);
         let msb = mem.get((self.address+1) as usize);
         let address = ((msb as u16) << 8) + (lsb as u16);
-
-        mem.set((address+(self.offset as u16)) as usize, v);
+        let fetch_addr: u16 = address.wrapping_add(self.offset as u16);
+        mem.set(fetch_addr as usize, v);
     }    
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
@@ -707,5 +737,16 @@ mod tests {
         assert_eq!(3, addressing.fetch(&memory));
     }
 
+    #[test]
+    fn test_post_indirect_addressing() {
+
+        // 0xd940  LDA     Post-index Indirect adressing at: 0x97+0x34     cycles: 5
+        let mut memory = Memory::new(vec![]);
+        memory.mem[0x0013] = 0x97;
+        memory.mem[0x0014] = 0x34;
+        memory.mem[0x3497] = 0x3;
+        let addressing = PostIndexedIndirectAddressing::new(0x13, 0x00);
+        assert_eq!(3, addressing.fetch(&memory));
+    }
 }
     

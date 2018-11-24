@@ -62,6 +62,7 @@ pub fn read(filename: String) -> Result<INesFile, String> {
 
     Ok(INesFile {
         prg_rom,
+        prg_rom_pages: prg_rom_size,
         chr_rom_size,
         prg_ram_size,
         flags_6,
@@ -75,6 +76,7 @@ pub fn read(filename: String) -> Result<INesFile, String> {
 pub struct INesFile {
     // Headers
     prg_rom: Vec<u8>, // in 16kb units
+    prg_rom_pages: usize, // pages
     chr_rom_size: usize, // in 8kb units (value 0 means the board uses CHR RAM)
     flags_6: u8,
     flags_7: u8,
@@ -83,6 +85,23 @@ pub struct INesFile {
     flags_10: u8, // unofficial
 }
 
+impl INesFile {
+    
+
+    pub fn get_prg_rom_pages(&self) -> usize {
+        self.prg_rom_pages
+    }
+
+    pub fn get_prg_rom(&self, page_nb: usize) -> Result<&[u8], String> {
+        if page_nb > self.prg_rom_pages {
+            return Err(format!("Tried to access page {}, but only have {} pages",
+                               page_nb,
+                               self.prg_rom_pages));
+        }
+
+        Ok(&self.prg_rom[(page_nb-1)*16*1024..page_nb*16*1024])
+    }
+}
 #[cfg(test)]
 mod tests {
 
