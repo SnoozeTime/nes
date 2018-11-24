@@ -1,6 +1,4 @@
 use std::env;
-use std::io::prelude::*;
-use std::io::Error;
 mod nes;
 mod cpu;
 mod rom;
@@ -18,6 +16,7 @@ pub fn main() {
     let name = args[1].clone();
     let ines = rom::read(name).expect("IIIIINNNNNEEESS");
     let mut nes = Cpu::create(&ines);
+    nes.set_pc(0xC000);
 
     loop {
         if let Err(x) = nes.next() {

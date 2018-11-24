@@ -48,7 +48,7 @@ pub fn read(filename: String) -> Result<INesFile, String> {
     let mut trainer = [0; 512];
     if (flags_6 >> 2) & 1 == 1 {
             
-        for i in (offset..offset+512) {
+        for i in offset..offset+512 {
             trainer[i-offset] = bytes[i];
         }
         offset += 512;
@@ -56,7 +56,7 @@ pub fn read(filename: String) -> Result<INesFile, String> {
 
     // then read the prg rom.
     let mut prg_rom = Vec::new();
-    for i in (offset..offset+(prg_rom_size*16384)) {
+    for i in offset..offset+(prg_rom_size*16384) {
         prg_rom.push(bytes[i]);
     }
 

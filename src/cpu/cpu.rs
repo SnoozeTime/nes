@@ -26,7 +26,6 @@ pub struct Cpu {
     Z: u8, // Zero
     I: u8, // Interrupt disable
     D: u8, // Decimal mode
-    B: u8, // Break
     V: u8, // Overflow
     N: u8, // negative
 }
@@ -34,7 +33,8 @@ pub struct Cpu {
 impl std::fmt::Debug for Cpu {
 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "PC ${:x} SP ${:x} A ${:x} X ${:x} Y ${:x} 0x02h ${:x} 0x03h ${:x}", self.PC, self.SP, self.A, self.X, self.Y, self.memory.get(0x02 as usize), self.memory.get(0x03 as usize)) 
+        let p = self.flags_to_u8();
+        write!(f, "A:{:x} X:{:x} Y:{:x} P:{:x} SP:{:x}", self.A, self.X, self.Y, p, self.SP) 
     }
 }
 
@@ -53,7 +53,6 @@ impl Cpu {
             Z: 0,
             I: 0,
             D: 0,
-            B: 0,
             V: 0,
             N: 0,
         }
@@ -63,7 +62,7 @@ impl Cpu {
         let memory = Memory::create(ines).expect("Problem with INES");
         Cpu {
             memory,
-            PC: 0xC000,
+            PC: 0x8000,
             SP: 0xFD,
             A: 0,
             X: 0,
@@ -72,25 +71,24 @@ impl Cpu {
             Z: 0,
             I: 0,
             D: 0,
-            B: 0,
             V: 0,
             N: 0,
         }
     }
 
-    pub fn A(&self) -> u8 {
+    pub fn get_acc(&self) -> u8 {
         self.A
     }
 
-    pub fn X(&self) -> u8 {
+    pub fn get_regx(&self) -> u8 {
         self.X
     }
 
-    pub fn Y(&self) -> u8 {
+    pub fn get_regy(&self) -> u8 {
         self.Y
     }
 
-    pub fn PC(&self) -> u16 {
+    pub fn get_pc(&self) -> u16 {
         self.PC
     }
 
@@ -134,13 +132,8 @@ impl Cpu {
 
     pub fn next(&mut self) -> Result<u8, &'static str> {
 
-        if (self.PC > 0xFFFF) {
-            return Err("Finished");
-        }
-
         let instruction = Instruction::decode(self);
-        println!("{:?}", instruction);
-        println!("{:?}", &self);
+        println!("{:?}\t{: <100?}", instruction, &self);
 
         let mut again_extra_cycles: u8 = 0;
         match &instruction {

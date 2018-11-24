@@ -100,8 +100,8 @@ pub fn create_addressing(addressing_type: AddressingModeType,
     Implied => ImpliedAddressing::new(),
     Immediate => ImmediateAddressing::new(nes.advance()),
     ZeroPage => ZeroPageAddressing::new(nes.advance()),
-    ZeroPageX => IndexedZeroPageAddressing::new(nes.advance(), nes.X()),
-    ZeroPageY => IndexedZeroPageAddressing::new(nes.advance(), nes.Y()),
+    ZeroPageX => IndexedZeroPageAddressing::new(nes.advance(), nes.get_regx()),
+    ZeroPageY => IndexedZeroPageAddressing::new(nes.advance(), nes.get_regy()),
     Relative => RelativeAddressing::new(nes.advance()),
     Absolute => {
         let op1 = nes.advance();
@@ -111,12 +111,12 @@ pub fn create_addressing(addressing_type: AddressingModeType,
     AbsoluteX => {
         let op1 = nes.advance();
         let op2 = nes.advance();
-        IndexedAbsoluteAddressing::new(op1, op2, nes.X())
+        IndexedAbsoluteAddressing::new(op1, op2, nes.get_regx())
     },
     AbsoluteY => {
         let op1 = nes.advance();
         let op2 = nes.advance();
-        IndexedAbsoluteAddressing::new(op1, op2, nes.Y())
+        IndexedAbsoluteAddressing::new(op1, op2, nes.get_regy())
     },
     Indirect => {
         let op1 = nes.advance();
@@ -125,12 +125,11 @@ pub fn create_addressing(addressing_type: AddressingModeType,
     },
     PreIndexedIndirect => {
         let op = nes.advance();
-        PreIndexedIndirectAddressing::new(op, nes.X())
+        PreIndexedIndirectAddressing::new(op, nes.get_regx())
     },
     PostIndexedIndirect => {
         let op = nes.advance();
-        println!("WILL DO POST INDEXED -> OPERAND ${:x} Y {:x}", op, nes.Y());
-        PostIndexedIndirectAddressing::new(op, nes.Y())
+        PostIndexedIndirectAddressing::new(op, nes.get_regy())
     },
     _ => panic!("not implemented"),
     }
@@ -623,7 +622,7 @@ pub struct AccumulatorAddressing {
 
 impl AccumulatorAddressing {
     pub fn new(nes: &Cpu) -> Box<AccumulatorAddressing> {
-        Box::new(AccumulatorAddressing { accumulator: nes.A() })
+        Box::new(AccumulatorAddressing { accumulator: nes.get_acc() })
     }
 }
 
