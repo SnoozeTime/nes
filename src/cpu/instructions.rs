@@ -552,7 +552,7 @@ instructions!{
     // RTI - Return from Interrupt
     RTI => {
         0x40 => (Implied, 6)
-    }
+    },
 
     // -------------------------------------------
     // Below are illegal opcode. They have to be
@@ -560,10 +560,61 @@ instructions!{
     // games are using them and they can break the code flow
     // if not found. (e.g. supposed to read 4 bytes but just read 1)
     // ----------------------------------------------------------
-        
+    
+    // COMBINED INSTRUCTIONS - Combine two instructions in one to
+    // go around the compressed size of executables.
+    
     // ANC - AND Byte with Accumulator. I
-//    ANC => {
-//        0x0B => (Immediate,
-//    },
+    ANC => {
+        0x0B => (Immediate, 2),
+        0x2B => (Immediate, 2)
+    },
+
+    // AXS
+    // AND X register with accumulator and store result in memory.
+    AXS => {
+        0x87 => (ZeroPage, 3),
+        0x97 => (ZeroPageY, 4),
+        0x83 => (PreIndexedIndirect, 6),
+        0x8F => (Absolute, 4)
+    },
+
+    // ARR
+    // AND byte with accumulator, then rotate one bit right in A and check bit 5 and
+    // 6
+    // Similar to AND #i then ROR A, except sets the flags differently. N and Z are normal, but C
+    // is bit 6 and V is bit 6 xor bit 5. A fast way to perform signed division by 4 is: CMP #$80;
+    // ARR #$FF; ROR. This can be extended to larger powers of two.
+    ARR => {
+        0x6B => (Immediate, 2)
+    },
+
+    // ALR
+    // AND byte with accumulator, then shift right one bit in accumulator.
+    ALR => {
+        0x4B => (Immediate, 2)   
+    },
+
+    // LAX 
+    // Load accumulator and X register with memory.
+    // LDA then TAX
+    LAX => {
+        0xA7 => (ZeroPage, 3),
+        0xB7 => (ZeroPageY, 4),
+        0xAF => (Absolute, 4),
+        0xBF => (AbsoluteY, 4),
+        0xA3 => (PreIndexedIndirect, 6),
+        0xB3 => (PostIndexedIndirect, 5)
+    },
+
+    // SAX
+    //AND X register with accumulator and store result in memory. Status
+    // flags: N,Z
+    SAX => {
+        0x87 => (ZeroPage, 3),
+        0x97 => (ZeroPageY, 4),
+        0x83 => (PostIndexedIndirect, 6),
+        0x8F => (Absolute, 4)
+    }
 
 }

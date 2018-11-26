@@ -616,6 +616,72 @@ impl Cpu {
             Instruction::NOP(_,_,_) => {
                 // nothing to see here.
             },
+
+            // ----------------------------------------------
+            // Unofficial opcodes
+            // ---------------------------------------------
+            Instruction::ANC(_, addressing, _) => {
+                let result = self.A & addressing.fetch(&self.memory);
+                self.set_result_flags(result);
+                self.C = self.N;
+            },
+            Instruction::AXS(_, addressing, _) => {
+                let result = self.A & self.X;
+                addressing.set(&mut self.memory, result);
+                self.set_result_flags(result);
+            },
+            Instruction::ARR(_, addressing, _) => {
+                let operand = addressing.fetch(&self.memory);
+                
+                let and_result = operand & self.A;
+                let result = and_result >> 1 | (self.C << 7);
+                self.C = and_result & 1;
+
+                let sixth_bit = result >> 6 & 1; 
+                let fifth_bit = result >> 5 & 1;
+                match (sixth_bit, fifth_bit) {
+                    (1, 1) => {
+                        self.C = 1;
+                        self.V = 0;
+                    },
+                    (0, 0) => {
+                        self.C = 0;
+                        self.V = 0;
+                    },
+                    (0, 1) => {
+                        self.V = 1;
+                        self.C = 0;
+                    },
+                    (1, 0) => {
+                        self.V = 1;
+                        self.C = 1;
+                    }
+                    (_, _) => {//uh
+                    }
+                }
+                self.set_result_flags(result);
+                self.A = result;
+            },
+            Instruction::ALR(_, addressing, _) => {
+                let operand = addressing.fetch(&self.memory);
+                let before_shift = self.A & operand;
+                self.C = before_shift & 1;
+                let result = before_shift >> 1;
+                self.A = result;
+                self.set_result_flags(result);
+
+            },
+            Instruction::LAX(_, addressing, _) => {
+                let operand = addressing.fetch(&self.memory);
+                self.X = operand;
+                self.A = operand;
+                self.set_result_flags(operand);
+            },
+            Instruction::SAX(_, addressing, _) => {
+                let result = self.A & self.X;
+                self.set_result_flags(result);
+                addressing.set(&mut self.memory, result);
+            },
             Instruction::UNKNOWN(_,_) => {}
         };
 
@@ -1299,6 +1365,98 @@ mod tests {
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.N);
     }
+    // -----------------------------------------------
+    // Quick testing of unofficial opcodes.
+    
+    // Does AND #i, setting N and Z flags based on the result. Then it copies N (bit 7) to C
+    #[test]
+    fn test_anc() {
+        let code = vec![0x0B, 0xFF];
+        let mut nes = Cpu::new(code);
+        nes.A = 0xC2; // negatif
+
+        nes.next().unwrap();
+        assert_eq!(1, nes.C);
+        assert_eq!(1, nes.N);
+        assert_eq!(0, nes.Z);
+    }
+
+    // AND X register with accumulator and store result in X
+    #[test]
+    fn test_axs() {
+
+        let code = vec![0x87, 0x01];
+        let mut nes = Cpu::new(code);
+        nes.X = 0x12;
+        nes.A = 0x46;
+        nes.next().unwrap();
+        assert_eq!(0x02, nes.memory.get(0x01));
+        assert_eq!(0, nes.N);
+        assert_eq!(0, nes.Z);
+    }
+
+    // AND byte with accumulator, then rotate one bit right in accu-mulator and
+    // check bit 5 and 6:
+    // If both bits are 1: set C, clear V.
+    // If both bits are 0: clear C and V.
+    // If only bit 5 is 1: set V, clear C.
+    // If only bit 6 is 1: set C and V.
+    // Status flags: N,V,Z,C
+    #[test]
+    fn test_arr() {
+        let code = vec![0x6B, 0xD1];
+        let mut nes = Cpu::new(code);
+        nes.A = 0xFF;
+        
+        nes.next().unwrap();
+        assert_eq!(1, nes.C);
+        assert_eq!(0, nes.V);
+        assert_eq!(0, nes.N);
+        assert_eq!(0, nes.Z);
+        assert_eq!(0x68, nes.A);
+    }
+
+    // ALR
+    // This opcode ANDs the contents of the A register with an immediate value and 
+    // then LSRs the result.
+    #[test]
+    fn test_alr() {
+        let code = vec![0x4B, 0xD1];
+        let mut nes = Cpu::new(code);
+        nes.A = 0xc4;
+        // AND is 0b11000000
+        // Shift right -> 0b01100000 and C = 0
+        nes.next().unwrap();
+        assert_eq!(0, nes.C);
+        assert_eq!(0, nes.N);
+        assert_eq!(0, nes.Z);
+        assert_eq!(0x60, nes.A);
+    }
+
+    #[test]
+    fn test_lax() {
+        let code = vec![0xA7, 0xD1];
+        let mut nes = Cpu::new(code);
+        nes.memory.set(0xD1, 0x54);
+
+        nes.next().unwrap();
+        
+        assert_eq!(0x54, nes.A);
+        assert_eq!(0x54, nes.X);
+        assert_eq!(0, nes.N);
+        assert_eq!(0, nes.Z);
+    }
+
+    #[test]
+    fn test_sax() {
+        let code = vec![0x87, 0xD1];
+        let mut nes = Cpu::new(code);
+        nes.X = 0x53;
+        nes.A = 0x62;
+        nes.next().unwrap();
+        assert_eq!(0x42, nes.memory.get(0xD1));
+    }
+
 }
 
 

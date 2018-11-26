@@ -747,5 +747,6 @@ mod tests {
         let addressing = PostIndexedIndirectAddressing::new(0x13, 0x00);
         assert_eq!(3, addressing.fetch(&memory));
     }
+
 }
     
