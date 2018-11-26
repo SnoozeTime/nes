@@ -615,6 +615,114 @@ instructions!{
         0x97 => (ZeroPageY, 4),
         0x83 => (PostIndexedIndirect, 6),
         0x8F => (Absolute, 4)
+    },
+
+    // RMW (read modify write) instructions
+    
+    // DCP
+    // Equivalent to DEC value then CMP value
+    DCP => {
+        0xC7 => (ZeroPage, 5),
+        0xD7 => (ZeroPageX, 6),
+        0xCF => (Absolute, 6),
+        0xDF => (AbsoluteX, 7),
+        0xDB => (AbsoluteY, 7),
+        0xC3 => (PreIndexedIndirect, 8),
+        0xD3 => (PostIndexedIndirect, 8)
+    },
+
+    // ISC
+    // Increase memory then subtract memory from A
+    // M = M + 1
+    // A = A - M)
+    ISC => {
+        0xE7 => (ZeroPage, 5),
+        0xF7 => (ZeroPageX, 6),
+        0xEF => (Absolute, 6),
+        0xFF => (AbsoluteX, 7),
+        0xFB => (AbsoluteY, 7),
+        0xE3 => (PreIndexedIndirect, 8),
+        0xF3 => (PostIndexedIndirect, 8)
+    },
+
+    // RLA
+    // Equivalent to ROL value then AND value, except supporting more addressing modes. LDA #$FF followed by RLA is an efficient way to rotate a variable while also loading it in A.
+    RLA => {
+        0x27 => (ZeroPage, 5),
+        0x37 => (ZeroPageX, 6),
+        0x2F => (Absolute, 6),
+        0x3F => (AbsoluteX, 7),
+        0x3B => (AbsoluteY, 7),
+        0x23 => (PreIndexedIndirect, 8),
+        0x33 => (PostIndexedIndirect, 8)
+    },
+
+    // RRA
+    // Equivalent to ROR value then ADC value, except supporting more addressing modes.  Essentially this computes A + value / 2, where value is 9-bit and the division is  rounded up.
+    RRA => {
+        0x67 => (ZeroPage, 5),
+        0x77 => (ZeroPageX, 6),
+        0x6F => (Absolute, 6),
+        0x7F => (AbsoluteX, 7),
+        0x7B => (AbsoluteY, 7),
+        0x63 => (PreIndexedIndirect, 8),
+        0x73 => (PostIndexedIndirect, 8)
+    },
+
+    // SLO
+    // Shift left one bit in memory then OR A with mem.
+    SLO => {
+        0x07 => (ZeroPage, 5),
+        0x17 => (ZeroPageX, 6),
+        0x0F => (Absolute, 6),
+        0x1F => (AbsoluteX, 7),
+        0x1B => (AbsoluteY, 7),
+        0x03 => (PreIndexedIndirect, 8),
+        0x13 => (PostIndexedIndirect, 8)
+    },
+
+
+    // SRE
+    // Shift right one bit in memory then EOR with memory
+    //     Equivalent to LSR value then EOR value, except supporting more addressing modes. LDA #0 followed by SRE is an efficient way to shift a variable while also loading it in A.
+    SRE => {
+        0x47 => (ZeroPage, 5),
+        0x57 => (ZeroPageX, 6),
+        0x4F => (Absolute, 6),
+        0x5F => (AbsoluteX, 7),
+        0x5B => (AbsoluteY, 7),
+        0x43 => (PreIndexedIndirect, 8),
+        0x53 => (PostIndexedIndirect, 8)
+    },
+
+    // Triple nop. Read a value and od nothing.
+    TOP => {
+        0x0C => (Absolute, 4),
+        0x1C => (AbsoluteX, 4),
+        0x3C => (AbsoluteX, 4),
+        0x5C => (AbsoluteX, 4),
+        0x7C => (AbsoluteX, 4),
+        0xDC => (AbsoluteX, 4),
+        0xFC => (AbsoluteX, 4)
+    },
+
+    // DOUBLE NOP. IM OUTTA HERE
+    DOP => {
+        0x04 => (ZeroPage, 3),
+        0x14 => (ZeroPageX, 4),
+        0x34 => (ZeroPageX, 4),
+        0x44 => (ZeroPage, 3),
+        0x54 => (ZeroPageX, 4),
+        0x64 => (ZeroPage, 3),
+        0x74 => (ZeroPageX, 4),
+        0x80 => (Immediate, 2),
+        0x82 => (Immediate, 2),
+        0x89 => (Immediate, 2),
+        0xC2 => (Immediate, 2),
+        0xD4 => (ZeroPageX, 4),
+        0xE2 => (Immediate, 2),
+        0xF4 => (ZeroPageX, 4)
     }
+
 
 }

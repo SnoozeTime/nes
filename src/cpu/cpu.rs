@@ -227,7 +227,6 @@ impl Cpu {
                 self.A = result;
             },
             Instruction::ASL(_, addressing, _length) => {
-                // This is a funny one.
                 let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8;
                 self.C = (shifted >> 8) as u8;
@@ -250,8 +249,6 @@ impl Cpu {
             },
             Instruction::ROL(_, addressing, _) => {
                 let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
-                println!("memory 0x{:x}", addressing.fetch(&self.memory));
-                println!("${:x} & 0xFF ", shifted & 0xFF);
                 let result = (shifted & 0xFF) as u8 | (self.C & 1);
                 self.C = (shifted >> 8) as u8;
 
@@ -613,7 +610,9 @@ impl Cpu {
                 let msb = self.pull();
                 self.PC = lsb as u16 + ((msb as u16) << 8) + 1;
             },
-            Instruction::NOP(_,_,_) => {
+            Instruction::NOP(_,_,_) 
+                | Instruction::DOP(_,_,_) 
+                | Instruction::TOP(_,_,_) => {
                 // nothing to see here.
             },
 
@@ -681,6 +680,115 @@ impl Cpu {
                 let result = self.A & self.X;
                 self.set_result_flags(result);
                 addressing.set(&mut self.memory, result);
+            },
+            Instruction::DCP(_, addressing, _) => {
+                let operand = addressing.fetch(&self.memory);
+                let result = operand.wrapping_sub(1);
+                addressing.set(&mut self.memory, result);
+                let (test_result, overflow) = self.A.overflowing_sub(result);
+                if overflow {
+                    self.C = 0;
+                } else {
+                    self.C = 1;
+                }
+                self.set_result_flags(test_result);
+
+            },
+            Instruction::ISC(_, addressing, _) => {
+                // INC
+                let result = addressing.fetch(&self.memory).wrapping_add(1);
+                self.set_result_flags(result);
+                addressing.set(&mut self.memory, result);
+
+                // SBC
+                let sum: u16 = (self.A as u16)
+                    + (!result as u16) - (1 - self.C as u16);
+                let sub_result = (sum & 0xFF) as u8; 
+                self.C = (sum >> 8) as u8;
+
+                self.set_result_flags(sub_result);
+                if (result ^ self.A) >> 7 == 0 {
+                    // same sign
+                    if (result ^ sub_result) >> 7 == 1 {
+                        self.V = 1;
+                    } else {
+                        self.V = 0;
+                    }
+                } else {
+                    self.V = 0;
+                }
+
+                self.A = sub_result;
+            },
+            Instruction::RLA(_, addressing, _) => {
+
+                let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
+                let result = (shifted & 0xFF) as u8 | (self.C & 1);
+                self.C = (shifted >> 8) as u8;
+                addressing.set(&mut self.memory, result);
+
+                let and_result = self.A & result;
+                self.set_result_flags(and_result);
+                self.A = and_result;
+            },
+            Instruction::RRA(_, addressing, _) => {
+                // ROR then ADC.
+                let operand = addressing.fetch(&self.memory);
+                let result = operand >> 1 | (self.C << 7);
+                self.C = operand & 1;
+                addressing.set(&mut self.memory, result);
+                self.set_result_flags(result);
+                
+                // max value is 0x1FF. There is carry if > 0xFF.
+                let sum: u16 = (self.A as u16)
+                    + (result as u16) + (self.C as u16);
+                let sum_result = (sum & 0xFF) as u8; 
+                self.C = (sum >> 8) as u8;
+
+                self.set_result_flags(sum_result);
+
+                // now the overflow.
+                // if addition of two negative numbers yield a positive result, set
+                // V to 1.
+                // if addition of two positive numbers yield a negative result, set V 
+                // to 1.
+                // TODO Do that better
+                if (result ^ self.A) >> 7 == 0 {
+                    // same sign
+                    if (result ^ sum_result) >> 7 == 1 {
+                        self.V = 1;
+                    } else {
+                        self.V = 0;
+                    }
+                } else {
+                    self.V = 0;
+                }
+
+                self.A = sum_result;
+            },
+            Instruction::SLO(_, addressing, _) => {
+                // shift left one bit in memory
+                let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
+                let result = (shifted & 0xFF) as u8;
+                self.C = (shifted >> 8) as u8;
+                addressing.set(&mut self.memory, result);
+
+                // OR With A.
+                let or_result = self.A | result;
+                self.A = or_result;
+                self.set_result_flags(or_result);
+            },
+            Instruction::SRE(_, addressing, _) => {
+                // Shift right.
+                let operand = addressing.fetch(&self.memory);
+                self.C = operand & 1;
+                let result = operand >> 1;
+                addressing.set(&mut self.memory, result);
+                
+                // EOR With A 
+                let eor_result = self.A ^ result;
+                self.set_result_flags(eor_result);
+                self.A = eor_result;
             },
             Instruction::UNKNOWN(_,_) => {}
         };

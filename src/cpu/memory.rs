@@ -4,7 +4,7 @@ use super::cpu::Cpu;
 use rom;
 // Will contain memory layout and access methods
 //
-const PAGE_SIZE: usize = 16 * 1024;
+//const PAGE_SIZE: usize = 16 * 1024;
 // memory layout
 // ---------------
 // Address range    Size    Device
@@ -465,7 +465,7 @@ impl AddressingMode for IndirectAddressing {
         AddressingModeType::Indirect
     }
 
-    fn fetch(&self, mem: &Memory) -> u8 {
+    fn fetch(&self, _mem: &Memory) -> u8 {
         0    
     }
 
@@ -660,7 +660,7 @@ mod tests {
 
     #[test]
     fn test_immediate() {
-        let mut memory = Memory::new(vec![0;5]);
+        let memory = Memory::new(vec![0;5]);
         let addressing = ImmediateAddressing::new(8);
         assert_eq!(8, addressing.fetch(&memory));
     }
