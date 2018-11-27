@@ -33,7 +33,7 @@ pub struct Cpu {
 impl std::fmt::Debug for Cpu {
 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let p = self.flags_to_u8();
+        let p = self.flags_to_u8_debug();
         write!(f, "A:{:x} X:{:x} Y:{:x} P:{:x} SP:{:x}", self.A, self.X, self.Y, p, self.SP) 
     }
 }
@@ -121,6 +121,20 @@ impl Cpu {
         b
     }
 
+    fn flags_to_u8_debug(&self) -> u8 {
+
+        // http://wiki.nesdev.com/w/index.php/Status_flags
+        let b = ((self.N as u8) << 7)
+            + ((self.V as u8) << 6)
+            + (1 << 5) // this is to match with nestest log
+            + ((self.D as u8) << 3)
+            + ((self.I as u8) << 2)
+            + ((self.Z as u8) << 1)
+            + (self.C as u8);
+        b
+    }
+
+
     fn u8_to_flags(&mut self, b: u8) {
         self.N = (b >> 7) & 0x1 as u8;
         self.V = (b >> 6) & 0x1 as u8;
@@ -173,7 +187,7 @@ impl Cpu {
             Instruction::SBC(_, addressing, _) => {
                 let rhs = addressing.fetch(&self.memory);
                 let sum: u16 = (self.A as u16)
-                    + (!rhs as u16) - (1 - self.C as u16);
+                    + (!rhs as u16 + 1) - (1 - self.C as u16);
                 let result = (sum & 0xFF) as u8; 
                 self.C = (sum >> 8) as u8;
 
@@ -350,8 +364,9 @@ impl Cpu {
             },
             Instruction::BIT(_, addressing, _length) => {
                 let to_test = addressing.fetch(&self.memory);
+                let result = to_test & self.A;
                 // set Z if to_test & A == 0
-                if (to_test & self.A) == 0 {
+                if (result) == 0 {
                     self.Z = 1;
                 } else {
                     self.Z = 0;
@@ -359,6 +374,9 @@ impl Cpu {
 
                 self.V = (to_test >> 6) & 0x1;
                 self.N = (to_test >> 7) & 0x1;
+
+//                println!("BIT {:x} & {:x} = {:x}", self.A, to_test, result);
+                
             },
             Instruction::EOR(_, addressing, _length) => {
                 let operand = addressing.fetch(&self.memory);
