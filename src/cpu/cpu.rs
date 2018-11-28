@@ -157,53 +157,11 @@ impl Cpu {
                 // ADC can be used both with signed and unsigned numbers.
                 // 
                 let rhs = addressing.fetch(&self.memory);
-                // max value is 0x1FF. There is carry if > 0xFF.
-                let sum: u16 = (self.A as u16)
-                    + (rhs as u16) + (self.C as u16);
-                let result = (sum & 0xFF) as u8; 
-                self.C = (sum >> 8) as u8;
-
-                self.set_result_flags(result);
-
-                // now the overflow.
-                // if addition of two negative numbers yield a positive result, set
-                // V to 1.
-                // if addition of two positive numbers yield a negative result, set V 
-                // to 1.
-                // TODO Do that better
-                if (rhs ^ self.A) >> 7 == 0 {
-                    // same sign
-                    if (rhs ^ result) >> 7 == 1 {
-                        self.V = 1;
-                    } else {
-                        self.V = 0;
-                    }
-                } else {
-                    self.V = 0;
-                }
-
-                self.A = result;
+                self.adc(rhs);
             },
             Instruction::SBC(_, addressing, _) => {
                 let rhs = addressing.fetch(&self.memory);
-                let sum: u16 = (self.A as u16)
-                    + (!rhs as u16 + 1) - (1 - self.C as u16);
-                let result = (sum & 0xFF) as u8; 
-                self.C = (sum >> 8) as u8;
-
-                self.set_result_flags(result);
-                if (rhs ^ self.A) >> 7 == 0 {
-                    // same sign
-                    if (rhs ^ result) >> 7 == 1 {
-                        self.V = 1;
-                    } else {
-                        self.V = 0;
-                    }
-                } else {
-                    self.V = 0;
-                }
-
-                self.A = result;
+                self.adc(!rhs);
             },
             Instruction::CMP(_, addressing, _) => {
                 let m = addressing.fetch(&self.memory);
@@ -626,7 +584,7 @@ impl Cpu {
                 self.u8_to_flags(flags);
                 let lsb = self.pull();
                 let msb = self.pull();
-                self.PC = lsb as u16 + ((msb as u16) << 8) + 1;
+                self.PC = lsb as u16 + ((msb as u16) << 8);// + 1;
             },
             Instruction::NOP(_,_,_) 
                 | Instruction::DOP(_,_,_) 
@@ -833,6 +791,28 @@ impl Cpu {
         let code = self.memory.get(self.PC as usize);
         self.PC += 1;
         code
+    }
+
+    fn adc(&mut self, rhs: u8) {
+        // max value is 0x1FF. There is carry if > 0xFF.
+        let sum: u16 = (self.A as u16)
+            + (rhs as u16) + (self.C as u16);
+        let result = (sum & 0xFF) as u8; 
+        self.C = (sum >> 8) as u8;
+
+        self.set_result_flags(result);
+
+        // now the overflow.
+        // if addition of two negative numbers yield a positive result, set
+        // V to 1.
+        // if addition of two positive numbers yield a negative result, set V 
+        // to 1.
+        if ((rhs ^ self.A) >> 7 == 0) && ((rhs ^ result) >> 7 == 1) {
+            self.V = 1;
+        } else {
+            self.V = 0;
+        }
+        self.A = result;
     }
 }
 

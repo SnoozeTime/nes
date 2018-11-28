@@ -53,11 +53,19 @@ impl Memory {
     }
 
     pub fn set(&mut self, address: usize, value: u8) {
+        // TODO what happen if try to set in a mirror?
+        
         self.mem[address] = value;
     }
 
     pub fn get(&self, address: usize) -> u8 {
-        self.mem[address]
+
+        // mirror of zero page.
+        if (address < 0x2000) {
+            self.mem[address & 0x7FF]
+        } else {
+            self.mem[address]
+        }
     }
 }
 
@@ -502,16 +510,17 @@ impl fmt::Debug for IndirectAddressing {
 }
 
 // Indexed indirect (aka pre-indexed)... wtf.
+// Initial address in zero-page
 // E.g. LDA ($44, X)
 // --------------------------------------------
 pub struct PreIndexedIndirectAddressing {
-    address: u16, // address is u16 but is always 0x00XX
+    address: u8, // address is u16 but is always 0x00XX
     offset: u8,
 }
 
 impl PreIndexedIndirectAddressing {
     pub fn new(address_byte: u8, offset: u8) -> Box<PreIndexedIndirectAddressing> {
-        let address = address_byte as u16;
+        let address = address_byte;
         Box::new(PreIndexedIndirectAddressing { address, offset })
     }
 }
@@ -522,22 +531,23 @@ impl AddressingMode for PreIndexedIndirectAddressing {
     }
 
     fn fetch(&self, mem: &Memory) -> u8 {
-        let lsb_location = self.address + (self.offset as u16);
+        let lsb_location = self.address.wrapping_add(self.offset);
         let lsb = mem.get(lsb_location as usize);
-        let msb = mem.get((lsb_location+1) as usize);
+        let msb = mem.get(lsb_location.wrapping_add(1) as usize);
+
 
         let address = ((msb as u16) << 8) + (lsb as u16);
         mem.get(address as usize)
     }
 
     fn set(&self, mem: &mut Memory, v: u8) {
-        let lsb_location = self.address + (self.offset as u16);
+        let lsb_location = self.address.wrapping_add(self.offset);
         let lsb = mem.get(lsb_location as usize);
-        let msb = mem.get((lsb_location+1) as usize);
+        let msb = mem.get(lsb_location.wrapping_add(1) as usize);
 
         let address = ((msb as u16) << 8) + (lsb as u16);
         mem.set(address as usize, v);
-    }    
+    }
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
