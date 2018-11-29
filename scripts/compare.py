@@ -19,5 +19,5 @@ if __name__ == "__main__":
     for (i, ((nb1, sp1), (nb2, sp2))) in enumerate(zip(mylog_sp, correctlog_sp)):
         print('{} {} - {} vs {}'.format(
             nb1, nb2, sp1, sp2))
-        if sp1.lower() != sp2.lower() or nb1.lower() != nb2.lower():
+        if sp1.lower() != sp2.lower() or int(nb1.lower(),16) != int(nb2.lower(), 16):
             break

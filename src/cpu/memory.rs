@@ -575,13 +575,13 @@ impl fmt::Debug for PreIndexedIndirectAddressing {
 // E.g. LDA ($44), Y
 // --------------------------------------------
 pub struct PostIndexedIndirectAddressing {
-    address: u16, // address is u16 but is always 0x00XX
+    address: u8, // address is u16 but is always 0x00XX
     offset: u8,
 }
 
 impl PostIndexedIndirectAddressing {
     pub fn new(address_byte: u8, offset: u8) -> Box<PostIndexedIndirectAddressing> {
-        let address = address_byte as u16;
+        let address = address_byte;
         Box::new(PostIndexedIndirectAddressing { address, offset })
     }
 }
@@ -593,21 +593,21 @@ impl AddressingMode for PostIndexedIndirectAddressing {
 
     fn fetch(&self, mem: &Memory) -> u8 {
         let lsb = mem.get(self.address as usize);
-        let msb = mem.get((self.address+1) as usize);
+        let msb = mem.get(self.address.wrapping_add(1) as usize);
 
         let address = ((msb as u16) << 8) + (lsb as u16);
         let fetch_addr: u16 = address.wrapping_add(self.offset as u16);
-        println!("Address is ${:x}", fetch_addr);
         mem.get(fetch_addr as usize)
     }
 
     fn set(&self, mem: &mut Memory, v: u8) {
         let lsb = mem.get(self.address as usize);
-        let msb = mem.get((self.address+1) as usize);
+        let msb = mem.get(self.address.wrapping_add(1) as usize);
         let address = ((msb as u16) << 8) + (lsb as u16);
         let fetch_addr: u16 = address.wrapping_add(self.offset as u16);
         mem.set(fetch_addr as usize, v);
-    }    
+    }
+
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }

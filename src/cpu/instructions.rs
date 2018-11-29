@@ -166,7 +166,7 @@ instructions!{
         0x66 => (ZeroPage, 5),
         0x76 => (ZeroPageX, 6),
         0x6E => (Absolute, 6),
-        0x6E => (AbsoluteX, 7)
+        0x7E => (AbsoluteX, 7)
     },
 
     // --------------------------------------------------------------------
@@ -546,7 +546,15 @@ instructions!{
 
     // No-Operation
     NOP => {
-        0xEA => (Implied, 2)
+        0xEA => (Implied, 2),
+
+        // Illegals one
+        0x1A => (Implied, 2),
+        0x3A => (Implied, 2),
+        0x5A => (Implied, 2),
+        0x7A => (Implied, 2),
+        0xDA => (Implied, 2),
+        0xFA => (Implied, 2)
     },
 
     // RTI - Return from Interrupt
