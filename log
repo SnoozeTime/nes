@@ -5527,22 +5527,32 @@ e750	LDX	Immediate Addressing -> 23	cycles: 2	A:4 X:32 Y:44 P:25 SP:fb
 e752	LDA	Immediate Addressing -> 62	cycles: 2	A:4 X:17 Y:44 P:25 SP:fb
 e754	BIT	Zero-page adressing at: 0x1	cycles: 3	A:3e X:17 Y:44 P:25 SP:fb
 e756	CLC	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:e7 SP:fb
-e757	AXS	Pre-index Indirect adressing at: 0x49+0x17	cycles: 6	A:3e X:17 Y:44 P:e6 SP:fb
-self.A $3e & self.X $17 = $16
-e759	NOP	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:64 SP:fb
-e75a	NOP	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:64 SP:fb
-e75b	NOP	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:64 SP:fb
-e75c	NOP	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:64 SP:fb
-e75d	BNE	Relative adressing: 0x19	cycles: 2	A:3e X:17 Y:44 P:64 SP:fb
-e778	LDA	Immediate Addressing -> 136	cycles: 2	A:3e X:17 Y:44 P:64 SP:fb
+e757	SAX	Post-index Indirect adressing at: 0x49+0x44	cycles: 6	A:3e X:17 Y:44 P:e6 SP:fb
+e759	NOP	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e75a	NOP	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e75b	NOP	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e75c	NOP	Implied Addressing	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e75d	BNE	Relative adressing: 0x19	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e75f	BCS	Relative adressing: 0x17	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e761	BVC	Relative adressing: 0x15	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e763	BPL	Relative adressing: 0x13	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e765	CMP	Immediate Addressing -> 62	cycles: 2	A:3e X:17 Y:44 P:e6 SP:fb
+e767	BNE	Relative adressing: 0xf	cycles: 2	A:3e X:17 Y:44 P:67 SP:fb
+e769	CPY	Immediate Addressing -> 68	cycles: 2	A:3e X:17 Y:44 P:67 SP:fb
+e76b	BNE	Relative adressing: 0xb	cycles: 2	A:3e X:17 Y:44 P:67 SP:fb
+e76d	CPX	Immediate Addressing -> 23	cycles: 2	A:3e X:17 Y:44 P:67 SP:fb
+e76f	BNE	Relative adressing: 0x7	cycles: 2	A:3e X:17 Y:44 P:67 SP:fb
+e771	LDA	Absolute adressing at: 0x489	cycles: 4	A:3e X:17 Y:44 P:67 SP:fb
+e774	CMP	Immediate Addressing -> 22	cycles: 2	A:0 X:17 Y:44 P:67 SP:fb
+e776	BEQ	Relative adressing: 0x4	cycles: 2	A:0 X:17 Y:44 P:e4 SP:fb
+e778	LDA	Immediate Addressing -> 136	cycles: 2	A:0 X:17 Y:44 P:e4 SP:fb
 e77a	STA	Zero-page adressing at: 0x0	cycles: 3	A:88 X:17 Y:44 P:e4 SP:fb
 e77c	LDY	Immediate Addressing -> 68	cycles: 2	A:88 X:17 Y:44 P:e4 SP:fb
 e77e	LDX	Immediate Addressing -> 122	cycles: 2	A:88 X:17 Y:44 P:64 SP:fb
 e780	LDA	Immediate Addressing -> 102	cycles: 2	A:88 X:7a Y:44 P:64 SP:fb
 e782	SEC	Implied Addressing	cycles: 2	A:66 X:7a Y:44 P:64 SP:fb
 e783	CLV	Implied Addressing	cycles: 2	A:66 X:7a Y:44 P:65 SP:fb
-e784	AXS	Pre-index Indirect adressing at: 0xe6+0x7a	cycles: 6	A:66 X:7a Y:44 P:25 SP:fb
-self.A $66 & self.X $7a = $62
+e784	SAX	Post-index Indirect adressing at: 0xe6+0x44	cycles: 6	A:66 X:7a Y:44 P:25 SP:fb
 e786	NOP	Implied Addressing	cycles: 2	A:66 X:7a Y:44 P:25 SP:fb
 e787	NOP	Implied Addressing	cycles: 2	A:66 X:7a Y:44 P:25 SP:fb
 e788	NOP	Implied Addressing	cycles: 2	A:66 X:7a Y:44 P:25 SP:fb
@@ -5558,33 +5568,43 @@ e798	BNE	Relative adressing: 0xb	cycles: 2	A:66 X:7a Y:44 P:27 SP:fb
 e79a	CPX	Immediate Addressing -> 122	cycles: 2	A:66 X:7a Y:44 P:27 SP:fb
 e79c	BNE	Relative adressing: 0x7	cycles: 2	A:66 X:7a Y:44 P:27 SP:fb
 e79e	LDA	Absolute adressing at: 0x489	cycles: 4	A:66 X:7a Y:44 P:27 SP:fb
-e7a1	CMP	Immediate Addressing -> 98	cycles: 2	A:62 X:7a Y:44 P:25 SP:fb
-e7a3	BEQ	Relative adressing: 0x4	cycles: 2	A:62 X:7a Y:44 P:27 SP:fb
-e7a9	LDA	Immediate Addressing -> 255	cycles: 2	A:62 X:7a Y:44 P:27 SP:fb
-e7ab	STA	Zero-page adressing at: 0x49	cycles: 3	A:ff X:7a Y:44 P:a5 SP:fb
-e7ad	LDY	Immediate Addressing -> 68	cycles: 2	A:ff X:7a Y:44 P:a5 SP:fb
-e7af	LDX	Immediate Addressing -> 170	cycles: 2	A:ff X:7a Y:44 P:25 SP:fb
-e7b1	LDA	Immediate Addressing -> 85	cycles: 2	A:ff X:aa Y:44 P:a5 SP:fb
-e7b3	BIT	Zero-page adressing at: 0x1	cycles: 3	A:55 X:aa Y:44 P:25 SP:fb
-e7b5	CLC	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:e5 SP:fb
-e7b6	AXS	Zero-page adressing at: 0x49	cycles: 3	A:55 X:aa Y:44 P:e4 SP:fb
-self.A $55 & self.X $aa = $0
-e7b8	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:66 SP:fb
-e7b9	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:66 SP:fb
-e7ba	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:66 SP:fb
-e7bb	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:66 SP:fb
-e7bc	BEQ	Relative adressing: 0x18	cycles: 2	A:55 X:aa Y:44 P:66 SP:fb
-e7d6	LDA	Immediate Addressing -> 138	cycles: 2	A:55 X:aa Y:44 P:66 SP:fb
-e7d8	STA	Zero-page adressing at: 0x0	cycles: 3	A:8a X:aa Y:44 P:e4 SP:fb
-e7da	LDA	Immediate Addressing -> 0	cycles: 2	A:8a X:aa Y:44 P:e4 SP:fb
-e7dc	STA	Zero-page adressing at: 0x56	cycles: 3	A:0 X:aa Y:44 P:66 SP:fb
-e7de	LDY	Immediate Addressing -> 88	cycles: 2	A:0 X:aa Y:44 P:66 SP:fb
-e7e0	LDX	Immediate Addressing -> 239	cycles: 2	A:0 X:aa Y:58 P:64 SP:fb
-e7e2	LDA	Immediate Addressing -> 102	cycles: 2	A:0 X:ef Y:58 P:e4 SP:fb
-e7e4	SEC	Implied Addressing	cycles: 2	A:66 X:ef Y:58 P:64 SP:fb
+e7a1	CMP	Immediate Addressing -> 98	cycles: 2	A:0 X:7a Y:44 P:27 SP:fb
+e7a3	BEQ	Relative adressing: 0x4	cycles: 2	A:0 X:7a Y:44 P:a4 SP:fb
+e7a5	LDA	Immediate Addressing -> 137	cycles: 2	A:0 X:7a Y:44 P:a4 SP:fb
+e7a7	STA	Zero-page adressing at: 0x0	cycles: 3	A:89 X:7a Y:44 P:a4 SP:fb
+e7a9	LDA	Immediate Addressing -> 255	cycles: 2	A:89 X:7a Y:44 P:a4 SP:fb
+e7ab	STA	Zero-page adressing at: 0x49	cycles: 3	A:ff X:7a Y:44 P:a4 SP:fb
+e7ad	LDY	Immediate Addressing -> 68	cycles: 2	A:ff X:7a Y:44 P:a4 SP:fb
+e7af	LDX	Immediate Addressing -> 170	cycles: 2	A:ff X:7a Y:44 P:24 SP:fb
+e7b1	LDA	Immediate Addressing -> 85	cycles: 2	A:ff X:aa Y:44 P:a4 SP:fb
+e7b3	BIT	Zero-page adressing at: 0x1	cycles: 3	A:55 X:aa Y:44 P:24 SP:fb
+e7b5	CLC	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7b6	SAX	Zero-page adressing at: 0x49	cycles: 3	A:55 X:aa Y:44 P:e4 SP:fb
+e7b8	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7b9	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7ba	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7bb	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7bc	BEQ	Relative adressing: 0x18	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7be	BCS	Relative adressing: 0x16	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7c0	BVC	Relative adressing: 0x14	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7c2	BPL	Relative adressing: 0x12	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7c4	CMP	Immediate Addressing -> 85	cycles: 2	A:55 X:aa Y:44 P:e4 SP:fb
+e7c6	BNE	Relative adressing: 0xe	cycles: 2	A:55 X:aa Y:44 P:67 SP:fb
+e7c8	CPY	Immediate Addressing -> 68	cycles: 2	A:55 X:aa Y:44 P:67 SP:fb
+e7ca	BNE	Relative adressing: 0xa	cycles: 2	A:55 X:aa Y:44 P:67 SP:fb
+e7cc	CPX	Immediate Addressing -> 170	cycles: 2	A:55 X:aa Y:44 P:67 SP:fb
+e7ce	BNE	Relative adressing: 0x6	cycles: 2	A:55 X:aa Y:44 P:67 SP:fb
+e7d0	LDA	Zero-page adressing at: 0x49	cycles: 3	A:55 X:aa Y:44 P:67 SP:fb
+e7d2	CMP	Immediate Addressing -> 0	cycles: 2	A:0 X:aa Y:44 P:67 SP:fb
+e7d4	BEQ	Relative adressing: 0x4	cycles: 2	A:0 X:aa Y:44 P:67 SP:fb
+e7da	LDA	Immediate Addressing -> 0	cycles: 2	A:0 X:aa Y:44 P:67 SP:fb
+e7dc	STA	Zero-page adressing at: 0x56	cycles: 3	A:0 X:aa Y:44 P:67 SP:fb
+e7de	LDY	Immediate Addressing -> 88	cycles: 2	A:0 X:aa Y:44 P:67 SP:fb
+e7e0	LDX	Immediate Addressing -> 239	cycles: 2	A:0 X:aa Y:58 P:65 SP:fb
+e7e2	LDA	Immediate Addressing -> 102	cycles: 2	A:0 X:ef Y:58 P:e5 SP:fb
+e7e4	SEC	Implied Addressing	cycles: 2	A:66 X:ef Y:58 P:65 SP:fb
 e7e5	CLV	Implied Addressing	cycles: 2	A:66 X:ef Y:58 P:65 SP:fb
-e7e6	AXS	Zero-page adressing at: 0x56	cycles: 3	A:66 X:ef Y:58 P:25 SP:fb
-self.A $66 & self.X $ef = $66
+e7e6	SAX	Zero-page adressing at: 0x56	cycles: 3	A:66 X:ef Y:58 P:25 SP:fb
 e7e8	NOP	Implied Addressing	cycles: 2	A:66 X:ef Y:58 P:25 SP:fb
 e7e9	NOP	Implied Addressing	cycles: 2	A:66 X:ef Y:58 P:25 SP:fb
 e7ea	NOP	Implied Addressing	cycles: 2	A:66 X:ef Y:58 P:25 SP:fb
@@ -5609,8 +5629,7 @@ e811	LDX	Immediate Addressing -> 175	cycles: 2	A:ff X:ef Y:e5 P:a5 SP:fb
 e813	LDA	Immediate Addressing -> 245	cycles: 2	A:ff X:af Y:e5 P:a5 SP:fb
 e815	BIT	Zero-page adressing at: 0x1	cycles: 3	A:f5 X:af Y:e5 P:a5 SP:fb
 e817	CLC	Implied Addressing	cycles: 2	A:f5 X:af Y:e5 P:e5 SP:fb
-e818	AXS	Absolute adressing at: 0x549	cycles: 4	A:f5 X:af Y:e5 P:e4 SP:fb
-self.A $f5 & self.X $af = $a5
+e818	SAX	Absolute adressing at: 0x549	cycles: 4	A:f5 X:af Y:e5 P:e4 SP:fb
 e81b	NOP	Implied Addressing	cycles: 2	A:f5 X:af Y:e5 P:e4 SP:fb
 e81c	NOP	Implied Addressing	cycles: 2	A:f5 X:af Y:e5 P:e4 SP:fb
 e81d	NOP	Implied Addressing	cycles: 2	A:f5 X:af Y:e5 P:e4 SP:fb
@@ -5635,8 +5654,7 @@ e845	LDX	Immediate Addressing -> 179	cycles: 2	A:0 X:af Y:58 P:65 SP:fb
 e847	LDA	Immediate Addressing -> 151	cycles: 2	A:0 X:b3 Y:58 P:e5 SP:fb
 e849	SEC	Implied Addressing	cycles: 2	A:97 X:b3 Y:58 P:e5 SP:fb
 e84a	CLV	Implied Addressing	cycles: 2	A:97 X:b3 Y:58 P:e5 SP:fb
-e84b	AXS	Absolute adressing at: 0x556	cycles: 4	A:97 X:b3 Y:58 P:a5 SP:fb
-self.A $97 & self.X $b3 = $93
+e84b	SAX	Absolute adressing at: 0x556	cycles: 4	A:97 X:b3 Y:58 P:a5 SP:fb
 e84e	NOP	Implied Addressing	cycles: 2	A:97 X:b3 Y:58 P:a5 SP:fb
 e84f	NOP	Implied Addressing	cycles: 2	A:97 X:b3 Y:58 P:a5 SP:fb
 e850	NOP	Implied Addressing	cycles: 2	A:97 X:b3 Y:58 P:a5 SP:fb
@@ -5661,24 +5679,32 @@ e877	LDX	Immediate Addressing -> 170	cycles: 2	A:ff X:b3 Y:ff P:a5 SP:fb
 e879	LDA	Immediate Addressing -> 85	cycles: 2	A:ff X:aa Y:ff P:a5 SP:fb
 e87b	BIT	Zero-page adressing at: 0x1	cycles: 3	A:55 X:aa Y:ff P:25 SP:fb
 e87d	CLC	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:e5 SP:fb
-e87e	AXS	Indexed Zero-page adressing at: 0x4a + 0xff	cycles: 4	A:55 X:aa Y:ff P:e4 SP:fb
-self.A $55 & self.X $aa = $0
-e880	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:66 SP:fb
-e881	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:66 SP:fb
-e882	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:66 SP:fb
-e883	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:66 SP:fb
-e884	BEQ	Relative adressing: 0x18	cycles: 2	A:55 X:aa Y:ff P:66 SP:fb
-e89e	LDA	Immediate Addressing -> 142	cycles: 2	A:55 X:aa Y:ff P:66 SP:fb
-e8a0	STA	Zero-page adressing at: 0x0	cycles: 3	A:8e X:aa Y:ff P:e4 SP:fb
-e8a2	LDA	Immediate Addressing -> 0	cycles: 2	A:8e X:aa Y:ff P:e4 SP:fb
-e8a4	STA	Zero-page adressing at: 0x56	cycles: 3	A:0 X:aa Y:ff P:66 SP:fb
-e8a6	LDY	Immediate Addressing -> 6	cycles: 2	A:0 X:aa Y:ff P:66 SP:fb
-e8a8	LDX	Immediate Addressing -> 239	cycles: 2	A:0 X:aa Y:6 P:64 SP:fb
-e8aa	LDA	Immediate Addressing -> 102	cycles: 2	A:0 X:ef Y:6 P:e4 SP:fb
-e8ac	SEC	Implied Addressing	cycles: 2	A:66 X:ef Y:6 P:64 SP:fb
+e87e	SAX	Indexed Zero-page adressing at: 0x4a + 0xff	cycles: 4	A:55 X:aa Y:ff P:e4 SP:fb
+e880	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e881	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e882	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e883	NOP	Implied Addressing	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e884	BEQ	Relative adressing: 0x18	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e886	BCS	Relative adressing: 0x16	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e888	BVC	Relative adressing: 0x14	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e88a	BPL	Relative adressing: 0x12	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e88c	CMP	Immediate Addressing -> 85	cycles: 2	A:55 X:aa Y:ff P:e4 SP:fb
+e88e	BNE	Relative adressing: 0xe	cycles: 2	A:55 X:aa Y:ff P:67 SP:fb
+e890	CPY	Immediate Addressing -> 255	cycles: 2	A:55 X:aa Y:ff P:67 SP:fb
+e892	BNE	Relative adressing: 0xa	cycles: 2	A:55 X:aa Y:ff P:67 SP:fb
+e894	CPX	Immediate Addressing -> 170	cycles: 2	A:55 X:aa Y:ff P:67 SP:fb
+e896	BNE	Relative adressing: 0x6	cycles: 2	A:55 X:aa Y:ff P:67 SP:fb
+e898	LDA	Zero-page adressing at: 0x49	cycles: 3	A:55 X:aa Y:ff P:67 SP:fb
+e89a	CMP	Immediate Addressing -> 0	cycles: 2	A:0 X:aa Y:ff P:67 SP:fb
+e89c	BEQ	Relative adressing: 0x4	cycles: 2	A:0 X:aa Y:ff P:67 SP:fb
+e8a2	LDA	Immediate Addressing -> 0	cycles: 2	A:0 X:aa Y:ff P:67 SP:fb
+e8a4	STA	Zero-page adressing at: 0x56	cycles: 3	A:0 X:aa Y:ff P:67 SP:fb
+e8a6	LDY	Immediate Addressing -> 6	cycles: 2	A:0 X:aa Y:ff P:67 SP:fb
+e8a8	LDX	Immediate Addressing -> 239	cycles: 2	A:0 X:aa Y:6 P:65 SP:fb
+e8aa	LDA	Immediate Addressing -> 102	cycles: 2	A:0 X:ef Y:6 P:e5 SP:fb
+e8ac	SEC	Implied Addressing	cycles: 2	A:66 X:ef Y:6 P:65 SP:fb
 e8ad	CLV	Implied Addressing	cycles: 2	A:66 X:ef Y:6 P:65 SP:fb
-e8ae	AXS	Indexed Zero-page adressing at: 0x50 + 0x6	cycles: 4	A:66 X:ef Y:6 P:25 SP:fb
-self.A $66 & self.X $ef = $66
+e8ae	SAX	Indexed Zero-page adressing at: 0x50 + 0x6	cycles: 4	A:66 X:ef Y:6 P:25 SP:fb
 e8b0	NOP	Implied Addressing	cycles: 2	A:66 X:ef Y:6 P:25 SP:fb
 e8b1	NOP	Implied Addressing	cycles: 2	A:66 X:ef Y:6 P:25 SP:fb
 e8b2	NOP	Implied Addressing	cycles: 2	A:66 X:ef Y:6 P:25 SP:fb

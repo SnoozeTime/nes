@@ -578,15 +578,6 @@ instructions!{
         0x2B => (Immediate, 2)
     },
 
-    // AXS
-    // AND X register with accumulator and store result in memory.
-    AXS => {
-        0x87 => (ZeroPage, 3),
-        0x97 => (ZeroPageY, 4),
-        0x83 => (PreIndexedIndirect, 6),
-        0x8F => (Absolute, 4)
-    },
-
     // ARR
     // AND byte with accumulator, then rotate one bit right in A and check bit 5 and
     // 6
@@ -616,8 +607,8 @@ instructions!{
     },
 
     // SAX
-    //AND X register with accumulator and store result in memory. Status
-    // flags: N,Z
+    // AND X register with accumulator and store result in memory. Status
+    // No impact on flags
     SAX => {
         0x87 => (ZeroPage, 3),
         0x97 => (ZeroPageY, 4),

@@ -600,14 +600,9 @@ impl Cpu {
                 self.set_result_flags(result);
                 self.C = self.N;
             },
-            Instruction::AXS(_, addressing, _) => {
-                let result = self.A & self.X;
-                addressing.set(&mut self.memory, result);
-                self.set_result_flags(result);
-            },
             Instruction::ARR(_, addressing, _) => {
                 let operand = addressing.fetch(&self.memory);
-                
+
                 let and_result = operand & self.A;
                 let result = and_result >> 1 | (self.C << 7);
                 self.C = and_result & 1;
@@ -654,7 +649,8 @@ impl Cpu {
             },
             Instruction::SAX(_, addressing, _) => {
                 let result = self.A & self.X;
-                self.set_result_flags(result);
+                // http://www.ffd2.com/fridge/docs/6502-NMOS.extra.opcodes
+                // self.set_result_flags(result);
                 addressing.set(&mut self.memory, result);
             },
             Instruction::DCP(_, addressing, _) => {
