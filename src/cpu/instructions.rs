@@ -80,6 +80,7 @@ instructions!{
     // A,Z,C,N = A-M-(1-C)
     SBC => {
         0xE9 => (Immediate, 2),
+        0xEB => (Immediate, 2), // unofficial
         0xE5 => (ZeroPage, 3),
         0xF5 => (ZeroPageX, 4),
         0xED => (Absolute, 4),
@@ -612,7 +613,7 @@ instructions!{
     SAX => {
         0x87 => (ZeroPage, 3),
         0x97 => (ZeroPageY, 4),
-        0x83 => (PostIndexedIndirect, 6),
+        0x83 => (PreIndexedIndirect, 6),
         0x8F => (Absolute, 4)
     },
 
