@@ -605,6 +605,7 @@ impl AddressingMode for PostIndexedIndirectAddressing {
         let msb = mem.get(self.address.wrapping_add(1) as usize);
         let address = ((msb as u16) << 8) + (lsb as u16);
         let fetch_addr: u16 = address.wrapping_add(self.offset as u16);
+
         mem.set(fetch_addr as usize, v);
     }
 
@@ -719,9 +720,9 @@ mod tests {
     fn test_indirect() {
         let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
         memory.mem[0x21F5] = 3;
-        memory.mem[0x1213] = 0xF5;
-        memory.mem[0x1214] = 0x21;
-        let addressing = IndirectAddressing::new(0x13, 0x12);
+        memory.mem[0x2213] = 0xF5;
+        memory.mem[0x2214] = 0x21;
+        let addressing = IndirectAddressing::new(0x13, 0x22);
         assert_eq!(0x21F5, addressing.fetch16(&memory));
     }
 

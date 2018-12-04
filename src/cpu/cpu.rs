@@ -28,13 +28,15 @@ pub struct Cpu {
     D: u8, // Decimal mode
     V: u8, // Overflow
     N: u8, // negative
+
+    cycles: u64, // current number of cycles executed by the cpu.
 }
 
 impl std::fmt::Debug for Cpu {
 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let p = self.flags_to_u8_debug();
-        write!(f, "A:{:x} X:{:x} Y:{:x} P:{:x} SP:{:x}", self.A, self.X, self.Y, p, self.SP) 
+        write!(f, "A:{:x} X:{:x} Y:{:x} P:{:x} SP:{:X} CYC:{}", self.A, self.X, self.Y, p, self.SP, (3*self.cycles) % 341) // 3*cycles to get the APU cycles
     }
 }
 
@@ -55,6 +57,7 @@ impl Cpu {
             D: 0,
             V: 0,
             N: 0,
+            cycles: 0,
         }
     }
 
@@ -73,6 +76,7 @@ impl Cpu {
             D: 0,
             V: 0,
             N: 0,
+            cycles: 0,
         }
     }
 
@@ -673,24 +677,7 @@ impl Cpu {
                 addressing.set(&mut self.memory, result);
 
                 // SBC
-                let sum: u16 = (self.A as u16)
-                    + (!result as u16) - (1 - self.C as u16);
-                let sub_result = (sum & 0xFF) as u8; 
-                self.C = (sum >> 8) as u8;
-
-                self.set_result_flags(sub_result);
-                if (result ^ self.A) >> 7 == 0 {
-                    // same sign
-                    if (result ^ sub_result) >> 7 == 1 {
-                        self.V = 1;
-                    } else {
-                        self.V = 0;
-                    }
-                } else {
-                    self.V = 0;
-                }
-
-                self.A = sub_result;
+                self.adc(!result);
             },
             Instruction::RLA(_, addressing, _) => {
 
@@ -712,31 +699,7 @@ impl Cpu {
                 self.set_result_flags(result);
                 
                 // max value is 0x1FF. There is carry if > 0xFF.
-                let sum: u16 = (self.A as u16)
-                    + (result as u16) + (self.C as u16);
-                let sum_result = (sum & 0xFF) as u8; 
-                self.C = (sum >> 8) as u8;
-
-                self.set_result_flags(sum_result);
-
-                // now the overflow.
-                // if addition of two negative numbers yield a positive result, set
-                // V to 1.
-                // if addition of two positive numbers yield a negative result, set V 
-                // to 1.
-                // TODO Do that better
-                if (result ^ self.A) >> 7 == 0 {
-                    // same sign
-                    if (result ^ sum_result) >> 7 == 1 {
-                        self.V = 1;
-                    } else {
-                        self.V = 0;
-                    }
-                } else {
-                    self.V = 0;
-                }
-
-                self.A = sum_result;
+                self.adc(result);
             },
             Instruction::SLO(_, addressing, _) => {
                 // shift left one bit in memory
@@ -766,6 +729,7 @@ impl Cpu {
         };
 
         let total_cycles = instruction.get_cycles() + again_extra_cycles;
+        self.cycles += total_cycles as u64;
         Ok(total_cycles)
     }
 
