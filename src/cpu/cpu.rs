@@ -125,7 +125,7 @@ impl Cpu {
         b
     }
 
-    fn flags_to_u8_debug(&self) -> u8 {
+    pub fn flags_to_u8_debug(&self) -> u8 {
 
         // http://wiki.nesdev.com/w/index.php/Status_flags
         let b = ((self.N as u8) << 7)
