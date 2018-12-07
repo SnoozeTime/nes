@@ -6,68 +6,40 @@ use std::io::Read;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+
 #[derive(Debug)]
-struct LogLine {
+struct LogRecord {
     pc: u16,
+    instruction: String,
     a: u8,
     x: u8,
     y: u8,
     p: u8,
     sp: u8,
-    cycles: u16,
-}
-fn parse_ref_line(line: String) -> LogLine {
-    let mut pc = 0;
-    let mut a = 0;
-    let mut x = 0;
-    let mut y = 0;
-    let mut p = 0;
-    let mut sp = 0;
-    let mut cycles = 0;
-
-    for (i, token) in line.split_whitespace().enumerate() {
-
-        if i == 0 {
-            pc = u16::from_str_radix(token, 16).unwrap();
-        }
-
-        if token.contains("A:") {
-            let splits: Vec<&str> = token.split(':').collect();
-            a = u8::from_str_radix(splits.get(1).unwrap(), 16).unwrap();
-        }
-
-        if token.contains("X:") {
-            let splits: Vec<&str> = token.split(':').collect();
-            x = u8::from_str_radix(splits.get(1).unwrap(), 16).unwrap();
-        }
-
-        if token.contains("Y:") {
-            let splits: Vec<&str> = token.split(':').collect();
-            y = u8::from_str_radix(splits.get(1).unwrap(), 16).unwrap();
-        }
-
-        if token.contains("P:") && !token.contains("SP:") {
-            let splits: Vec<&str> = token.split(':').collect();
-            p = u8::from_str_radix(splits.get(1).unwrap(), 16).unwrap();
-        }
-
-        if token.contains("SP:") {
-            let splits: Vec<&str> = token.split(':').collect();
-            sp = u8::from_str_radix(splits.get(1).unwrap(), 16).unwrap();
-        }
-
-        if token.contains("CYC") {
-//             let splits: Vec<&str> = token.split(':').collect();
-//             a = splits[1].parse().unwrap();
-        }
-    }
-
-    LogLine{pc, a, x, y, p, sp, cycles}
+    cyc: u16,
 }
 
-fn parse_ref_log(filename: String) -> Vec<LogLine> {
-    let reader = BufReader::new(File::open(filename).expect("Cannot open file.txt"));
-    reader.lines().map(|line| parse_ref_line(line.unwrap())).collect()
+fn extract_log(filename: String) -> Result<Vec<LogRecord>, Box<dyn std::error::Error>> {
+    let f = File::open(filename)?;
+    let reader = BufReader::new(f);
+
+    reader.lines()
+        .skip(1)
+        .map(|line| {
+            let unwrapped = try!(line);
+            let tokens: Vec<&str> = unwrapped.split(",").collect();
+
+            // A bit ugly? :D
+            let pc = u16::from_str_radix(tokens[0], 16)?;
+            let instruction = tokens[1].to_string();
+            let a = u8::from_str_radix(tokens[2], 16)?;
+            let x = u8::from_str_radix(tokens[3], 16)?;
+            let y = u8::from_str_radix(tokens[4], 16)?;
+            let p = u8::from_str_radix(tokens[5], 16)?;
+            let sp = u8::from_str_radix(tokens[6], 16)?;
+            let cyc: u16 = tokens[7].parse()?;
+            Ok(LogRecord {pc, instruction, a, x, y, p, sp, cyc})
+        }).collect()
 }
 
 #[test]
@@ -79,7 +51,7 @@ fn test() {
     let mut cpu = Cpu::create(&ines);
     cpu.set_pc(0xC000); // Start of automated tests.
     
-    let correct_log = parse_ref_log(String::from("tests/correct.log"));
+    let correct_log = extract_log(String::from("tests/nestest.csv")).unwrap();
     for log in correct_log {
 
         println!("At PC {:X}", cpu.get_pc());
