@@ -47,6 +47,15 @@ impl Memory {
                 mem[0x8000+i] = *b;
                 mem[0xC000+i] = *b;
             }
+        } else {
+            let page = ines.get_prg_rom(1)?;
+            for (i, b) in page.iter().enumerate() {
+                mem[0x8000+i] = *b;
+            }
+            let page2 = ines.get_prg_rom(2)?;
+            for (i, b) in page2.iter().enumerate() {
+                mem[0xC000+i] = *b;
+            }
         }
 
         Ok(Memory { mem })

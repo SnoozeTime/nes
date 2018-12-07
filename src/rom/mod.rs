@@ -58,10 +58,18 @@ pub fn read(filename: String) -> Result<INesFile, String> {
     for i in offset..offset+(prg_rom_size*16384) {
         prg_rom.push(bytes[i]);
     }
+    offset += prg_rom_size*16384;
+
+    // read the chr_rom
+    let mut chr_rom = Vec::new();
+    for i in offset..offset+(chr_rom_size*8192) {
+        chr_rom.push(bytes[i]);
+    }
 
     Ok(INesFile {
         prg_rom,
         prg_rom_pages: prg_rom_size,
+        chr_rom,
         chr_rom_size,
         prg_ram_size,
         flags_6,
@@ -76,6 +84,7 @@ pub struct INesFile {
     // Headers
     prg_rom: Vec<u8>, // in 16kb units
     prg_rom_pages: usize, // pages
+    chr_rom: Vec<u8>,
     chr_rom_size: usize, // in 8kb units (value 0 means the board uses CHR RAM)
     flags_6: u8,
     flags_7: u8,
@@ -100,6 +109,22 @@ impl INesFile {
 
         Ok(&self.prg_rom[(page_nb-1)*16*1024..page_nb*16*1024])
     }
+
+    pub fn get_chr_rom_pages(&self) -> usize {
+        self.chr_rom_size
+    }
+
+    pub fn get_chr_rom(&self, page_nb: usize) -> Result<&[u8], String> {
+        if page_nb > self.chr_rom_size {
+            return Err(format!("Tried to access page {}, but only have {} pages",
+                               page_nb,
+                               self.chr_rom_size));
+        }
+
+        Ok(&self.chr_rom[(page_nb-1)*8*1024..page_nb*8*1024])
+    }
+
+
 }
 #[cfg(test)]
 mod tests {

@@ -6,5 +6,5 @@ authors = ["Benoit Eudier <benoit.eudier@gmail.com>"]
 [lib]
 name = "nesemu"
 
-
 [dependencies]
+sdl2 = "0.32"
