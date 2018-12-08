@@ -147,6 +147,10 @@ impl Cpu {
         self.Z = (b >> 1) & 0x1 as u8;
         self.C = (b >> 0) & 0x1 as u8;
     }
+    
+    pub fn read_mem(&self, addr: usize) -> u8 {
+        self.memory.get(addr)
+    }
 
     pub fn next(&mut self) -> Result<u8, &'static str> {
 
@@ -336,9 +340,6 @@ impl Cpu {
 
                 self.V = (to_test >> 6) & 0x1;
                 self.N = (to_test >> 7) & 0x1;
-
-//                println!("BIT {:x} & {:x} = {:x}", self.A, to_test, result);
-                
             },
             Instruction::EOR(_, addressing, _length) => {
                 let operand = addressing.fetch(&self.memory);
