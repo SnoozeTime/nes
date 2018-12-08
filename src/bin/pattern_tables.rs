@@ -1,10 +1,8 @@
 extern crate sdl2;
+extern crate nesemu;
 use std::env;
-mod nes;
-mod cpu;
-mod rom;
-use cpu::cpu::Cpu;
-
+use nesemu::cpu::cpu::Cpu;
+use nesemu::rom;
 
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::event::Event;
