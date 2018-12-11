@@ -63,13 +63,30 @@ impl Memory {
 
     pub fn set(&mut self, address: usize, value: u8) {
         // TODO what happen if try to set in a mirror?
-        
+
         self.mem[address] = value;
     }
 
-    pub fn get(&self, address: usize) -> u8 {
+    pub fn get(&mut self, address: usize) -> u8 {
 
         // mirror of zero page.
+        if (address < 0x2000) {
+            self.mem[address & 0x7FF]
+        } else if (address == 0x2002) {
+            // PPU STATUS.
+            let current_value = self.mem[0x2002];
+            let new_value = current_value ^ (1 << 7);
+            println!("READ 2002!!!!!");
+            self.mem[0x2002] = new_value;
+            current_value
+        } else {
+            self.mem[address]
+        }
+    }
+
+    // Will read without modifying the value. For example, a read to $2002 is supposed
+    // to change a flag. Peek will not. This is used for debugging
+    pub fn peek(&self, address: usize) -> u8 {
         if (address < 0x2000) {
             self.mem[address & 0x7FF]
         } else {
@@ -113,42 +130,42 @@ pub fn create_addressing(addressing_type: AddressingModeType,
                          nes: &mut Cpu) -> Box<AddressingMode> {
     use self::AddressingModeType::*;
     match addressing_type {
-    Accumulator => AccumulatorAddressing::new(&nes),
-    Implied => ImpliedAddressing::new(),
-    Immediate => ImmediateAddressing::new(nes.advance()),
-    ZeroPage => ZeroPageAddressing::new(nes.advance()),
-    ZeroPageX => IndexedZeroPageAddressing::new(nes.advance(), nes.get_regx()),
-    ZeroPageY => IndexedZeroPageAddressing::new(nes.advance(), nes.get_regy()),
-    Relative => RelativeAddressing::new(nes.advance()),
-    Absolute => {
-        let op1 = nes.advance();
-        let op2 = nes.advance();
-        AbsoluteAddressing::new(op1, op2)
-    },
-    AbsoluteX => {
-        let op1 = nes.advance();
-        let op2 = nes.advance();
-        IndexedAbsoluteAddressing::new(op1, op2, nes.get_regx())
-    },
-    AbsoluteY => {
-        let op1 = nes.advance();
-        let op2 = nes.advance();
-        IndexedAbsoluteAddressing::new(op1, op2, nes.get_regy())
-    },
-    Indirect => {
-        let op1 = nes.advance();
-        let op2 = nes.advance();
-        IndirectAddressing::new(op1, op2)
-    },
-    PreIndexedIndirect => {
-        let op = nes.advance();
-        PreIndexedIndirectAddressing::new(op, nes.get_regx())
-    },
-    PostIndexedIndirect => {
-        let op = nes.advance();
-        PostIndexedIndirectAddressing::new(op, nes.get_regy())
-    },
-    _ => panic!("not implemented"),
+        Accumulator => AccumulatorAddressing::new(&nes),
+        Implied => ImpliedAddressing::new(),
+        Immediate => ImmediateAddressing::new(nes.advance()),
+        ZeroPage => ZeroPageAddressing::new(nes.advance()),
+        ZeroPageX => IndexedZeroPageAddressing::new(nes.advance(), nes.get_regx()),
+        ZeroPageY => IndexedZeroPageAddressing::new(nes.advance(), nes.get_regy()),
+        Relative => RelativeAddressing::new(nes.advance()),
+        Absolute => {
+            let op1 = nes.advance();
+            let op2 = nes.advance();
+            AbsoluteAddressing::new(op1, op2)
+        },
+        AbsoluteX => {
+            let op1 = nes.advance();
+            let op2 = nes.advance();
+            IndexedAbsoluteAddressing::new(op1, op2, nes.get_regx())
+        },
+        AbsoluteY => {
+            let op1 = nes.advance();
+            let op2 = nes.advance();
+            IndexedAbsoluteAddressing::new(op1, op2, nes.get_regy())
+        },
+        Indirect => {
+            let op1 = nes.advance();
+            let op2 = nes.advance();
+            IndirectAddressing::new(op1, op2)
+        },
+        PreIndexedIndirect => {
+            let op = nes.advance();
+            PreIndexedIndirectAddressing::new(op, nes.get_regx())
+        },
+        PostIndexedIndirect => {
+            let op = nes.advance();
+            PostIndexedIndirectAddressing::new(op, nes.get_regy())
+        },
+        _ => panic!("not implemented"),
     }
 }
 
@@ -156,8 +173,8 @@ pub trait AddressingMode {
     fn mode_type(&self) -> AddressingModeType;
 
     // Will get the value from memory.
-    fn fetch(&self, mem: &Memory) -> u8;
-    fn fetch16(&self, mem: &Memory) -> u16 {    
+    fn fetch(&self, mem: &mut Memory) -> u8;
+    fn fetch16(&self, mem: &mut Memory) -> u16 {    
         return 0;
     }
 
@@ -192,12 +209,12 @@ impl AddressingMode for ImpliedAddressing {
         AddressingModeType::Implied
     }
 
-    fn fetch(&self, _mem: &Memory) -> u8 {
+    fn fetch(&self, _mem: &mut Memory) -> u8 {
         0
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
-    
+
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
@@ -229,13 +246,13 @@ impl AddressingMode for ImmediateAddressing {
         AddressingModeType::Immediate
     }
 
-    fn fetch(&self, _mem: &Memory) -> u8 {
+    fn fetch(&self, _mem: &mut Memory) -> u8 {
         // memory super useless in that case.
         self.value
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
-    
+
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
@@ -266,7 +283,7 @@ impl AddressingMode for RelativeAddressing {
         AddressingModeType::Relative
     }
 
-    fn fetch(&self, _mem: &Memory) -> u8 {
+    fn fetch(&self, _mem: &mut Memory) -> u8 {
         self.offset
     }
 
@@ -303,7 +320,7 @@ impl AddressingMode for ZeroPageAddressing {
         AddressingModeType::ZeroPage
     }
 
-    fn fetch(&self, mem: &Memory) -> u8 {
+    fn fetch(&self, mem: &mut Memory) -> u8 {
         mem.get(self.address as usize)
     }
 
@@ -342,7 +359,7 @@ impl AddressingMode for IndexedZeroPageAddressing {
         AddressingModeType::IndexedZeroPage
     }
 
-    fn fetch(&self, mem: &Memory) -> u8 {
+    fn fetch(&self, mem: &mut Memory) -> u8 {
         // Address + offset should always be in the zero-page area. So 0x00FF + 0x0001
         // should be 0x0000 and not 0x0100. This is done here by keeping address and offset
         // as u8.
@@ -362,8 +379,8 @@ impl AddressingMode for IndexedZeroPageAddressing {
 impl fmt::Debug for IndexedZeroPageAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Indexed Zero-page adressing at: 0x{:x} + 0x{:x}",
-                self.address,
-                self.offset)
+               self.address,
+               self.offset)
     }
 }
 
@@ -386,11 +403,11 @@ impl AddressingMode for AbsoluteAddressing {
         AddressingModeType::Absolute
     }
 
-    fn fetch(&self, mem: &Memory) -> u8 {
+    fn fetch(&self, mem: &mut Memory) -> u8 {
         mem.get(self.address as usize)
     }
 
-    fn fetch16(&self, _mem: &Memory) -> u16 {
+    fn fetch16(&self, _mem: &mut Memory) -> u16 {
         self.address
     }
 
@@ -429,7 +446,7 @@ impl AddressingMode for IndexedAbsoluteAddressing {
         AddressingModeType::IndexedAbsolute
     }
 
-    fn fetch(&self, mem: &Memory) -> u8 {
+    fn fetch(&self, mem: &mut Memory) -> u8 {
         let target = self.address.wrapping_add(self.offset as u16);
         mem.get(target as usize)
     }
@@ -457,8 +474,8 @@ impl AddressingMode for IndexedAbsoluteAddressing {
 impl fmt::Debug for IndexedAbsoluteAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Indexed Absolute adressing at: 0x{:x}+0x{:x}",
-                  self.address,
-                  self.offset)
+               self.address,
+               self.offset)
     }
 }
 
@@ -482,11 +499,11 @@ impl AddressingMode for IndirectAddressing {
         AddressingModeType::Indirect
     }
 
-    fn fetch(&self, _mem: &Memory) -> u8 {
+    fn fetch(&self, _mem: &mut Memory) -> u8 {
         0    
     }
 
-    fn fetch16(&self, mem: &Memory) -> u16 {
+    fn fetch16(&self, mem: &mut Memory) -> u16 {
         let lsb = mem.get(self.lsb_location as usize);
         let mut next_loc = self.lsb_location + 1;
         if (self.lsb_location & 0xFF) as u8 == 0xFF {
@@ -539,7 +556,7 @@ impl AddressingMode for PreIndexedIndirectAddressing {
         AddressingModeType::PreIndexedIndirect
     }
 
-    fn fetch(&self, mem: &Memory) -> u8 {
+    fn fetch(&self, mem: &mut Memory) -> u8 {
         let lsb_location = self.address.wrapping_add(self.offset);
         let lsb = mem.get(lsb_location as usize);
         let msb = mem.get(lsb_location.wrapping_add(1) as usize);
@@ -562,12 +579,12 @@ impl AddressingMode for PreIndexedIndirectAddressing {
     }
 
     fn extra_cycles(&self) -> u8 {
-       let (_, overflow) = ((self.address & 0xFF) as u8).overflowing_add(self.offset);
-       if overflow {
-           return 1;
-       } else {
-           return 0;
-       }
+        let (_, overflow) = ((self.address & 0xFF) as u8).overflowing_add(self.offset);
+        if overflow {
+            return 1;
+        } else {
+            return 0;
+        }
     }
 
 }
@@ -575,8 +592,8 @@ impl AddressingMode for PreIndexedIndirectAddressing {
 impl fmt::Debug for PreIndexedIndirectAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Pre-index Indirect adressing at: 0x{:x}+0x{:x}",
-                self.address,
-                self.offset)
+               self.address,
+               self.offset)
     }
 }
 
@@ -600,7 +617,7 @@ impl AddressingMode for PostIndexedIndirectAddressing {
         AddressingModeType::PostIndexedIndirect
     }
 
-    fn fetch(&self, mem: &Memory) -> u8 {
+    fn fetch(&self, mem: &mut Memory) -> u8 {
         let lsb = mem.get(self.address as usize);
         let msb = mem.get(self.address.wrapping_add(1) as usize);
 
@@ -651,7 +668,7 @@ impl AddressingMode for AccumulatorAddressing {
         AddressingModeType::Accumulator
     }
 
-    fn fetch(&self, _mem: &Memory) -> u8 {
+    fn fetch(&self, _mem: &mut Memory) -> u8 {
         self.accumulator
     }
 
@@ -708,7 +725,7 @@ mod tests {
         let addressing = IndexedZeroPageAddressing::new(0xFF, 0x03);
         assert_eq!(3, addressing.fetch(&memory));
     }
-    
+
     #[test]
     fn test_absolute() {
         let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
@@ -744,7 +761,7 @@ mod tests {
         let addressing = PreIndexedIndirectAddressing::new(0x11, 0x02);
         assert_eq!(3, addressing.fetch(&memory));
     }
-    
+
 
     #[test]
     fn test_post_indexed_indirect() {
@@ -769,4 +786,4 @@ mod tests {
     }
 
 }
-    
+

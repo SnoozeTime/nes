@@ -8,3 +8,4 @@ name = "nesemu"
 
 [dependencies]
 sdl2 = "0.32"
+termion = "1"

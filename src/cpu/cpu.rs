@@ -149,7 +149,11 @@ impl Cpu {
     }
     
     pub fn read_mem(&self, addr: usize) -> u8 {
-        self.memory.get(addr)
+        self.memory.peek(addr)
+    }
+
+    pub fn set_mem(&mut self, addr: usize, value: u8) {
+        self.memory.set(addr, value);
     }
 
     pub fn next(&mut self) -> Result<u8, &'static str> {
@@ -164,15 +168,15 @@ impl Cpu {
                 // A,Z,C,N,V = A+M+C
                 // ADC can be used both with signed and unsigned numbers.
                 // 
-                let rhs = addressing.fetch(&self.memory);
+                let rhs = addressing.fetch(&mut self.memory);
                 self.adc(rhs);
             },
             Instruction::SBC(_, addressing, _) => {
-                let rhs = addressing.fetch(&self.memory);
+                let rhs = addressing.fetch(&mut self.memory);
                 self.adc(!rhs);
             },
             Instruction::CMP(_, addressing, _) => {
-                let m = addressing.fetch(&self.memory);
+                let m = addressing.fetch(&mut self.memory);
                 let (result, overflow) = self.A.overflowing_sub(m);
                 if overflow {
                     self.C = 0;
@@ -182,7 +186,7 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::CPX(_, addressing, _) => {
-                let m = addressing.fetch(&self.memory);
+                let m = addressing.fetch(&mut self.memory);
                 let (result, overflow) = self.X.overflowing_sub(m);
                  if overflow {
                     self.C = 0;
@@ -192,7 +196,7 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::CPY(_, addressing, _) => {
-                let m = addressing.fetch(&self.memory);
+                let m = addressing.fetch(&mut self.memory);
                 let (result, overflow) = self.Y.overflowing_sub(m);
                 if overflow {
                     self.C = 0;
@@ -202,12 +206,12 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::AND(_, addressing, _length) => {
-                let result = self.A & addressing.fetch(&self.memory);
+                let result = self.A & addressing.fetch(&mut self.memory);
                 self.set_result_flags(result);
                 self.A = result;
             },
             Instruction::ASL(_, addressing, _length) => {
-                let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
+                let shifted: u16 = (addressing.fetch(&mut self.memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8;
                 self.C = (shifted >> 8) as u8;
 
@@ -218,7 +222,7 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::LSR(_, addressing, _length) => {
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
                 self.C = operand & 1;
                 let result = operand >> 1;
                 match &addressing.mode_type() {
@@ -228,7 +232,7 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::ROL(_, addressing, _) => {
-                let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
+                let shifted: u16 = (addressing.fetch(&mut self.memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8 | (self.C & 1);
                 self.C = (shifted >> 8) as u8;
 
@@ -240,7 +244,7 @@ impl Cpu {
 
             },
             Instruction::ROR(_, addressing, _) => {
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
                 let result = operand >> 1 | (self.C << 7);
                 self.C = operand & 1;
                 match &addressing.mode_type() {
@@ -254,13 +258,13 @@ impl Cpu {
             // Jumps
             // ----------------------------------
             Instruction::JMP(_, addressing, _length) => {
-                self.PC = addressing.fetch16(&self.memory);
+                self.PC = addressing.fetch16(&mut self.memory);
             },
             Instruction::JSR(_, addressing, _) => {
                 let return_addr = self.PC - 1;
                 self.push(((return_addr & 0xFF00) >> 8) as u8);
                 self.push((return_addr & 0xFF) as u8);
-                self.PC = addressing.fetch16(&self.memory);
+                self.PC = addressing.fetch16(&mut self.memory);
             },
             Instruction::RTS(_, _, _) => {
                 let lsb = self.pull();
@@ -272,7 +276,7 @@ impl Cpu {
             // branches
             // ----------------------------------------
             Instruction::BCC(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&self.memory);
+                let offset = addressing.fetch(&mut self.memory);
                 if self.C == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -292,7 +296,7 @@ impl Cpu {
                 }
             },
             Instruction::BCS(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&self.memory);
+                let offset = addressing.fetch(&mut self.memory);
                 if self.C != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -311,7 +315,7 @@ impl Cpu {
             },
 
             Instruction::BEQ(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&self.memory);
+                let offset = addressing.fetch(&mut self.memory);
                 if self.Z != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -329,7 +333,7 @@ impl Cpu {
                 }
             },
             Instruction::BIT(_, addressing, _length) => {
-                let to_test = addressing.fetch(&self.memory);
+                let to_test = addressing.fetch(&mut self.memory);
                 let result = to_test & self.A;
                 // set Z if to_test & A == 0
                 if (result) == 0 {
@@ -342,20 +346,20 @@ impl Cpu {
                 self.N = (to_test >> 7) & 0x1;
             },
             Instruction::EOR(_, addressing, _length) => {
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
                 let result = self.A ^ operand;
                 self.set_result_flags(result);
                 self.A = result;
             },
             Instruction::ORA(_, addressing, _length) => {
-                let result = self.A | addressing.fetch(&self.memory);
+                let result = self.A | addressing.fetch(&mut self.memory);
                 self.set_result_flags(result);
                 self.A = result;
             },
 
             // INCREMENTS AND DECREMENTS
             Instruction::INC(_, addressing, _cycles) => {
-                let result = addressing.fetch(&self.memory).wrapping_add(1);
+                let result = addressing.fetch(&mut self.memory).wrapping_add(1);
                 self.set_result_flags(result);
                 addressing.set(&mut self.memory, result);
             },
@@ -371,7 +375,7 @@ impl Cpu {
                 self.Y = result;
             },
             Instruction::DEC(_, addressing, _cycles) => {
-                let result = addressing.fetch(&self.memory).wrapping_sub(1);
+                let result = addressing.fetch(&mut self.memory).wrapping_sub(1);
                 self.set_result_flags(result);
                 addressing.set(&mut self.memory, result);
             },
@@ -386,7 +390,7 @@ impl Cpu {
                 self.Y = result;
             },           
             Instruction::BMI(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&self.memory);
+                let offset = addressing.fetch(&mut self.memory);
                 if self.N != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -403,7 +407,7 @@ impl Cpu {
                 }
             },
             Instruction::BNE(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&self.memory);
+                let offset = addressing.fetch(&mut self.memory);
                 if self.Z == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -421,7 +425,7 @@ impl Cpu {
                 }
             },
             Instruction::BPL(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&self.memory);
+                let offset = addressing.fetch(&mut self.memory);
                 if self.N == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -439,7 +443,7 @@ impl Cpu {
                 }
             },
             Instruction::BVC(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&self.memory);
+                let offset = addressing.fetch(&mut self.memory);
                 if self.V == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -457,7 +461,7 @@ impl Cpu {
                 }
             },
             Instruction::BVS(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&self.memory);
+                let offset = addressing.fetch(&mut self.memory);
                 if self.V != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -498,17 +502,17 @@ impl Cpu {
             },
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
-                let result = addressing.fetch(&self.memory);
+                let result = addressing.fetch(&mut self.memory);
                 self.A = result;
                 self.set_result_flags(result);    
             },
             Instruction::LDX(_, addressing, _length) => {
-                let result = addressing.fetch(&self.memory);
+                let result = addressing.fetch(&mut self.memory);
                 self.X = result;
                 self.set_result_flags(result);
             },
             Instruction::LDY(_, addressing, _length) => {
-                let result = addressing.fetch(&self.memory);
+                let result = addressing.fetch(&mut self.memory);
                 self.Y = result;
                 self.set_result_flags(result);
             },
@@ -601,12 +605,12 @@ impl Cpu {
             // Unofficial opcodes
             // ---------------------------------------------
             Instruction::ANC(_, addressing, _) => {
-                let result = self.A & addressing.fetch(&self.memory);
+                let result = self.A & addressing.fetch(&mut self.memory);
                 self.set_result_flags(result);
                 self.C = self.N;
             },
             Instruction::ARR(_, addressing, _) => {
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
 
                 let and_result = operand & self.A;
                 let result = and_result >> 1 | (self.C << 7);
@@ -638,7 +642,7 @@ impl Cpu {
                 self.A = result;
             },
             Instruction::ALR(_, addressing, _) => {
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
                 let before_shift = self.A & operand;
                 self.C = before_shift & 1;
                 let result = before_shift >> 1;
@@ -647,7 +651,7 @@ impl Cpu {
 
             },
             Instruction::LAX(_, addressing, _) => {
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
                 self.X = operand;
                 self.A = operand;
                 self.set_result_flags(operand);
@@ -659,7 +663,7 @@ impl Cpu {
                 addressing.set(&mut self.memory, result);
             },
             Instruction::DCP(_, addressing, _) => {
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
                 let result = operand.wrapping_sub(1);
                 addressing.set(&mut self.memory, result);
                 let (test_result, overflow) = self.A.overflowing_sub(result);
@@ -673,7 +677,7 @@ impl Cpu {
             },
             Instruction::ISC(_, addressing, _) => {
                 // INC
-                let result = addressing.fetch(&self.memory).wrapping_add(1);
+                let result = addressing.fetch(&mut self.memory).wrapping_add(1);
                 self.set_result_flags(result);
                 addressing.set(&mut self.memory, result);
 
@@ -682,7 +686,7 @@ impl Cpu {
             },
             Instruction::RLA(_, addressing, _) => {
 
-                let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
+                let shifted: u16 = (addressing.fetch(&mut self.memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8 | (self.C & 1);
                 self.C = (shifted >> 8) as u8;
                 addressing.set(&mut self.memory, result);
@@ -693,7 +697,7 @@ impl Cpu {
             },
             Instruction::RRA(_, addressing, _) => {
                 // ROR then ADC.
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
                 let result = operand >> 1 | (self.C << 7);
                 self.C = operand & 1;
                 addressing.set(&mut self.memory, result);
@@ -704,7 +708,7 @@ impl Cpu {
             },
             Instruction::SLO(_, addressing, _) => {
                 // shift left one bit in memory
-                let shifted: u16 = (addressing.fetch(&self.memory) as u16) << 1;
+                let shifted: u16 = (addressing.fetch(&mut self.memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8;
                 self.C = (shifted >> 8) as u8;
                 addressing.set(&mut self.memory, result);
@@ -716,7 +720,7 @@ impl Cpu {
             },
             Instruction::SRE(_, addressing, _) => {
                 // Shift right.
-                let operand = addressing.fetch(&self.memory);
+                let operand = addressing.fetch(&mut self.memory);
                 self.C = operand & 1;
                 let result = operand >> 1;
                 addressing.set(&mut self.memory, result);

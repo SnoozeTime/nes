@@ -3,7 +3,9 @@ use std::env;
 mod nes;
 mod cpu;
 mod rom;
+mod ppu;
 use cpu::cpu::Cpu;
+use nes::Nes;
 
 
 use sdl2::pixels::{Color, PixelFormatEnum};
@@ -70,81 +72,7 @@ pub fn main() {
     let ines = rom::read(name).expect("IIIIINNNNNEEESS");
 
 
-    draw(ines);
+    let mut nes = Nes::new(ines);
+    nes.run();
 }
-
-fn draw(ines: rom::INesFile) {
-    let chr_rom = ines.get_chr_rom(1).unwrap();
-    let fake_rom = vec![0x41, 0xC2, 0x44, 0x48, 0x10, 0x20, 0x40, 0x80, 0x01, 0x02, 0x04, 0x08, 0x16, 0x21, 0x42, 0x87];
-    let sprite = Sprite::new(&chr_rom, 0);
-    let sprite2 = Sprite::new(&chr_rom, 1);
-    let sprite3 = Sprite::new(&chr_rom, 2);
-    let sprite4 = Sprite::new(&chr_rom, 3);
-    let sprite5 = Sprite::new(&chr_rom, 4);
-    let sprite6 = Sprite::new(&chr_rom, 5);
-    let sprite7 = Sprite::new(&chr_rom, 6);
-    let sprite8 = Sprite::new(&chr_rom, 7);
-
-    let sprites_left: Vec<Sprite> = (0..256)
-                   .map(|i| Sprite::new(&chr_rom, i)).collect();
-    let sprites_right: Vec<Sprite> = (256..512)
-                   .map(|i| Sprite::new(&chr_rom, i)).collect();
-
-    
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-
-    let window = video_subsystem.window("NES emulator", 1280, 640)
-        .position_centered()
-        .opengl()
-        .build()
-        .unwrap();
-
-    let mut canvas = window.into_canvas().software().build().unwrap();
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
-    let creator = canvas.texture_creator();
-    let mut texture = creator
-        .create_texture_target(PixelFormatEnum::RGBA8888, 400, 300)
-        .unwrap();
-    canvas.clear();
-    canvas.present();
-    let mut event_pump = sdl_context.event_pump().unwrap();
-
-    let mut angle = 0.0;
-    'running:loop {
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit{..} | Event::KeyDown { keycode: Some(Keycode::Escape), ..} => {
-                    break 'running;
-                },
-                _ => {}
-            }
-        }
-        let mut x = 0;
-        let mut y = 0;
-        for sprite in &sprites_left {
-            sprite.draw(&mut canvas, x, y);
-            x = (x + 40) % 640;
-            if x == 0 {
-                y += 40;
-            }
-        }
-        
-        x = 640;
-        y = 0;
-        for sprite in &sprites_right {
-            sprite.draw(&mut canvas, x, y);
-            x = ((x + 40) % 640) + 640;
-            if x == 640 {
-                y += 40;
-            }
-        }
-
-        canvas.present();
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-
-    }
-}
-
-
 

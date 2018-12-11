@@ -2,6 +2,7 @@ extern crate nesemu;
 use std::env;
 use nesemu::cpu::cpu::Cpu;
 use nesemu::rom;
+use std::{thread, time};
 
 pub fn main() {
 
@@ -24,8 +25,22 @@ pub fn main() {
     cpu.set_pc(start_pc);
     loop {
         cpu.next().unwrap();
-//        println!("$2000: {:X}", cpu.read_mem(0x2000));
+        println!("PPUCTRL -> $2000: {:08b}",
+                  cpu.read_mem(0x2000),
+                  );
 
+        println!("PPUMASK -> $2001: {:08b}", cpu.read_mem(0x2001));
+        println!("PPUSTATUS -> $2002: {:08b}", cpu.read_mem(0x2002));
+        println!("$2003: {:X}", cpu.read_mem(0x2003));
+        println!("$2004: {:X}", cpu.read_mem(0x2004));
+        println!("$2005: {:X}", cpu.read_mem(0x2005));
+        println!("$2006: {:X}", cpu.read_mem(0x2006));
+        println!("$2007: {:X}", cpu.read_mem(0x2007));
+        let ten_millis = time::Duration::from_millis(1);
+        thread::sleep(ten_millis);
+//        println!("{}[2J", 27 as char);
+        
+       cpu.set_mem(0x2002, 0x80); 
     }
 }
 
