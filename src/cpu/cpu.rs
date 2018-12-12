@@ -1,5 +1,6 @@
 use super::instructions::Instruction;
-use super::memory::*;
+use super::memory::Memory;
+use super::addressing::*;
 
 #[allow(non_snake_case)] // PC, SP ... are names in the specs.
 pub struct Cpu {

@@ -1,7 +1,8 @@
-use super::memory::{Memory, AddressingMode, create_addressing};
+use super::memory::Memory;
+use super::addressing::{AddressingMode, create_addressing};
 use super::cpu::Cpu;
 use std::fmt;
-use cpu::memory::AddressingModeType::*;
+use cpu::addressing::AddressingModeType::*;
 
 macro_rules! instructions {
 

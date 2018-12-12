@@ -33,9 +33,6 @@ impl Ppu {
     // 3 times as many cycles.
     pub fn next(&mut self, cycles_to_exec: u8) -> Result<(), &'static str> {
 
-        for _ in 0..cycles_to_exec {
-            println!("ppu cycles");
-        }
         
        // let before_cycle = self.cycle;
        // self.cycle += cycles_to_exec % 341;

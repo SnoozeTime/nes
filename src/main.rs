@@ -12,10 +12,10 @@ pub fn main() {
     }
 
     let name = args[1].clone();
-    let ines = rom::read(name).expect("IIIIINNNNNEEESS");
-
+    let ines = rom::read(name).unwrap();
 
     let mut nes = Nes::new(ines).unwrap();
     nes.run().unwrap();
+
 }
 
