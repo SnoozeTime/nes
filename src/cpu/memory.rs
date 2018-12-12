@@ -127,42 +127,43 @@ pub enum AddressingModeType {
 }
 
 pub fn create_addressing(addressing_type: AddressingModeType,
-                         nes: &mut Cpu) -> Box<AddressingMode> {
+                         nes: &mut Cpu,
+                         memory: &mut Memory) -> Box<AddressingMode> {
     use self::AddressingModeType::*;
     match addressing_type {
         Accumulator => AccumulatorAddressing::new(&nes),
         Implied => ImpliedAddressing::new(),
-        Immediate => ImmediateAddressing::new(nes.advance()),
-        ZeroPage => ZeroPageAddressing::new(nes.advance()),
-        ZeroPageX => IndexedZeroPageAddressing::new(nes.advance(), nes.get_regx()),
-        ZeroPageY => IndexedZeroPageAddressing::new(nes.advance(), nes.get_regy()),
-        Relative => RelativeAddressing::new(nes.advance()),
+        Immediate => ImmediateAddressing::new(nes.advance(memory)),
+        ZeroPage => ZeroPageAddressing::new(nes.advance(memory)),
+        ZeroPageX => IndexedZeroPageAddressing::new(nes.advance(memory), nes.get_regx()),
+        ZeroPageY => IndexedZeroPageAddressing::new(nes.advance(memory), nes.get_regy()),
+        Relative => RelativeAddressing::new(nes.advance(memory)),
         Absolute => {
-            let op1 = nes.advance();
-            let op2 = nes.advance();
+            let op1 = nes.advance(memory);
+            let op2 = nes.advance(memory);
             AbsoluteAddressing::new(op1, op2)
         },
         AbsoluteX => {
-            let op1 = nes.advance();
-            let op2 = nes.advance();
+            let op1 = nes.advance(memory);
+            let op2 = nes.advance(memory);
             IndexedAbsoluteAddressing::new(op1, op2, nes.get_regx())
         },
         AbsoluteY => {
-            let op1 = nes.advance();
-            let op2 = nes.advance();
+            let op1 = nes.advance(memory);
+            let op2 = nes.advance(memory);
             IndexedAbsoluteAddressing::new(op1, op2, nes.get_regy())
         },
         Indirect => {
-            let op1 = nes.advance();
-            let op2 = nes.advance();
+            let op1 = nes.advance(memory);
+            let op2 = nes.advance(memory);
             IndirectAddressing::new(op1, op2)
         },
         PreIndexedIndirect => {
-            let op = nes.advance();
+            let op = nes.advance(memory);
             PreIndexedIndirectAddressing::new(op, nes.get_regx())
         },
         PostIndexedIndirect => {
-            let op = nes.advance();
+            let op = nes.advance(memory);
             PostIndexedIndirectAddressing::new(op, nes.get_regy())
         },
         _ => panic!("not implemented"),
@@ -697,9 +698,9 @@ mod tests {
 
     #[test]
     fn test_immediate() {
-        let memory = Memory::new(vec![0;5]);
+        let mut memory = Memory::new(vec![0;5]);
         let addressing = ImmediateAddressing::new(8);
-        assert_eq!(8, addressing.fetch(&memory));
+        assert_eq!(8, addressing.fetch(&mut memory));
     }
 
     #[test]
@@ -707,7 +708,7 @@ mod tests {
         let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
         memory.mem[0x02] = 3;
         let addressing = ZeroPageAddressing::new(0x02);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(3, addressing.fetch(&mut memory));
     }
 
     #[test]
@@ -715,7 +716,7 @@ mod tests {
         let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
         memory.mem[0x02] = 3;
         let addressing = IndexedZeroPageAddressing::new(0x01, 0x01);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(3, addressing.fetch(&mut memory));
     }
 
     #[test]
@@ -723,7 +724,7 @@ mod tests {
         let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
         memory.mem[0x02] = 3;
         let addressing = IndexedZeroPageAddressing::new(0xFF, 0x03);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(3, addressing.fetch(&mut memory));
     }
 
     #[test]
@@ -731,7 +732,7 @@ mod tests {
         let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
         memory.mem[0x21F5] = 3;
         let addressing = AbsoluteAddressing::new(0xF5, 0x21);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(3, addressing.fetch(&mut memory));
     }
 
     #[test]
@@ -739,7 +740,7 @@ mod tests {
         let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
         memory.mem[0x21F5] = 3;
         let addressing = IndexedAbsoluteAddressing::new(0xF2, 0x21, 0x03);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(3, addressing.fetch(&mut memory));
     }
 
     #[test]
@@ -749,7 +750,7 @@ mod tests {
         memory.mem[0x2213] = 0xF5;
         memory.mem[0x2214] = 0x21;
         let addressing = IndirectAddressing::new(0x13, 0x22);
-        assert_eq!(0x21F5, addressing.fetch16(&memory));
+        assert_eq!(0x21F5, addressing.fetch16(&mut memory));
     }
 
     #[test]
@@ -759,7 +760,7 @@ mod tests {
         memory.mem[0x0013] = 0xF5;
         memory.mem[0x0014] = 0x21;
         let addressing = PreIndexedIndirectAddressing::new(0x11, 0x02);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(3, addressing.fetch(&mut memory));
     }
 
 
@@ -770,7 +771,7 @@ mod tests {
         memory.mem[0x0013] = 0xF3;
         memory.mem[0x0014] = 0x21;
         let addressing = PostIndexedIndirectAddressing::new(0x13, 0x02);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(3, addressing.fetch(&mut memory));
     }
 
     #[test]
@@ -782,7 +783,7 @@ mod tests {
         memory.mem[0x0014] = 0x34;
         memory.mem[0x3497] = 0x3;
         let addressing = PostIndexedIndirectAddressing::new(0x13, 0x00);
-        assert_eq!(3, addressing.fetch(&memory));
+        assert_eq!(3, addressing.fetch(&mut memory));
     }
 
 }

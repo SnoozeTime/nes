@@ -33,24 +33,22 @@ impl Ppu {
     // 3 times as many cycles.
     pub fn next(&mut self, cycles_to_exec: u8) -> Result<(), &'static str> {
 
-        
-
         for _ in 0..cycles_to_exec {
             println!("ppu cycles");
         }
         
-        let before_cycle = self.cycle;
-        self.cycle += cycles_to_exec % 341;
-        // this is flawed. What if we pass two lines at the same time?
-        if before_cycle + cycles_to_exec > 341 {
-            self.line += 1;
-        }
-        
+       // let before_cycle = self.cycle;
+       // self.cycle += cycles_to_exec % 341;
+       // // this is flawed. What if we pass two lines at the same time?
+       // if before_cycle + cycles_to_exec > 341 {
+       //     self.line += 1;
+       // }
+       // 
 
-        // Check end of frame.
-        if line == 262 {
+       // // Check end of frame.
+       // if line == 262 {
 
-        }
+       // }
 
         Ok(())
     }

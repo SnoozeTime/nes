@@ -1,4 +1,4 @@
-use super::memory::{AddressingMode, create_addressing};
+use super::memory::{Memory, AddressingMode, create_addressing};
 use super::cpu::Cpu;
 use std::fmt;
 use cpu::memory::AddressingModeType::*;
@@ -28,14 +28,14 @@ macro_rules! instructions {
         }
 
         impl Instruction {
-            pub fn decode(nes: &mut Cpu) -> Instruction {
+            pub fn decode(nes: &mut Cpu, memory: &mut Memory) -> Instruction {
                 let line = nes.get_pc();
-                let opcode = nes.advance();
+                let opcode = nes.advance(memory);
                 match opcode {
                 $(
                     $(
                         $code => Instruction::$name(line,
-                                                    create_addressing($other, nes), 
+                                                    create_addressing($other, nes, memory), 
                                                     $cost)
                     ),+
                 ),+

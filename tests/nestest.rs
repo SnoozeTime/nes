@@ -1,6 +1,7 @@
 extern crate nesemu;
 
 use nesemu::cpu::cpu::Cpu;
+use nesemu::cpu::memory::Memory;
 use nesemu::rom;
 use std::io::Read;
 use std::fs::File;
@@ -49,6 +50,7 @@ fn test() {
     let ines = rom::read(rom).expect("Cannot read nestest");
     
     let mut cpu = Cpu::create(&ines);
+    let mut memory = Memory::create(&ines).expect("Meh");
     cpu.set_pc(0xC000); // Start of automated tests.
     
     let correct_log = extract_log(String::from("tests/nestest.csv")).unwrap();
@@ -62,7 +64,7 @@ fn test() {
         assert_eq!(log.y, cpu.get_regy());
         assert_eq!(log.p, cpu.flags_to_u8_debug());
 
-        if let Err(x) = cpu.next() {
+        if let Err(x) = cpu.next(&mut memory) {
             println!("{}", x);
             break;
         }
@@ -72,4 +74,5 @@ fn test() {
             break;
         }
     }
+
 }

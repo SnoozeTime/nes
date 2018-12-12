@@ -5,8 +5,6 @@ use super::memory::*;
 #[allow(non_snake_case)] // PC, SP ... are names in the specs.
 pub struct Cpu {
 
-    memory: Memory,
-
     // Program counter. Hold the address of the next instruction to be executed
     PC: u16,
 
@@ -43,9 +41,8 @@ impl std::fmt::Debug for Cpu {
 impl Cpu {
    
     // will create a new NES with the given code.
-    pub fn new(code: Vec<u8>) -> Cpu {
+    pub fn new() -> Cpu {
         Cpu {
-            memory: Memory::new(code),
             PC: 0x8000,// TODO set the correct
             SP: 0xFD, 
             A: 0,
@@ -62,9 +59,7 @@ impl Cpu {
     }
 
     pub fn create(ines: &rom::INesFile) -> Cpu {
-        let memory = Memory::create(ines).expect("Problem with INES");
         Cpu {
-            memory,
             PC: 0x8000,
             SP: 0xFD,
             A: 0,
@@ -100,16 +95,16 @@ impl Cpu {
         self.PC = pc;
     }
 
-    fn push(&mut self, value: u8) {
+    fn push(&mut self, memory: &mut Memory, value: u8) {
         let addr = 0x0100 + (self.SP as u16);
-        self.memory.set(addr as usize, value);
+        memory.set(addr as usize, value);
         self.SP -= 1;
     }
 
-    fn pull(&mut self) -> u8 {
+    fn pull(&mut self, memory: &mut Memory) -> u8 {
         self.SP += 1;
         let addr = 0x0100 + (self.SP as u16);
-        self.memory.get(addr as usize)
+        memory.get(addr as usize)
     }
 
     // used to push flags to the stacks.
@@ -147,18 +142,10 @@ impl Cpu {
         self.Z = (b >> 1) & 0x1 as u8;
         self.C = (b >> 0) & 0x1 as u8;
     }
-    
-    pub fn read_mem(&self, addr: usize) -> u8 {
-        self.memory.peek(addr)
-    }
+   
+    pub fn next(&mut self, memory: &mut Memory) -> Result<u8, &'static str> {
 
-    pub fn set_mem(&mut self, addr: usize, value: u8) {
-        self.memory.set(addr, value);
-    }
-
-    pub fn next(&mut self) -> Result<u8, &'static str> {
-
-        let instruction = Instruction::decode(self);
+        let instruction = Instruction::decode(self, memory);
         println!("{:?}\t{: <100?}", instruction, &self);
 
         let mut again_extra_cycles: u8 = 0;
@@ -168,15 +155,15 @@ impl Cpu {
                 // A,Z,C,N,V = A+M+C
                 // ADC can be used both with signed and unsigned numbers.
                 // 
-                let rhs = addressing.fetch(&mut self.memory);
+                let rhs = addressing.fetch(memory);
                 self.adc(rhs);
             },
             Instruction::SBC(_, addressing, _) => {
-                let rhs = addressing.fetch(&mut self.memory);
+                let rhs = addressing.fetch(memory);
                 self.adc(!rhs);
             },
             Instruction::CMP(_, addressing, _) => {
-                let m = addressing.fetch(&mut self.memory);
+                let m = addressing.fetch(memory);
                 let (result, overflow) = self.A.overflowing_sub(m);
                 if overflow {
                     self.C = 0;
@@ -186,7 +173,7 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::CPX(_, addressing, _) => {
-                let m = addressing.fetch(&mut self.memory);
+                let m = addressing.fetch(memory);
                 let (result, overflow) = self.X.overflowing_sub(m);
                  if overflow {
                     self.C = 0;
@@ -196,7 +183,7 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::CPY(_, addressing, _) => {
-                let m = addressing.fetch(&mut self.memory);
+                let m = addressing.fetch(memory);
                 let (result, overflow) = self.Y.overflowing_sub(m);
                 if overflow {
                     self.C = 0;
@@ -206,50 +193,50 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::AND(_, addressing, _length) => {
-                let result = self.A & addressing.fetch(&mut self.memory);
+                let result = self.A & addressing.fetch(memory);
                 self.set_result_flags(result);
                 self.A = result;
             },
             Instruction::ASL(_, addressing, _length) => {
-                let shifted: u16 = (addressing.fetch(&mut self.memory) as u16) << 1;
+                let shifted: u16 = (addressing.fetch(memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8;
                 self.C = (shifted >> 8) as u8;
 
                 match &addressing.mode_type() {
                     AddressingModeType::Accumulator => self.A = result,
-                    _ => addressing.set(&mut self.memory, result),
+                    _ => addressing.set(memory, result),
                 }
                 self.set_result_flags(result);
             },
             Instruction::LSR(_, addressing, _length) => {
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
                 self.C = operand & 1;
                 let result = operand >> 1;
                 match &addressing.mode_type() {
                     AddressingModeType::Accumulator => self.A = result,
-                    _ => addressing.set(&mut self.memory, result),
+                    _ => addressing.set(memory, result),
                 }
                 self.set_result_flags(result);
             },
             Instruction::ROL(_, addressing, _) => {
-                let shifted: u16 = (addressing.fetch(&mut self.memory) as u16) << 1;
+                let shifted: u16 = (addressing.fetch(memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8 | (self.C & 1);
                 self.C = (shifted >> 8) as u8;
 
                 match &addressing.mode_type() {
                     AddressingModeType::Accumulator => self.A = result,
-                    _ => addressing.set(&mut self.memory, result),
+                    _ => addressing.set(memory, result),
                 }
                 self.set_result_flags(result);
 
             },
             Instruction::ROR(_, addressing, _) => {
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
                 let result = operand >> 1 | (self.C << 7);
                 self.C = operand & 1;
                 match &addressing.mode_type() {
                     AddressingModeType::Accumulator => self.A = result,
-                    _ => addressing.set(&mut self.memory, result),
+                    _ => addressing.set(memory, result),
                 }
                 self.set_result_flags(result);
 
@@ -258,17 +245,17 @@ impl Cpu {
             // Jumps
             // ----------------------------------
             Instruction::JMP(_, addressing, _length) => {
-                self.PC = addressing.fetch16(&mut self.memory);
+                self.PC = addressing.fetch16(memory);
             },
             Instruction::JSR(_, addressing, _) => {
                 let return_addr = self.PC - 1;
-                self.push(((return_addr & 0xFF00) >> 8) as u8);
-                self.push((return_addr & 0xFF) as u8);
-                self.PC = addressing.fetch16(&mut self.memory);
+                self.push(memory, ((return_addr & 0xFF00) >> 8) as u8);
+                self.push(memory, (return_addr & 0xFF) as u8);
+                self.PC = addressing.fetch16(memory);
             },
             Instruction::RTS(_, _, _) => {
-                let lsb = self.pull();
-                let msb = self.pull();
+                let lsb = self.pull(memory);
+                let msb = self.pull(memory);
                 self.PC = lsb as u16 + ((msb as u16) << 8) + 1;
             },
 
@@ -276,7 +263,7 @@ impl Cpu {
             // branches
             // ----------------------------------------
             Instruction::BCC(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&mut self.memory);
+                let offset = addressing.fetch(memory);
                 if self.C == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -296,7 +283,7 @@ impl Cpu {
                 }
             },
             Instruction::BCS(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&mut self.memory);
+                let offset = addressing.fetch(memory);
                 if self.C != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -315,7 +302,7 @@ impl Cpu {
             },
 
             Instruction::BEQ(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&mut self.memory);
+                let offset = addressing.fetch(memory);
                 if self.Z != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -333,7 +320,7 @@ impl Cpu {
                 }
             },
             Instruction::BIT(_, addressing, _length) => {
-                let to_test = addressing.fetch(&mut self.memory);
+                let to_test = addressing.fetch(memory);
                 let result = to_test & self.A;
                 // set Z if to_test & A == 0
                 if (result) == 0 {
@@ -346,22 +333,22 @@ impl Cpu {
                 self.N = (to_test >> 7) & 0x1;
             },
             Instruction::EOR(_, addressing, _length) => {
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
                 let result = self.A ^ operand;
                 self.set_result_flags(result);
                 self.A = result;
             },
             Instruction::ORA(_, addressing, _length) => {
-                let result = self.A | addressing.fetch(&mut self.memory);
+                let result = self.A | addressing.fetch(memory);
                 self.set_result_flags(result);
                 self.A = result;
             },
 
             // INCREMENTS AND DECREMENTS
             Instruction::INC(_, addressing, _cycles) => {
-                let result = addressing.fetch(&mut self.memory).wrapping_add(1);
+                let result = addressing.fetch(memory).wrapping_add(1);
                 self.set_result_flags(result);
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
             },
             Instruction::INX(_, _addressing, _cycles) => {
                 // TODO Wrapping add?
@@ -375,9 +362,9 @@ impl Cpu {
                 self.Y = result;
             },
             Instruction::DEC(_, addressing, _cycles) => {
-                let result = addressing.fetch(&mut self.memory).wrapping_sub(1);
+                let result = addressing.fetch(memory).wrapping_sub(1);
                 self.set_result_flags(result);
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
             },
             Instruction::DEX(_, _addressing, _cycles) => {
                 let result = self.X.wrapping_sub(1);
@@ -390,7 +377,7 @@ impl Cpu {
                 self.Y = result;
             },           
             Instruction::BMI(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&mut self.memory);
+                let offset = addressing.fetch(memory);
                 if self.N != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -407,7 +394,7 @@ impl Cpu {
                 }
             },
             Instruction::BNE(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&mut self.memory);
+                let offset = addressing.fetch(memory);
                 if self.Z == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -425,7 +412,7 @@ impl Cpu {
                 }
             },
             Instruction::BPL(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&mut self.memory);
+                let offset = addressing.fetch(memory);
                 if self.N == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -443,7 +430,7 @@ impl Cpu {
                 }
             },
             Instruction::BVC(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&mut self.memory);
+                let offset = addressing.fetch(memory);
                 if self.V == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -461,7 +448,7 @@ impl Cpu {
                 }
             },
             Instruction::BVS(_, addressing, _lenght) => {
-                let offset = addressing.fetch(&mut self.memory);
+                let offset = addressing.fetch(memory);
                 if self.V != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
@@ -502,28 +489,28 @@ impl Cpu {
             },
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
-                let result = addressing.fetch(&mut self.memory);
+                let result = addressing.fetch(memory);
                 self.A = result;
                 self.set_result_flags(result);    
             },
             Instruction::LDX(_, addressing, _length) => {
-                let result = addressing.fetch(&mut self.memory);
+                let result = addressing.fetch(memory);
                 self.X = result;
                 self.set_result_flags(result);
             },
             Instruction::LDY(_, addressing, _length) => {
-                let result = addressing.fetch(&mut self.memory);
+                let result = addressing.fetch(memory);
                 self.Y = result;
                 self.set_result_flags(result);
             },
             Instruction::STA(_, addressing, _length) => {
-                addressing.set(&mut self.memory, self.A);
+                addressing.set(memory, self.A);
             },
             Instruction::STX(_, addressing, _length) => {
-                addressing.set(&mut self.memory, self.X);
+                addressing.set(memory, self.X);
             },
             Instruction::STY(_, addressing, _length) => {
-                addressing.set(&mut self.memory, self.Y);
+                addressing.set(memory, self.Y);
             },
             // transfer instructions
             Instruction::TAX(_, _, _length) => {
@@ -559,19 +546,19 @@ impl Cpu {
             },
             Instruction::PHA(_, _, _length) => {
                 let to_push = self.A;
-                self.push(to_push);
+                self.push(memory, to_push);
             },
             Instruction::PLA(_, _, _length) => {
-                let result = self.pull();
+                let result = self.pull(memory);
                 self.A = result;
                 self.set_result_flags(result);
             },
             Instruction::PHP(_, _, _length) => {
                 let to_push = self.flags_to_u8();
-                self.push(to_push);
+                self.push(memory, to_push);
             },
             Instruction::PLP(_, _, _length) => {
-                let result = self.pull();
+                let result = self.pull(memory);
                 self.u8_to_flags(result);
             },
             Instruction::BRK(_,_,_) => {
@@ -579,20 +566,20 @@ impl Cpu {
                 
                 // push PC and Status flag
                 let pc = self.PC;
-                self.push(((pc & 0xFF00) >> 8) as u8);
-                self.push((pc & 0xFF) as u8);
+                self.push(memory, ((pc & 0xFF00) >> 8) as u8);
+                self.push(memory, (pc & 0xFF) as u8);
                 let flags = self.flags_to_u8();
-                self.push(flags);
+                self.push(memory, flags);
 
-                let lsb = self.memory.get(0xFFFE-1 as usize) as u16;
-                let msb = self.memory.get(0xFFFF-1 as usize) as u16;
+                let lsb = memory.get(0xFFFE-1 as usize) as u16;
+                let msb = memory.get(0xFFFF-1 as usize) as u16;
                 self.PC = lsb + (msb << 8);
             },
             Instruction::RTI(_,_,_) => {
-                let flags = self.pull();
+                let flags = self.pull(memory);
                 self.u8_to_flags(flags);
-                let lsb = self.pull();
-                let msb = self.pull();
+                let lsb = self.pull(memory);
+                let msb = self.pull(memory);
                 self.PC = lsb as u16 + ((msb as u16) << 8);// + 1;
             },
             Instruction::NOP(_,_,_) 
@@ -605,12 +592,12 @@ impl Cpu {
             // Unofficial opcodes
             // ---------------------------------------------
             Instruction::ANC(_, addressing, _) => {
-                let result = self.A & addressing.fetch(&mut self.memory);
+                let result = self.A & addressing.fetch(memory);
                 self.set_result_flags(result);
                 self.C = self.N;
             },
             Instruction::ARR(_, addressing, _) => {
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
 
                 let and_result = operand & self.A;
                 let result = and_result >> 1 | (self.C << 7);
@@ -642,7 +629,7 @@ impl Cpu {
                 self.A = result;
             },
             Instruction::ALR(_, addressing, _) => {
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
                 let before_shift = self.A & operand;
                 self.C = before_shift & 1;
                 let result = before_shift >> 1;
@@ -651,7 +638,7 @@ impl Cpu {
 
             },
             Instruction::LAX(_, addressing, _) => {
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
                 self.X = operand;
                 self.A = operand;
                 self.set_result_flags(operand);
@@ -660,12 +647,12 @@ impl Cpu {
                 let result = self.A & self.X;
                 // http://www.ffd2.com/fridge/docs/6502-NMOS.extra.opcodes
                 // self.set_result_flags(result);
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
             },
             Instruction::DCP(_, addressing, _) => {
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
                 let result = operand.wrapping_sub(1);
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
                 let (test_result, overflow) = self.A.overflowing_sub(result);
                 if overflow {
                     self.C = 0;
@@ -677,19 +664,19 @@ impl Cpu {
             },
             Instruction::ISC(_, addressing, _) => {
                 // INC
-                let result = addressing.fetch(&mut self.memory).wrapping_add(1);
+                let result = addressing.fetch(memory).wrapping_add(1);
                 self.set_result_flags(result);
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
 
                 // SBC
                 self.adc(!result);
             },
             Instruction::RLA(_, addressing, _) => {
 
-                let shifted: u16 = (addressing.fetch(&mut self.memory) as u16) << 1;
+                let shifted: u16 = (addressing.fetch(memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8 | (self.C & 1);
                 self.C = (shifted >> 8) as u8;
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
 
                 let and_result = self.A & result;
                 self.set_result_flags(and_result);
@@ -697,10 +684,10 @@ impl Cpu {
             },
             Instruction::RRA(_, addressing, _) => {
                 // ROR then ADC.
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
                 let result = operand >> 1 | (self.C << 7);
                 self.C = operand & 1;
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
                 self.set_result_flags(result);
                 
                 // max value is 0x1FF. There is carry if > 0xFF.
@@ -708,10 +695,10 @@ impl Cpu {
             },
             Instruction::SLO(_, addressing, _) => {
                 // shift left one bit in memory
-                let shifted: u16 = (addressing.fetch(&mut self.memory) as u16) << 1;
+                let shifted: u16 = (addressing.fetch(memory) as u16) << 1;
                 let result = (shifted & 0xFF) as u8;
                 self.C = (shifted >> 8) as u8;
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
 
                 // OR With A.
                 let or_result = self.A | result;
@@ -720,10 +707,10 @@ impl Cpu {
             },
             Instruction::SRE(_, addressing, _) => {
                 // Shift right.
-                let operand = addressing.fetch(&mut self.memory);
+                let operand = addressing.fetch(memory);
                 self.C = operand & 1;
                 let result = operand >> 1;
-                addressing.set(&mut self.memory, result);
+                addressing.set(memory, result);
                 
                 // EOR With A 
                 let eor_result = self.A ^ result;
@@ -752,8 +739,8 @@ impl Cpu {
     }
     
     // Get next instruction and increment PC
-    pub fn advance(&mut self) -> u8 {
-        let code = self.memory.get(self.PC as usize);
+    pub fn advance(&mut self, memory: &mut Memory) -> u8 {
+        let code = memory.get(self.PC as usize);
         self.PC += 1;
         code
     }
@@ -794,9 +781,11 @@ mod tests {
         // Load accumulator. Immediate addressing
         let code = vec![0xA9, 0x36]; 
 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         assert_eq!(0x8000, nes.PC);
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0x8002, nes.PC);
         assert_eq!(0x36, nes.A);
@@ -806,9 +795,11 @@ mod tests {
     fn test_LDA_zeropage_negative() {
         let code = vec![0xA5, 0x06]; 
 
-        let mut nes = Cpu::new(code);
-        nes.memory.set(0x06, 0x84);
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        memory.set(0x06, 0x84);
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0x84, nes.A);
         assert_eq!(1, nes.N); 
@@ -818,9 +809,11 @@ mod tests {
     fn test_LDA_absolute_processor_zero() {
         let code = vec![0xAD, 0x06, 0xA3]; 
 
-        let mut nes = Cpu::new(code);
-        nes.memory.set(0xA306, 0x00);
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        memory.set(0xA306, 0x00);
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0x00, nes.A);
         assert_eq!(0x01, nes.Z);
@@ -829,10 +822,12 @@ mod tests {
     #[test]
     fn test_LDX_indexed_zp() {
         let code = vec![0xB6, 0x04];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.Y = 0x02;
-        nes.memory.set(0x06, 0x0A);
-        nes.next().unwrap();
+        memory.set(0x06, 0x0A);
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x0A, nes.X);
     }
 
@@ -840,10 +835,12 @@ mod tests {
     fn test_LDY_indexed_absolute() {
         let code = vec![0xBC, 0x06, 0xA3]; 
     
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0x02;
-        nes.memory.set(0xA308, 0x11);
-        nes.next().unwrap();
+        memory.set(0xA308, 0x11);
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0x11, nes.Y);
     }
@@ -853,9 +850,11 @@ mod tests {
         // now carry, no overflow.
         let code = vec![0xA9, 0x01, 0x69, 0x10]; // A should be 0x11
 
-        let mut nes = Cpu::new(code);
-        nes.next().unwrap();
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        nes.next(&mut memory).unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x11, nes.A);
         assert_eq!(0, nes.C);
         assert_eq!(0, nes.V);
@@ -869,9 +868,11 @@ mod tests {
         // if signed 0xF1 (-15) + 0x19 (25) = 10
         // no overflow as operands are not the same sign.
         //
-        let mut nes = Cpu::new(code);
-        nes.next().unwrap();
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        nes.next(&mut memory).unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x0A, nes.A);
         assert_eq!(1, nes.C);
         assert_eq!(0, nes.V);
@@ -882,9 +883,11 @@ mod tests {
         let code = vec![0xA9, 0x64, 0x69, 0x64]; 
 
         // if signed 0x64 (>0) + 0x64 (>0) = 0xc8 (< 0)
-        let mut nes = Cpu::new(code);
-        nes.next().unwrap();
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        nes.next(&mut memory).unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xC8, nes.A);
         assert_eq!(0, nes.C);
         assert_eq!(1, nes.V);
@@ -895,9 +898,11 @@ mod tests {
     fn test_AND() {
         let code = vec![0xA9, 0x64, 0x29, 0xA0]; 
 
-        let mut nes = Cpu::new(code);
-        nes.next().unwrap();
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        nes.next(&mut memory).unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x20, nes.A);
         assert_eq!(0, nes.Z);
         assert_eq!(0, nes.N);
@@ -908,9 +913,11 @@ mod tests {
     #[test]
     fn test_ASL_accumulator_nocarry() {
         let code = vec![0xA9, 0x64, 0x0A]; 
-        let mut nes = Cpu::new(code);
-        nes.next().unwrap();
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        nes.next(&mut memory).unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xc8, nes.A);
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.N);
@@ -920,11 +927,13 @@ mod tests {
     fn test_ASL_zeropage_with_carry() {
         let code = vec![0x06, 0x07]; 
 
-        let mut nes = Cpu::new(code);
-        nes.memory.set(0x07, 0x84);
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
 
-        assert_eq!(0x08, nes.memory.get(0x07 as usize));
+        memory.set(0x07, 0x84);
+        nes.next(&mut memory).unwrap();
+
+        assert_eq!(0x08, memory.get(0x07 as usize));
         assert_eq!(0, nes.N); 
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.C);
@@ -933,9 +942,11 @@ mod tests {
     #[test]
     fn test_lsr_acc() {
         let code = vec![0x4A]; 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0x4B;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0x25, nes.A);
         assert_eq!(0, nes.N); 
@@ -946,10 +957,12 @@ mod tests {
     #[test]
     fn test_rol_acc() {
         let code = vec![0x2A]; 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0x4B;
         nes.C = 1;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0x97, nes.A);
         assert_eq!(1, nes.N); 
@@ -960,12 +973,14 @@ mod tests {
     #[test]
     fn test_ror_mem() {
         let code = vec![0x66, 0x02]; 
-        let mut nes = Cpu::new(code);
-        nes.memory.set(0x02, 0x4B);
-        nes.C = 1;
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
 
-        assert_eq!(0xa5, nes.memory.get(0x02));
+        memory.set(0x02, 0x4B);
+        nes.C = 1;
+        nes.next(&mut memory).unwrap();
+
+        assert_eq!(0xa5, memory.get(0x02));
         assert_eq!(1, nes.N); 
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.C);
@@ -974,121 +989,147 @@ mod tests {
     #[test]
     fn test_bcc_not_taken() {
         let code = vec![0x90, 0x07]; // offset is +7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.C = 1; // C not clear so do not take the branch.
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x8002, nes.PC);
     }
 
     #[test]
     fn test_bcc_taken_positive() {
         let code = vec![0x90, 0x07]; // offset is +7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.C = 0; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x8009, nes.PC);
     }
 
     #[test]
     fn test_bcc_taken_negative() {
         let code = vec![0x90, 0xF9]; // offset is -7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.C = 0; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bcs_not_taken() {
         let code = vec![0xB0, 0x07]; // offset is +7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.C = 0; // C clear so do not take the branch.
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x8002, nes.PC);
     }
 
     #[test]
     fn test_bcs_taken_positive() {
         let code = vec![0xB0, 0x07]; // offset is +7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.C = 1; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x8009, nes.PC);
     }
 
     #[test]
     fn test_bcs_taken_negative() {
         let code = vec![0xB0, 0xF9]; // offset is -7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.C = 1; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_beq() {
         let code = vec![0xF0, 0xF9]; // offset is -7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.Z = 1; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bnq() {
         let code = vec![0xD0, 0xF9]; // offset is -7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.Z = 0; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
     
     #[test]
     fn test_bmi() {
         let code = vec![0x30, 0xF9]; // offset is -7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.N = 1; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bpl() {
         let code = vec![0x10, 0xF9]; // offset is -7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.N = 0; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
     
     #[test]
     fn test_bvc() {
         let code = vec![0x50, 0xF9]; // offset is -7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.V = 0; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bvs() {
         let code = vec![0x70, 0xF9]; // offset is -7. 
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.V = 1; 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bit_test_zeroflag() {
        let code = vec![0x24, 0x02]; // Bit test for zero page location
-       let mut nes = Cpu::new(code);
+       let mut nes = Cpu::new();
+       let mut memory = Memory::new(code);
+
 
        // this should set the overflow, negative and zero flag.
-       nes.memory.set(0x02, 0xF4); // '0b11110101'
+       memory.set(0x02, 0xF4); // '0b11110101'
        nes.A = 0x02;
 
-       nes.next().unwrap();
+       nes.next(&mut memory).unwrap();
        assert_eq!(1, nes.Z);
        assert_eq!(1, nes.N);
        assert_eq!(1, nes.V);
@@ -1097,13 +1138,15 @@ mod tests {
     #[test]
     fn test_bit_test_notneg() {
        let code = vec![0x24, 0x02]; // Bit test for zero page location
-       let mut nes = Cpu::new(code);
+       let mut nes = Cpu::new();
+       let mut memory = Memory::new(code);
+
 
        // this should set the overflow, negative and zero flag.
-       nes.memory.set(0x02, 0x75); // '0b01110101'
+       memory.set(0x02, 0x75); // '0b01110101'
        nes.A = 0x04;
 
-       nes.next().unwrap();
+       nes.next(&mut memory).unwrap();
        assert_eq!(0, nes.Z);
        assert_eq!(0, nes.N);
        assert_eq!(1, nes.V);
@@ -1112,64 +1155,78 @@ mod tests {
     #[test]
     fn test_clear_carry() {
        let code = vec![0x18];
-       let mut nes = Cpu::new(code);
+       let mut nes = Cpu::new();
+       let mut memory = Memory::new(code);
+
        nes.C = 0x1;
-       nes.next().unwrap();
+       nes.next(&mut memory).unwrap();
        assert_eq!(0, nes.C);
     }
     
     #[test]
     fn test_clear_decimal() {
        let code = vec![0xD8];
-       let mut nes = Cpu::new(code);
+       let mut nes = Cpu::new();
+       let mut memory = Memory::new(code);
+
        nes.D = 0x1;
-       nes.next().unwrap();
+       nes.next(&mut memory).unwrap();
        assert_eq!(0, nes.D);
     }
 
     #[test]
     fn test_clear_interrupt() {
        let code = vec![0x58];
-       let mut nes = Cpu::new(code);
+       let mut nes = Cpu::new();
+       let mut memory = Memory::new(code);
+
        nes.I = 0x1;
-       nes.next().unwrap();
+       nes.next(&mut memory).unwrap();
        assert_eq!(0, nes.I);
     }
 
     #[test]
     fn test_clear_overflow() {
        let code = vec![0xB8];
-       let mut nes = Cpu::new(code);
+       let mut nes = Cpu::new();
+       let mut memory = Memory::new(code);
+
        nes.V = 0x1;
-       nes.next().unwrap();
+       nes.next(&mut memory).unwrap();
        assert_eq!(0, nes.V);
     }
 
     #[test]
     fn test_store_A() {
         let code = vec![0x85, 0x04];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0xF1;
-        nes.next().unwrap();
-        assert_eq!(0xF1, nes.memory.get(0x04));
+        nes.next(&mut memory).unwrap();
+        assert_eq!(0xF1, memory.get(0x04));
     }
 
     #[test]
     fn test_store_X() {
         let code = vec![0x86, 0x04];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0xF1;
-        nes.next().unwrap();
-        assert_eq!(0xF1, nes.memory.get(0x04));
+        nes.next(&mut memory).unwrap();
+        assert_eq!(0xF1, memory.get(0x04));
     }
 
     #[test]
     fn test_store_Y() {
         let code = vec![0x84, 0x04];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.Y = 0xF1;
-        nes.next().unwrap();
-        assert_eq!(0xF1, nes.memory.get(0x04));
+        nes.next(&mut memory).unwrap();
+        assert_eq!(0xF1, memory.get(0x04));
     }
 
 
@@ -1177,9 +1234,11 @@ mod tests {
     fn test_transfer_A_to_X() {
         //TAX
         let code = vec![0xAA];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0xF1;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xF1, nes.X);
     }
 
@@ -1187,9 +1246,11 @@ mod tests {
     fn test_transfer_A_to_Y() {
         //TAY
         let code = vec![0xA8];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0xF1;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xF1, nes.Y);
     }
 
@@ -1197,9 +1258,11 @@ mod tests {
     fn test_transfer_X_to_A() {
         //TXA
         let code = vec![0x8A];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0xF1;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xF1, nes.A);
     }
 
@@ -1207,9 +1270,11 @@ mod tests {
     fn test_transfer_Y_to_A() {
         //TYA
         let code = vec![0x98];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.Y = 0xF1;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xF1, nes.Y);
     }
 
@@ -1217,9 +1282,11 @@ mod tests {
     fn test_transfer_X_to_SP() {
         //TXA
         let code = vec![0x9A];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0xF1;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xF1, nes.SP);
     }
 
@@ -1227,9 +1294,11 @@ mod tests {
     fn test_transfer_SP_to_X() {
         //TYA
         let code = vec![0xBA];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.SP = 0xF1;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xF1, nes.X);
         assert_eq!(0x0, nes.Z);
         assert_eq!(0x1, nes.N);
@@ -1238,15 +1307,17 @@ mod tests {
     #[test]
     fn test_stack_accumulator() {
         let code = vec![0x48, 0x68];//push pull
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0x44;
 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         nes.A = 0x00;
         assert_eq!(0xFC, nes.SP);
-        assert_eq!(0x44, nes.memory.get(0x01FD));
+        assert_eq!(0x44, memory.get(0x01FD));
 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xFD, nes.SP);
         assert_eq!(0x44, nes.A);
     }
@@ -1254,7 +1325,9 @@ mod tests {
     #[test]
     fn test_stack_processor_flag() {
         let code = vec![0x08, 0x28];//push pull
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         
         nes.C = 1;
         nes.Z = 1;
@@ -1262,7 +1335,7 @@ mod tests {
         nes.N = 0;
         nes.I = 0;
 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
          
         nes.C = 0;
         nes.Z = 0;
@@ -1271,9 +1344,9 @@ mod tests {
         nes.I = 0;
 
         assert_eq!(0xFC, nes.SP);
-        //assert_eq!(0x44, nes.memory.get(0x01FF));
+        //assert_eq!(0x44, memory.get(0x01FF));
 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0xFD, nes.SP);
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.Z);
@@ -1285,59 +1358,71 @@ mod tests {
     #[test]
     fn test_exclusive_eor() {
         let code = vec![0x49, 0x3];//push pull
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0x6;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x5, nes.A);
     }
 
     #[test]
     fn test_exclusive_ora() {
         let code = vec![0x09, 0x03];//push pull
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0x06;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0x7, nes.A);
     }
 
     #[test]
     fn test_inc_dec_mem() {
         let code = vec![0xE6, 0x02, 0xC6, 0x02];
-        let mut nes = Cpu::new(code);
-        nes.next().unwrap();
-        assert_eq!(1, nes.memory.get(0x02 as usize));
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        nes.next(&mut memory).unwrap();
+        assert_eq!(1, memory.get(0x02 as usize));
+        nes.next(&mut memory).unwrap();
         
-        assert_eq!(0, nes.memory.get(0x02 as usize));
+        assert_eq!(0, memory.get(0x02 as usize));
     }
 
 
     #[test]
     fn test_inx_dex() {
         let code = vec![0xE8, 0xCA];
-        let mut nes = Cpu::new(code);
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        nes.next(&mut memory).unwrap();
         assert_eq!(1, nes.X);
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0, nes.X);
     }
 
     #[test]
     fn test_iny_dey() {
         let code = vec![0xC8, 0x88];
-        let mut nes = Cpu::new(code);
-        nes.next().unwrap();
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
+        nes.next(&mut memory).unwrap();
         assert_eq!(1, nes.Y);
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0, nes.Y);
     }
 
     #[test]
     fn test_cmp_a_gt_m() {
         let code = vec![0xC9, 0x2];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0x05;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(1, nes.C);
         assert_eq!(0, nes.Z);
@@ -1346,9 +1431,11 @@ mod tests {
     #[test]
     fn test_cmp_a_eq_m() {
         let code = vec![0xC9, 0x2];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0x02;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.Z);
@@ -1358,9 +1445,11 @@ mod tests {
     #[test]
     fn test_cmp_a_lt_m() {
         let code = vec![0xC9, 0x7];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0x05;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0, nes.C);
         assert_eq!(0, nes.Z);
@@ -1370,9 +1459,11 @@ mod tests {
     #[test]
     fn test_cmp_x_gt_m() {
         let code = vec![0xE0, 0x2];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0x05;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(1, nes.C);
         assert_eq!(0, nes.Z);
@@ -1381,9 +1472,11 @@ mod tests {
     #[test]
     fn test_cmp_x_eq_m() {
         let code = vec![0xE0, 0x2];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0x02;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.Z);
@@ -1393,9 +1486,11 @@ mod tests {
     #[test]
     fn test_cmp_x_lt_m() {
         let code = vec![0xE0, 0x7];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0x05;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0, nes.C);
         assert_eq!(0, nes.Z);
@@ -1405,9 +1500,11 @@ mod tests {
     #[test]
     fn test_cmp_y_gt_m() {
         let code = vec![0xC0, 0x2];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.Y = 0x05;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(1, nes.C);
         assert_eq!(0, nes.Z);
@@ -1416,9 +1513,11 @@ mod tests {
     #[test]
     fn test_cmp_y_eq_m() {
         let code = vec![0xC0, 0x2];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.Y = 0x02;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.Z);
@@ -1428,9 +1527,11 @@ mod tests {
     #[test]
     fn test_cmp_y_lt_m() {
         let code = vec![0xC0, 0x7];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.Y = 0x05;
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
 
         assert_eq!(0, nes.C);
         assert_eq!(0, nes.Z);
@@ -1443,10 +1544,12 @@ mod tests {
     #[test]
     fn test_anc() {
         let code = vec![0x0B, 0xFF];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0xC2; // negatif
 
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.N);
         assert_eq!(0, nes.Z);
@@ -1457,11 +1560,13 @@ mod tests {
     fn test_axs() {
 
         let code = vec![0x87, 0x01];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0x12;
         nes.A = 0x46;
-        nes.next().unwrap();
-        assert_eq!(0x02, nes.memory.get(0x01));
+        nes.next(&mut memory).unwrap();
+        assert_eq!(0x02, memory.get(0x01));
         assert_eq!(0, nes.N);
         assert_eq!(0, nes.Z);
     }
@@ -1476,10 +1581,12 @@ mod tests {
     #[test]
     fn test_arr() {
         let code = vec![0x6B, 0xD1];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0xFF;
         
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(1, nes.C);
         assert_eq!(0, nes.V);
         assert_eq!(0, nes.N);
@@ -1493,11 +1600,13 @@ mod tests {
     #[test]
     fn test_alr() {
         let code = vec![0x4B, 0xD1];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.A = 0xc4;
         // AND is 0b11000000
         // Shift right -> 0b01100000 and C = 0
-        nes.next().unwrap();
+        nes.next(&mut memory).unwrap();
         assert_eq!(0, nes.C);
         assert_eq!(0, nes.N);
         assert_eq!(0, nes.Z);
@@ -1507,10 +1616,12 @@ mod tests {
     #[test]
     fn test_lax() {
         let code = vec![0xA7, 0xD1];
-        let mut nes = Cpu::new(code);
-        nes.memory.set(0xD1, 0x54);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
 
-        nes.next().unwrap();
+        memory.set(0xD1, 0x54);
+
+        nes.next(&mut memory).unwrap();
         
         assert_eq!(0x54, nes.A);
         assert_eq!(0x54, nes.X);
@@ -1521,11 +1632,13 @@ mod tests {
     #[test]
     fn test_sax() {
         let code = vec![0x87, 0xD1];
-        let mut nes = Cpu::new(code);
+        let mut nes = Cpu::new();
+        let mut memory = Memory::new(code);
+
         nes.X = 0x53;
         nes.A = 0x62;
-        nes.next().unwrap();
-        assert_eq!(0x42, nes.memory.get(0xD1));
+        nes.next(&mut memory).unwrap();
+        assert_eq!(0x42, memory.get(0xD1));
     }
 
 }
