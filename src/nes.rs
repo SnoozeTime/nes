@@ -13,11 +13,18 @@ pub struct Nes {
 
 impl Nes {
 
-    pub fn new(ines: rom::INesFile) -> Nes {
-        let cpu = Cpu::create(&ines);
+    pub fn new(ines: rom::INesFile) -> Result<Nes, String> {
+        let mut cpu = Cpu::new();
         let ppu = Ppu::new();
-        let memory = Memory::create(&ines).expect("quick hack");
-        Nes { cpu, ppu, memory }
+        let mut memory = Memory::new(&ines)?;
+
+        // Need to set the correct PC. It is at FFFC-FFFD
+        let lsb = memory.get(0xFFFC) as u16;
+        let msb = memory.get(0xFFFD) as u16;
+        let start_pc = (msb << 8) + lsb;
+        cpu.set_pc(start_pc);
+
+        Ok(Nes { cpu, ppu, memory })
     }
 
 

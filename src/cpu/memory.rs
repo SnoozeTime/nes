@@ -18,24 +18,12 @@ use rom;
 // $4018-$401F  $0008   APU and I/O functionality that is normally disabled. See CPU Test Mode.
 // $4020-$FFFF  $BFE0   Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note) 
 pub struct Memory {
-    mem: [u8; 0x10000],    
+    pub mem: [u8; 0x10000],    
 }
 
 impl Memory {
 
-    // Deprecated?
-    pub fn new(rom: Vec<u8>) -> Memory {
-        let mut mem: [u8; 0x10000] = [0; 0x10000];
-        // $8000-$FFFF = Usual ROM, commonly with Mapper Registers (see MMC1 and UxROM for example)
-        for (i, b) in rom.iter().enumerate() {
-            mem[0x8000+i] = *b;
-        }
-
-        Memory { mem }
-    }
-
-
-    pub fn create(ines: &rom::INesFile) -> Result<Memory, String> {
+    pub fn new(ines: &rom::INesFile) -> Result<Memory, String> {
         let mut mem = [0; 0x10000];
 
         // if only one page, mirror it.
@@ -70,9 +58,9 @@ impl Memory {
     pub fn get(&mut self, address: usize) -> u8 {
 
         // mirror of zero page.
-        if (address < 0x2000) {
+        if address < 0x2000 {
             self.mem[address & 0x7FF]
-        } else if (address == 0x2002) {
+        } else if address == 0x2002 {
             // PPU STATUS.
             let current_value = self.mem[0x2002];
             let new_value = current_value ^ (1 << 7);
@@ -87,7 +75,7 @@ impl Memory {
     // Will read without modifying the value. For example, a read to $2002 is supposed
     // to change a flag. Peek will not. This is used for debugging
     pub fn peek(&self, address: usize) -> u8 {
-        if (address < 0x2000) {
+        if address < 0x2000 {
             self.mem[address & 0x7FF]
         } else {
             self.mem[address]
@@ -175,7 +163,7 @@ pub trait AddressingMode {
 
     // Will get the value from memory.
     fn fetch(&self, mem: &mut Memory) -> u8;
-    fn fetch16(&self, mem: &mut Memory) -> u16 {    
+    fn fetch16(&self, _mem: &mut Memory) -> u16 {    
         return 0;
     }
 
@@ -698,14 +686,14 @@ mod tests {
 
     #[test]
     fn test_immediate() {
-        let mut memory = Memory::new(vec![0;5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         let addressing = ImmediateAddressing::new(8);
         assert_eq!(8, addressing.fetch(&mut memory));
     }
 
     #[test]
     fn test_zero_page() {
-        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x02] = 3;
         let addressing = ZeroPageAddressing::new(0x02);
         assert_eq!(3, addressing.fetch(&mut memory));
@@ -713,7 +701,7 @@ mod tests {
 
     #[test]
     fn test_indexed_zero_page_no_wrapping() {
-        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x02] = 3;
         let addressing = IndexedZeroPageAddressing::new(0x01, 0x01);
         assert_eq!(3, addressing.fetch(&mut memory));
@@ -721,7 +709,7 @@ mod tests {
 
     #[test]
     fn test_indexed_zero_page_with_wrapping() {
-        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x02] = 3;
         let addressing = IndexedZeroPageAddressing::new(0xFF, 0x03);
         assert_eq!(3, addressing.fetch(&mut memory));
@@ -729,7 +717,7 @@ mod tests {
 
     #[test]
     fn test_absolute() {
-        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x21F5] = 3;
         let addressing = AbsoluteAddressing::new(0xF5, 0x21);
         assert_eq!(3, addressing.fetch(&mut memory));
@@ -737,7 +725,7 @@ mod tests {
 
     #[test]
     fn test_indexed_absolute() {
-        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x21F5] = 3;
         let addressing = IndexedAbsoluteAddressing::new(0xF2, 0x21, 0x03);
         assert_eq!(3, addressing.fetch(&mut memory));
@@ -745,7 +733,7 @@ mod tests {
 
     #[test]
     fn test_indirect() {
-        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x21F5] = 3;
         memory.mem[0x2213] = 0xF5;
         memory.mem[0x2214] = 0x21;
@@ -755,7 +743,7 @@ mod tests {
 
     #[test]
     fn test_pre_indexed_indirect() {
-        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x21F5] = 3;
         memory.mem[0x0013] = 0xF5;
         memory.mem[0x0014] = 0x21;
@@ -766,7 +754,7 @@ mod tests {
 
     #[test]
     fn test_post_indexed_indirect() {
-        let mut memory = Memory::new(vec![1, 2 ,3 ,4 ,5]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x21F5] = 3;
         memory.mem[0x0013] = 0xF3;
         memory.mem[0x0014] = 0x21;
@@ -778,7 +766,7 @@ mod tests {
     fn test_post_indirect_addressing() {
 
         // 0xd940  LDA     Post-index Indirect adressing at: 0x97+0x34     cycles: 5
-        let mut memory = Memory::new(vec![]);
+        let mut memory = Memory{mem: [0; 0x10000]};
         memory.mem[0x0013] = 0x97;
         memory.mem[0x0014] = 0x34;
         memory.mem[0x3497] = 0x3;

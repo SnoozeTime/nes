@@ -2,7 +2,6 @@ extern crate nesemu;
 use std::env;
 use nesemu::cpu::cpu::Cpu;
 use nesemu::rom;
-use std::{thread, time};
 
 pub fn main() {
 
@@ -12,10 +11,10 @@ pub fn main() {
     }
 
     let name = args[1].clone();
-    let ines = rom::read(name).expect("IIIIINNNNNEEESS");
+    let _ines = rom::read(name).expect("IIIIINNNNNEEESS");
 
 
-    let mut cpu = Cpu::create(&ines);
+    let mut _cpu = Cpu::new();
 
     // read reset vctor
   //  let lsb = cpu.read_mem(0xFFFC) as u16;

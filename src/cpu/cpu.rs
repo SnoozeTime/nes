@@ -1,5 +1,4 @@
 use super::instructions::Instruction;
-use rom;
 use super::memory::*;
 
 #[allow(non_snake_case)] // PC, SP ... are names in the specs.
@@ -45,23 +44,6 @@ impl Cpu {
         Cpu {
             PC: 0x8000,// TODO set the correct
             SP: 0xFD, 
-            A: 0,
-            X: 0,
-            Y: 0,
-            C: 0,
-            Z: 0,
-            I: 1,
-            D: 0,
-            V: 0,
-            N: 0,
-            cycles: 0,
-        }
-    }
-
-    pub fn create(ines: &rom::INesFile) -> Cpu {
-        Cpu {
-            PC: 0x8000,
-            SP: 0xFD,
             A: 0,
             X: 0,
             Y: 0,
@@ -774,6 +756,17 @@ mod tests {
 
     // get names from outer scope.
     use super::*;
+    
+    fn new_memory(rom: Vec<u8>) -> Memory {
+        let mut mem: [u8; 0x10000] = [0; 0x10000];
+        // $8000-$FFFF = Usual ROM, commonly with Mapper Registers (see MMC1 and UxROM for example)
+        for (i, b) in rom.iter().enumerate() {
+            mem[0x8000+i] = *b;
+        }
+
+        Memory { mem }
+    }
+
 
 
     #[test]
@@ -782,7 +775,7 @@ mod tests {
         let code = vec![0xA9, 0x36]; 
 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         assert_eq!(0x8000, nes.PC);
         nes.next(&mut memory).unwrap();
@@ -796,7 +789,7 @@ mod tests {
         let code = vec![0xA5, 0x06]; 
 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         memory.set(0x06, 0x84);
         nes.next(&mut memory).unwrap();
@@ -810,7 +803,7 @@ mod tests {
         let code = vec![0xAD, 0x06, 0xA3]; 
 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         memory.set(0xA306, 0x00);
         nes.next(&mut memory).unwrap();
@@ -823,7 +816,7 @@ mod tests {
     fn test_LDX_indexed_zp() {
         let code = vec![0xB6, 0x04];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.Y = 0x02;
         memory.set(0x06, 0x0A);
@@ -836,7 +829,7 @@ mod tests {
         let code = vec![0xBC, 0x06, 0xA3]; 
     
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0x02;
         memory.set(0xA308, 0x11);
@@ -851,7 +844,7 @@ mod tests {
         let code = vec![0xA9, 0x01, 0x69, 0x10]; // A should be 0x11
 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.next(&mut memory).unwrap();
         nes.next(&mut memory).unwrap();
@@ -869,7 +862,7 @@ mod tests {
         // no overflow as operands are not the same sign.
         //
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.next(&mut memory).unwrap();
         nes.next(&mut memory).unwrap();
@@ -884,7 +877,7 @@ mod tests {
 
         // if signed 0x64 (>0) + 0x64 (>0) = 0xc8 (< 0)
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.next(&mut memory).unwrap();
         nes.next(&mut memory).unwrap();
@@ -899,7 +892,7 @@ mod tests {
         let code = vec![0xA9, 0x64, 0x29, 0xA0]; 
 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.next(&mut memory).unwrap();
         nes.next(&mut memory).unwrap();
@@ -914,7 +907,7 @@ mod tests {
     fn test_ASL_accumulator_nocarry() {
         let code = vec![0xA9, 0x64, 0x0A]; 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.next(&mut memory).unwrap();
         nes.next(&mut memory).unwrap();
@@ -928,7 +921,7 @@ mod tests {
         let code = vec![0x06, 0x07]; 
 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         memory.set(0x07, 0x84);
         nes.next(&mut memory).unwrap();
@@ -943,7 +936,7 @@ mod tests {
     fn test_lsr_acc() {
         let code = vec![0x4A]; 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0x4B;
         nes.next(&mut memory).unwrap();
@@ -958,7 +951,7 @@ mod tests {
     fn test_rol_acc() {
         let code = vec![0x2A]; 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0x4B;
         nes.C = 1;
@@ -974,7 +967,7 @@ mod tests {
     fn test_ror_mem() {
         let code = vec![0x66, 0x02]; 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         memory.set(0x02, 0x4B);
         nes.C = 1;
@@ -990,7 +983,7 @@ mod tests {
     fn test_bcc_not_taken() {
         let code = vec![0x90, 0x07]; // offset is +7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.C = 1; // C not clear so do not take the branch.
         nes.next(&mut memory).unwrap();
@@ -1001,7 +994,7 @@ mod tests {
     fn test_bcc_taken_positive() {
         let code = vec![0x90, 0x07]; // offset is +7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.C = 0; 
         nes.next(&mut memory).unwrap();
@@ -1012,7 +1005,7 @@ mod tests {
     fn test_bcc_taken_negative() {
         let code = vec![0x90, 0xF9]; // offset is -7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.C = 0; 
         nes.next(&mut memory).unwrap();
@@ -1023,7 +1016,7 @@ mod tests {
     fn test_bcs_not_taken() {
         let code = vec![0xB0, 0x07]; // offset is +7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.C = 0; // C clear so do not take the branch.
         nes.next(&mut memory).unwrap();
@@ -1034,7 +1027,7 @@ mod tests {
     fn test_bcs_taken_positive() {
         let code = vec![0xB0, 0x07]; // offset is +7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.C = 1; 
         nes.next(&mut memory).unwrap();
@@ -1045,7 +1038,7 @@ mod tests {
     fn test_bcs_taken_negative() {
         let code = vec![0xB0, 0xF9]; // offset is -7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.C = 1; 
         nes.next(&mut memory).unwrap();
@@ -1056,7 +1049,7 @@ mod tests {
     fn test_beq() {
         let code = vec![0xF0, 0xF9]; // offset is -7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.Z = 1; 
         nes.next(&mut memory).unwrap();
@@ -1067,7 +1060,7 @@ mod tests {
     fn test_bnq() {
         let code = vec![0xD0, 0xF9]; // offset is -7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.Z = 0; 
         nes.next(&mut memory).unwrap();
@@ -1078,7 +1071,7 @@ mod tests {
     fn test_bmi() {
         let code = vec![0x30, 0xF9]; // offset is -7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.N = 1; 
         nes.next(&mut memory).unwrap();
@@ -1089,7 +1082,7 @@ mod tests {
     fn test_bpl() {
         let code = vec![0x10, 0xF9]; // offset is -7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.N = 0; 
         nes.next(&mut memory).unwrap();
@@ -1100,7 +1093,7 @@ mod tests {
     fn test_bvc() {
         let code = vec![0x50, 0xF9]; // offset is -7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.V = 0; 
         nes.next(&mut memory).unwrap();
@@ -1111,7 +1104,7 @@ mod tests {
     fn test_bvs() {
         let code = vec![0x70, 0xF9]; // offset is -7. 
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.V = 1; 
         nes.next(&mut memory).unwrap();
@@ -1122,7 +1115,7 @@ mod tests {
     fn test_bit_test_zeroflag() {
        let code = vec![0x24, 0x02]; // Bit test for zero page location
        let mut nes = Cpu::new();
-       let mut memory = Memory::new(code);
+       let mut memory = new_memory(code);
 
 
        // this should set the overflow, negative and zero flag.
@@ -1139,7 +1132,7 @@ mod tests {
     fn test_bit_test_notneg() {
        let code = vec![0x24, 0x02]; // Bit test for zero page location
        let mut nes = Cpu::new();
-       let mut memory = Memory::new(code);
+       let mut memory = new_memory(code);
 
 
        // this should set the overflow, negative and zero flag.
@@ -1156,7 +1149,7 @@ mod tests {
     fn test_clear_carry() {
        let code = vec![0x18];
        let mut nes = Cpu::new();
-       let mut memory = Memory::new(code);
+       let mut memory = new_memory(code);
 
        nes.C = 0x1;
        nes.next(&mut memory).unwrap();
@@ -1167,7 +1160,7 @@ mod tests {
     fn test_clear_decimal() {
        let code = vec![0xD8];
        let mut nes = Cpu::new();
-       let mut memory = Memory::new(code);
+       let mut memory = new_memory(code);
 
        nes.D = 0x1;
        nes.next(&mut memory).unwrap();
@@ -1178,7 +1171,7 @@ mod tests {
     fn test_clear_interrupt() {
        let code = vec![0x58];
        let mut nes = Cpu::new();
-       let mut memory = Memory::new(code);
+       let mut memory = new_memory(code);
 
        nes.I = 0x1;
        nes.next(&mut memory).unwrap();
@@ -1189,7 +1182,7 @@ mod tests {
     fn test_clear_overflow() {
        let code = vec![0xB8];
        let mut nes = Cpu::new();
-       let mut memory = Memory::new(code);
+       let mut memory = new_memory(code);
 
        nes.V = 0x1;
        nes.next(&mut memory).unwrap();
@@ -1200,7 +1193,7 @@ mod tests {
     fn test_store_A() {
         let code = vec![0x85, 0x04];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1211,7 +1204,7 @@ mod tests {
     fn test_store_X() {
         let code = vec![0x86, 0x04];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1222,7 +1215,7 @@ mod tests {
     fn test_store_Y() {
         let code = vec![0x84, 0x04];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.Y = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1235,7 +1228,7 @@ mod tests {
         //TAX
         let code = vec![0xAA];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1247,7 +1240,7 @@ mod tests {
         //TAY
         let code = vec![0xA8];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1259,7 +1252,7 @@ mod tests {
         //TXA
         let code = vec![0x8A];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1271,7 +1264,7 @@ mod tests {
         //TYA
         let code = vec![0x98];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.Y = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1283,7 +1276,7 @@ mod tests {
         //TXA
         let code = vec![0x9A];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1295,7 +1288,7 @@ mod tests {
         //TYA
         let code = vec![0xBA];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.SP = 0xF1;
         nes.next(&mut memory).unwrap();
@@ -1308,7 +1301,7 @@ mod tests {
     fn test_stack_accumulator() {
         let code = vec![0x48, 0x68];//push pull
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0x44;
 
@@ -1326,7 +1319,7 @@ mod tests {
     fn test_stack_processor_flag() {
         let code = vec![0x08, 0x28];//push pull
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         
         nes.C = 1;
@@ -1359,7 +1352,7 @@ mod tests {
     fn test_exclusive_eor() {
         let code = vec![0x49, 0x3];//push pull
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0x6;
         nes.next(&mut memory).unwrap();
@@ -1370,7 +1363,7 @@ mod tests {
     fn test_exclusive_ora() {
         let code = vec![0x09, 0x03];//push pull
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0x06;
         nes.next(&mut memory).unwrap();
@@ -1381,7 +1374,7 @@ mod tests {
     fn test_inc_dec_mem() {
         let code = vec![0xE6, 0x02, 0xC6, 0x02];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.next(&mut memory).unwrap();
         assert_eq!(1, memory.get(0x02 as usize));
@@ -1395,7 +1388,7 @@ mod tests {
     fn test_inx_dex() {
         let code = vec![0xE8, 0xCA];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.next(&mut memory).unwrap();
         assert_eq!(1, nes.X);
@@ -1407,7 +1400,7 @@ mod tests {
     fn test_iny_dey() {
         let code = vec![0xC8, 0x88];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.next(&mut memory).unwrap();
         assert_eq!(1, nes.Y);
@@ -1419,7 +1412,7 @@ mod tests {
     fn test_cmp_a_gt_m() {
         let code = vec![0xC9, 0x2];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0x05;
         nes.next(&mut memory).unwrap();
@@ -1432,7 +1425,7 @@ mod tests {
     fn test_cmp_a_eq_m() {
         let code = vec![0xC9, 0x2];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0x02;
         nes.next(&mut memory).unwrap();
@@ -1446,7 +1439,7 @@ mod tests {
     fn test_cmp_a_lt_m() {
         let code = vec![0xC9, 0x7];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0x05;
         nes.next(&mut memory).unwrap();
@@ -1460,7 +1453,7 @@ mod tests {
     fn test_cmp_x_gt_m() {
         let code = vec![0xE0, 0x2];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0x05;
         nes.next(&mut memory).unwrap();
@@ -1473,7 +1466,7 @@ mod tests {
     fn test_cmp_x_eq_m() {
         let code = vec![0xE0, 0x2];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0x02;
         nes.next(&mut memory).unwrap();
@@ -1487,7 +1480,7 @@ mod tests {
     fn test_cmp_x_lt_m() {
         let code = vec![0xE0, 0x7];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0x05;
         nes.next(&mut memory).unwrap();
@@ -1501,7 +1494,7 @@ mod tests {
     fn test_cmp_y_gt_m() {
         let code = vec![0xC0, 0x2];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.Y = 0x05;
         nes.next(&mut memory).unwrap();
@@ -1514,7 +1507,7 @@ mod tests {
     fn test_cmp_y_eq_m() {
         let code = vec![0xC0, 0x2];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.Y = 0x02;
         nes.next(&mut memory).unwrap();
@@ -1528,7 +1521,7 @@ mod tests {
     fn test_cmp_y_lt_m() {
         let code = vec![0xC0, 0x7];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.Y = 0x05;
         nes.next(&mut memory).unwrap();
@@ -1545,7 +1538,7 @@ mod tests {
     fn test_anc() {
         let code = vec![0x0B, 0xFF];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0xC2; // negatif
 
@@ -1561,7 +1554,7 @@ mod tests {
 
         let code = vec![0x87, 0x01];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0x12;
         nes.A = 0x46;
@@ -1582,7 +1575,7 @@ mod tests {
     fn test_arr() {
         let code = vec![0x6B, 0xD1];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0xFF;
         
@@ -1601,7 +1594,7 @@ mod tests {
     fn test_alr() {
         let code = vec![0x4B, 0xD1];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.A = 0xc4;
         // AND is 0b11000000
@@ -1617,7 +1610,7 @@ mod tests {
     fn test_lax() {
         let code = vec![0xA7, 0xD1];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         memory.set(0xD1, 0x54);
 
@@ -1633,7 +1626,7 @@ mod tests {
     fn test_sax() {
         let code = vec![0x87, 0xD1];
         let mut nes = Cpu::new();
-        let mut memory = Memory::new(code);
+        let mut memory = new_memory(code);
 
         nes.X = 0x53;
         nes.A = 0x62;
