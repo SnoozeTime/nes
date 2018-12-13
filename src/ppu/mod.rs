@@ -1,3 +1,4 @@
+use super::cpu::memory::Memory;
 /*
  * Fun times.
  * PPU has internal memory (pattern tables, nametable, attributes and so on)
@@ -31,7 +32,33 @@ impl Ppu {
     // In this emulator, I chose to run the CPU first, then the PPU. The CPU
     // will return the number of cycles it had executed and the PPU will execute
     // 3 times as many cycles.
-    pub fn next(&mut self, cycles_to_exec: u8) -> Result<(), &'static str> {
+    pub fn next(&mut self, cycles_to_exec: u8, memory: &mut Memory) -> Result<(), &'static str> {
+
+        let ppu_mask = memory.read_ppumask();        
+        let ppu_status = memory.get_ppustatus();
+
+        if (ppu_mask & 0x2 == 0x2) || (ppu_mask & 0x8 == 0x8) {
+            println!("Show background");
+        } else {
+            // no rendering. just add the cycles.
+            // No way we add more than one line at a time in the current code...
+            for _ in 0..cycles_to_exec {
+                self.cycle = (self.cycle + 1) % 341;
+                if self.cycle == 0 {
+                    self.line += 1;
+                }
+
+                //
+                if self.line == 241 && self.cycle == 1 {
+                    memory.update_ppustatus(ppu_status | 0x80);
+                }
+
+                if self.line == 261 && self.cycle == 0 {
+                    memory.update_ppustatus(ppu_status & !0x80);
+                }
+            }
+        }
+
 
         
        // let before_cycle = self.cycle;

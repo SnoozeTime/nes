@@ -122,11 +122,20 @@ impl Memory {
         }
     }
 
+
+    pub fn read_ppumask(&self) -> u8 {
+        self.mem[ppu_register::PPUMASK]
+    }
+
     // Read PPUCTRL. This is not a real NES access. It is
     // just an accessor for the PPU to set its state.
     // PPUCTRL is set by the CPU.
     pub fn read_ppuctrl(&self) -> u8 {
         self.mem[ppu_register::PPUCTRL]
+    }
+
+    pub fn get_ppustatus(&self) -> u8 {
+        self.mem[ppu_register::PPUSTATUS]
     }
 
     // PPUSTATUS is only readable for the CPU. The API can update
@@ -157,7 +166,9 @@ impl Memory {
     // Read ppu status will set vblank occured flag to 0.
     fn read_ppustatus(&mut self) -> u8 {
         let old_value = self.mem[ppu_register::PPUSTATUS];
-        self.mem[ppu_register::PPUSTATUS] = old_value ^ (1 << 7);
+        if self.mem[ppu_register::PPUSTATUS] & 0x80 != 0 {
+            self.mem[ppu_register::PPUSTATUS] = old_value ^ (1 << 7);
+        }
         old_value
     }
 }

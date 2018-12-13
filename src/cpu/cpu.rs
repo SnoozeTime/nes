@@ -163,6 +163,7 @@ impl Cpu {
 
         let instruction = Instruction::decode(self, memory);
         println!("{:?}\t{: <100?}", instruction, &self);
+        let status = memory.peek(0x2002);
 
         let mut again_extra_cycles: u8 = 0;
         match &instruction {

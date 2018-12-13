@@ -32,7 +32,7 @@ impl Nes {
     pub fn run(&mut self) -> Result<(), &'static str> {
         'should_run: loop {
             let cpu_cycles = self.cpu.next(&mut self.memory)?;
-            self.ppu.next(3*cpu_cycles)?;
+            self.ppu.next(3*cpu_cycles, &mut self.memory)?;
         }
     }
 }
