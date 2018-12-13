@@ -22,6 +22,10 @@ pub mod ppu_register {
 // the VRAM. Read from 2007 will read from VRAM.
 //
 pub struct Memory {
+
+    // Interrupt flag
+    pub nmi: bool,
+
     // memory layout for CPU
     // ---------------
     // Address range    Size    Device
@@ -51,7 +55,7 @@ pub struct Memory {
 impl Memory {
 
     pub fn empty() -> Memory {
-        Memory { mem: [0;0x10000] }
+        Memory { nmi: false, mem: [0;0x10000] }
     }
 
     pub fn new(ines: &rom::INesFile) -> Result<Memory, String> {
@@ -77,7 +81,7 @@ impl Memory {
             }
         }
 
-        Ok(Memory { mem })
+        Ok(Memory { nmi: false, mem })
     }
 
     pub fn set(&mut self, address: usize, value: u8) {
@@ -128,6 +132,10 @@ impl Memory {
     // PPUSTATUS is only readable for the CPU. The API can update
     // its state by using this method instead of the memory.set
     pub fn update_ppustatus(&mut self, status: u8) {
+        // can raise NMI if ppuctrl has nmi flag set.
+        let ctrl = self.mem[ppu_register::PPUCTRL];
+        self.raise_nmi(ctrl, status);
+
         self.mem[ppu_register::PPUSTATUS] = status;
     }
 
@@ -135,9 +143,15 @@ impl Memory {
     // Writing to PPUCTRL is done through memory.set.
     fn write_ppuctrl(&mut self, ctrl: u8) {
         // if set NMI flag, an interrupt might be immediately generated if
-        // vblank flag of ppustatus is up.
+        // vblank flag of ppustatus is up. Vblank flag is 0x80
+        let ppustatus = self.mem[ppu_register::PPUSTATUS];
+        self.raise_nmi(ctrl, ppustatus);
 
         self.mem[ppu_register::PPUCTRL] = ctrl;
+    }
+
+    fn raise_nmi(&mut self, ctrl: u8, status: u8) {
+        self.nmi = (status & 0x80 == 0x80) && (ctrl & 0x80 == 0x80);
     }
 
     // Read ppu status will set vblank occured flag to 0.
@@ -161,5 +175,26 @@ mod tests {
         assert_eq!(0x90, memory.get(ppu_register::PPUSTATUS));
         assert_eq!(0x10, memory.mem[ppu_register::PPUSTATUS]);
     }
+    
 
+    #[test]
+    fn test_set_nmi_status_then_ctrl() {
+        
+        let mut memory = Memory::empty();
+        assert_eq!(false, memory.nmi);
+        memory.update_ppustatus(0x80);
+        assert_eq!(false, memory.nmi);
+        memory.set(ppu_register::PPUCTRL, 0x90);
+        assert_eq!(true, memory.nmi);
+    }
+
+    #[test]
+    fn test_set_nmi_ctrl_then_status() {
+        let mut memory = Memory::empty();
+        assert_eq!(false, memory.nmi);
+        memory.set(ppu_register::PPUCTRL, 0x90);
+        assert_eq!(false, memory.nmi);
+        memory.update_ppustatus(0x80);
+        assert_eq!(true, memory.nmi);
+    }
 }
