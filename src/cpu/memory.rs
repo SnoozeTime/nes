@@ -1,5 +1,5 @@
-use std::fmt;
 use rom;
+use std::default::Default;
 
 // PPU registers
 pub mod ppu_register {
@@ -49,14 +49,37 @@ pub struct Memory {
     // 2d arrays. A tile can be 8x8 so the nametable can have 32x30 tiles
     // (256x240 pixels)
     // There is also some mirroring going on but not now.
+    pub vram_addr: u16,
+
+    // Memory layout for  PPU
+    // ----------------------
+    // $0000-$0FFF  $1000   Pattern table 0
+    // $1000-$1FFF  $1000   Pattern Table 1
+    // $2000-$23FF  $0400   Nametable 0
+    // $2400-$27FF  $0400   Nametable 1
+    // $2800-$2BFF  $0400   Nametable 2
+    // $2C00-$2FFF  $0400   Nametable 3
+    // $3000-$3EFF  $0F00   Mirrors of $2000-$2EFF
+    // $3F00-$3F1F  $0020   Palette RAM indexes
+    // $3F20-$3FFF  $00E0   Mirrors of $3F00-$3F1F 
+    pub ppu_mem: [u8; 0x4000],
+
+}
+
+impl Default for Memory {
+
+    fn default() -> Memory {
+        Memory {
+            nmi: false,
+            mem: [0; 0x10000],
+            vram_addr: 0,
+            ppu_mem: [0; 0x4000],
+        }
+    }
 
 }
 
 impl Memory {
-
-    pub fn empty() -> Memory {
-        Memory { nmi: false, mem: [0;0x10000] }
-    }
 
     pub fn new(ines: &rom::INesFile) -> Result<Memory, String> {
         let mut mem = [0; 0x10000];
@@ -81,7 +104,16 @@ impl Memory {
             }
         }
 
-        Ok(Memory { nmi: false, mem })
+        // Now the PPU ROM and init
+        let mut ppu_mem = [0;0x4000];
+
+        // Just copy the ROM to pattern tables.
+        let vrom = ines.get_chr_rom(1)?;
+        for (i, b) in vrom.iter().enumerate() {
+            ppu_mem[i] = *b;
+        }
+
+        Ok(Memory { mem, ppu_mem, ..Default::default()})
     }
 
     pub fn set(&mut self, address: usize, value: u8) {
@@ -92,6 +124,16 @@ impl Memory {
             ppu_register::PPUSTATUS => {
                 panic!("PPUSTATUS is read-only");
             },
+            ppu_register::PPUADDR => {
+                println!("Write PPUADDR");
+                self.mem[address] = value;
+            },
+            ppu_register::PPUDATA => {
+
+                println!("Write PPUDATA");
+                self.mem[address] = value;
+            },
+
             _ => self.mem[address] = value,
         }
     }
@@ -107,6 +149,17 @@ impl Memory {
                 // this is WRITE only so panic! on read
                 panic!("PPUCTRL is write only");
             },
+            ppu_register::PPUADDR => {
+                println!("read PPUADDR");
+                self.mem[address]
+            },
+            ppu_register::PPUDATA => {
+
+                println!("read PPUDATA");
+                self.mem[address]
+            },
+
+
             ppu_register::PPUSTATUS => self.read_ppustatus(),
             _ => self.mem[address],
         }
@@ -122,25 +175,27 @@ impl Memory {
         }
     }
 
-
-    pub fn read_ppumask(&self) -> u8 {
+    // These ppuread_* are function used by the PPU to access its
+    // registers. They won't modify anything
+    // ppuupdate_* will modify.
+    pub fn ppuread_ppumask(&self) -> u8 {
         self.mem[ppu_register::PPUMASK]
     }
 
     // Read PPUCTRL. This is not a real NES access. It is
     // just an accessor for the PPU to set its state.
     // PPUCTRL is set by the CPU.
-    pub fn read_ppuctrl(&self) -> u8 {
+    pub fn ppuread_ppuctrl(&self) -> u8 {
         self.mem[ppu_register::PPUCTRL]
     }
 
-    pub fn get_ppustatus(&self) -> u8 {
+    pub fn ppuread_ppustatus(&self) -> u8 {
         self.mem[ppu_register::PPUSTATUS]
     }
 
     // PPUSTATUS is only readable for the CPU. The API can update
     // its state by using this method instead of the memory.set
-    pub fn update_ppustatus(&mut self, status: u8) {
+    pub fn ppuupdate_ppustatus(&mut self, status: u8) {
         // can raise NMI if ppuctrl has nmi flag set.
         let ctrl = self.mem[ppu_register::PPUCTRL];
         self.raise_nmi(ctrl, status);
@@ -180,20 +235,20 @@ mod tests {
     // If vblank occured flag is 1, reading ppustatus will set it to 0.
     #[test]
     fn test_readppustatus_flag_vblank_to_off() {
-        let mut memory = Memory::empty();
+        let mut memory: Memory = Default::default();
         memory.mem[ppu_register::PPUSTATUS] = 0x90;  
 
         assert_eq!(0x90, memory.get(ppu_register::PPUSTATUS));
         assert_eq!(0x10, memory.mem[ppu_register::PPUSTATUS]);
     }
-    
+
 
     #[test]
     fn test_set_nmi_status_then_ctrl() {
-        
-        let mut memory = Memory::empty();
+
+        let mut memory : Memory = Default::default();
         assert_eq!(false, memory.nmi);
-        memory.update_ppustatus(0x80);
+        memory.ppuupdate_ppustatus(0x80);
         assert_eq!(false, memory.nmi);
         memory.set(ppu_register::PPUCTRL, 0x90);
         assert_eq!(true, memory.nmi);
@@ -201,11 +256,11 @@ mod tests {
 
     #[test]
     fn test_set_nmi_ctrl_then_status() {
-        let mut memory = Memory::empty();
+        let mut memory: Memory = Default::default();
         assert_eq!(false, memory.nmi);
         memory.set(ppu_register::PPUCTRL, 0x90);
         assert_eq!(false, memory.nmi);
-        memory.update_ppustatus(0x80);
+        memory.ppuupdate_ppustatus(0x80);
         assert_eq!(true, memory.nmi);
     }
 }

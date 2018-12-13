@@ -162,8 +162,7 @@ impl Cpu {
         let interrupt_cycles = self.process_interrupt(memory);
 
         let instruction = Instruction::decode(self, memory);
-        println!("{:?}\t{: <100?}", instruction, &self);
-        let status = memory.peek(0x2002);
+        //println!("{:?}\t{: <100?}", instruction, &self);
 
         let mut again_extra_cycles: u8 = 0;
         match &instruction {
@@ -791,6 +790,7 @@ mod tests {
 
     // get names from outer scope.
     use super::*;
+    use std::default::Default;
 
     fn new_memory(rom: Vec<u8>) -> Memory {
         let mut mem: [u8; 0x10000] = [0; 0x10000];
@@ -799,7 +799,7 @@ mod tests {
             mem[0x8000+i] = *b;
         }
 
-        Memory { nmi: false, mem }
+        Memory { mem, ..Default::default()}
     }
 
 

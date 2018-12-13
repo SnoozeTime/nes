@@ -34,45 +34,44 @@ impl Ppu {
     // 3 times as many cycles.
     pub fn next(&mut self, cycles_to_exec: u8, memory: &mut Memory) -> Result<(), &'static str> {
 
-        let ppu_mask = memory.read_ppumask();        
-        let ppu_status = memory.get_ppustatus();
+        let ppu_mask = memory.ppuread_ppumask();        
+        let ppu_status = memory.ppuread_ppustatus();
 
-        if (ppu_mask & 0x2 == 0x2) || (ppu_mask & 0x8 == 0x8) {
-            println!("Show background");
-        } else {
-            // no rendering. just add the cycles.
-            // No way we add more than one line at a time in the current code...
-            for _ in 0..cycles_to_exec {
-                self.cycle = (self.cycle + 1) % 341;
-                if self.cycle == 0 {
-                    self.line += 1;
-                }
+        // no rendering. just add the cycles.
+        // No way we add more than one line at a time in the current code...
+        for _ in 0..cycles_to_exec {
+            if (ppu_mask & 0x2 == 0x2) || (ppu_mask & 0x8 == 0x8) {
+                //  println!("Show background");
+            }
+            self.cycle = (self.cycle + 1) % 341;
+            if self.cycle == 0 {
+                self.line += 1;
+            }
 
-                //
-                if self.line == 241 && self.cycle == 1 {
-                    memory.update_ppustatus(ppu_status | 0x80);
-                }
+            //
+            if self.line == 241 && self.cycle == 1 {
+                memory.ppuupdate_ppustatus(ppu_status | 0x80);
+            }
 
-                if self.line == 261 && self.cycle == 0 {
-                    memory.update_ppustatus(ppu_status & !0x80);
-                }
+            if self.line == 261 && self.cycle == 0 {
+                memory.ppuupdate_ppustatus(ppu_status & !0x80);
             }
         }
 
 
-        
-       // let before_cycle = self.cycle;
-       // self.cycle += cycles_to_exec % 341;
-       // // this is flawed. What if we pass two lines at the same time?
-       // if before_cycle + cycles_to_exec > 341 {
-       //     self.line += 1;
-       // }
-       // 
 
-       // // Check end of frame.
-       // if line == 262 {
+        // let before_cycle = self.cycle;
+        // self.cycle += cycles_to_exec % 341;
+        // // this is flawed. What if we pass two lines at the same time?
+        // if before_cycle + cycles_to_exec > 341 {
+        //     self.line += 1;
+        // }
+        // 
 
-       // }
+        // // Check end of frame.
+        // if line == 262 {
+
+        // }
 
         Ok(())
     }
