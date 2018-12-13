@@ -50,6 +50,11 @@ pub struct Memory {
     // (256x240 pixels)
     // There is also some mirroring going on but not now.
     pub vram_addr: u16,
+    // when writing to vram_addr, we can only write byte by byte. vram_addr_buffer
+    // is here to store the first one.
+    pub vram_addr_buffer: u8,
+
+
 
     // Memory layout for  PPU
     // ----------------------
@@ -73,6 +78,7 @@ impl Default for Memory {
             nmi: false,
             mem: [0; 0x10000],
             vram_addr: 0,
+            vram_addr_buffer: 0,
             ppu_mem: [0; 0x4000],
         }
     }
@@ -126,7 +132,7 @@ impl Memory {
             },
             ppu_register::PPUADDR => {
                 println!("Write PPUADDR");
-                self.mem[address] = value;
+                self.write_ppuaddr(value);
             },
             ppu_register::PPUDATA => {
 
@@ -214,6 +220,15 @@ impl Memory {
         self.mem[ppu_register::PPUCTRL] = ctrl;
     }
 
+    fn write_ppuaddr(&mut self, addr_byte: u8) {
+        let old_vram_buf = self.vram_addr_buffer as u16;
+        self.vram_addr = (old_vram_buf << 8) + (addr_byte as u16); 
+        self.vram_addr_buffer = addr_byte;
+
+        // isn't it useless?
+        self.mem[ppu_register::PPUADDR] = addr_byte;
+    }
+
     fn raise_nmi(&mut self, ctrl: u8, status: u8) {
         self.nmi = (status & 0x80 == 0x80) && (ctrl & 0x80 == 0x80);
     }
@@ -262,5 +277,15 @@ mod tests {
         assert_eq!(false, memory.nmi);
         memory.ppuupdate_ppustatus(0x80);
         assert_eq!(true, memory.nmi);
+    }
+
+    #[test]
+    fn test_set_vram_addr() {
+
+        let mut memory: Memory = Default::default();
+        memory.set(ppu_register::PPUADDR, 0x20);
+        memory.set(ppu_register::PPUADDR, 0x09);
+
+        assert_eq!(0x2009, memory.vram_addr);
     }
 }

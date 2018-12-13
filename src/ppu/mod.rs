@@ -1,3 +1,4 @@
+pub mod register;
 use super::cpu::memory::Memory;
 /*
  * Fun times.
