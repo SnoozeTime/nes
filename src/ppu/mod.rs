@@ -1,5 +1,6 @@
-pub mod register;
+pub mod memory;
 use super::cpu::memory::Memory;
+use self::memory::RegisterType;
 /*
  * Fun times.
  * PPU has internal memory (pattern tables, nametable, attributes and so on)
@@ -35,8 +36,8 @@ impl Ppu {
     // 3 times as many cycles.
     pub fn next(&mut self, cycles_to_exec: u8, memory: &mut Memory) -> Result<(), &'static str> {
 
-        let ppu_mask = memory.ppuread_ppumask();        
-        let ppu_status = memory.ppuread_ppustatus();
+        let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
+        let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
 
         // no rendering. just add the cycles.
         // No way we add more than one line at a time in the current code...
@@ -51,11 +52,11 @@ impl Ppu {
 
             //
             if self.line == 241 && self.cycle == 1 {
-                memory.ppuupdate_ppustatus(ppu_status | 0x80);
+                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
             }
 
             if self.line == 261 && self.cycle == 0 {
-                memory.ppuupdate_ppustatus(ppu_status & !0x80);
+                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
             }
         }
 

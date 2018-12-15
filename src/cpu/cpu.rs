@@ -135,7 +135,7 @@ impl Cpu {
         // 1. reset
         // 2. NMI
         // 3. BRK/IRQ
-        if memory.nmi {
+        if memory.nmi() {
             // push pc and flags to the stack.
             let pc = self.PC;
             self.push(memory, ((pc & 0xFF00) >> 8) as u8);
