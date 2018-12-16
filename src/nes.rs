@@ -1,6 +1,7 @@
 // Hello
 //
 use cpu::cpu::Cpu;
+use graphic::Graphics;
 use cpu::memory::Memory;
 use ppu::Ppu; 
 use rom;
@@ -9,6 +10,7 @@ pub struct Nes {
     cpu: Cpu, 
     ppu: Ppu,
     memory: Memory,
+    ui: Graphics,
 }
 
 impl Nes {
@@ -24,16 +26,29 @@ impl Nes {
         let start_pc = (msb << 8) + lsb;
         cpu.set_pc(start_pc);
 
-        Ok(Nes { cpu, ppu, memory })
+
+        let ui = Graphics::new(1)?;
+        Ok(Nes { cpu, ppu, memory, ui })
     }
 
 
     // main loop
     pub fn run(&mut self) -> Result<(), &'static str> {
         'should_run: loop {
+            // handle events.
+            if self.ui.handle_events(&mut self.memory) {
+                break 'should_run;
+            }
+
+            // Update CPU and PPU (and later APU)
             let cpu_cycles = self.cpu.next(&mut self.memory)?;
             self.ppu.next(3*cpu_cycles, &mut self.memory)?;
+
+            // render
+            self.ui.display(&mut self.memory, &mut self.ppu);
         }
+
+        Ok(())
     }
 
     pub fn decompile(&mut self) {
