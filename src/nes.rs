@@ -27,7 +27,7 @@ impl Nes {
         cpu.set_pc(start_pc);
 
 
-        let ui = Graphics::new(1)?;
+        let ui = Graphics::new(2)?;
         Ok(Nes { cpu, ppu, memory, ui })
     }
 

@@ -91,8 +91,11 @@ impl Graphics {
             for row in 0..30i32 {
                 for col in 0..32i32 {
                     index = 32*(row as usize) + (col as usize);
-                    let tile = Tile::new(&memory.ppu_mem.ppu_mem[0x1000..0x2000], nametable[index] as usize);
-                    tile.draw(&mut self.canvas, col*8, row*8);
+                    let tile = Tile::new(self.zoom_level, &memory.ppu_mem.ppu_mem[0x1000..0x2000], nametable[index] as usize);
+
+                    let xtile = col*8*(self.zoom_level as i32);
+                    let ytile = row*8*(self.zoom_level as i32);
+                    tile.draw(&mut self.canvas, xtile, ytile);
                 }
             }
             self.canvas.present();
@@ -103,10 +106,11 @@ impl Graphics {
 struct Tile {
     plane1: [u8; 8],
     plane2: [u8; 8],
+    zoom_level: u32,
 }
 
 impl Tile {
-    fn new(pattern_table: &[u8], sprite_nb: usize) -> Tile {
+    fn new(zoom_level: u32, pattern_table: &[u8], sprite_nb: usize) -> Tile {
 
         let mut plane1 = [0;8];
         let mut plane2 = [0;8];
@@ -116,7 +120,7 @@ impl Tile {
             plane2[i] = pattern_table[16*sprite_nb + i + 8];
         }
 
-        Tile { plane1, plane2 }
+        Tile { plane1, plane2, zoom_level}
     }
 
     fn draw<T: RenderTarget>(&self, canvas: &mut Canvas<T>, x: i32, y: i32) {
@@ -137,8 +141,13 @@ impl Tile {
                 } else {
                     canvas.set_draw_color(Color::RGB(0, 0, 0));
                 }
+
+                let zoom = self.zoom_level as i32;
+                let xpixel = x + (xline as i32) * zoom;
+                let ypixel = y + (yline as i32) * zoom;
                 // // A draw a rectangle which almost fills our window with it !
-                canvas.fill_rect(Rect::new(x + xline as i32, y + yline as i32, 1, 1)).unwrap();
+                canvas.fill_rect(Rect::new(xpixel, ypixel, self.zoom_level, self.zoom_level)).unwrap();
+                
             }
         }
     }
