@@ -7,6 +7,7 @@ use rom;
 
 
 #[allow(non_snake_case)]
+#[derive(Debug)]
 pub enum RegisterType {
     PPUCTRL,
     PPUMASK, 
@@ -33,20 +34,6 @@ impl RegisterType {
             0x2007 => Some(RegisterType::PPUDATA),
             0x4014 => Some(RegisterType::OADDMA),
             _ => None,
-        }
-    }
-
-    pub fn value(&self) -> usize {
-        match self {
-            RegisterType::PPUCTRL => 0x2000,
-            RegisterType::PPUMASK => 0x2001,
-            RegisterType::PPUSTATUS => 0x2002,
-            RegisterType::OAMADDR => 0x2003,
-            RegisterType::OAMDATA => 0x2004,
-            RegisterType::PPUSCROLL => 0x2005,
-            RegisterType::PPUADDR => 0x2006,
-            RegisterType::PPUDATA => 0x2007,
-            RegisterType::OADDMA => 0x4014,
         }
     }
 }
@@ -88,7 +75,7 @@ pub struct PpuMemory {
     // $3000-$3EFF  $0F00   Mirrors of $2000-$2EFF
     // $3F00-$3F1F  $0020   Palette RAM indexes
     // $3F20-$3FFF  $00E0   Mirrors of $3F00-$3F1F 
-    ppu_mem: [u8; 0x4000],
+    pub ppu_mem: [u8; 0x4000],
 }
 
 impl fmt::Debug for PpuMemory {
@@ -161,6 +148,10 @@ impl PpuMemory {
         self.nmi
     }
 
+    pub fn consume_nmi(&mut self) {
+        self.nmi = false;
+    }
+
     /// Peek will return the register value without impacting anything.
     /// Read-only
     pub fn peek(&self, register_type: RegisterType) -> u8 {
@@ -201,14 +192,24 @@ impl PpuMemory {
     pub fn write(&mut self, register_type: RegisterType, value: u8) {
         match register_type {
             PPUCTRL => self.write_ctrl(value),
+            PPUMASK => self.write_mask(value),
             PPUADDR => self.write_addr(value),
-            _ => {}
+            PPUDATA => self.write_data(value),
+            OAMADDR => {}, //println!("OAMADDR Not implemented yet!"),
+            OAMDATA => {}, //println!("OAMDATA not implemented yet!"),
+            OAMDMA => {}, //println!("OAMDMA not implemented yet!"),
+            PPUSCROLL => {}, //println!("PPUSCROLL not implemented yet!"),
+            _ => panic!("{:?} cannot be written by CPU", register_type),
         }
     }
 
     /// Read with side-effect
     pub fn read(&mut self, register_type: RegisterType) -> u8 {
         match register_type {
+            // Those cannot be read by the CPU
+            PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR | OADDMA => {
+                panic!("{:?} cannot be read by CPU", register_type);
+            },
             PPUSTATUS => self.read_status(),
             _ => 8,
         }
@@ -220,6 +221,8 @@ impl PpuMemory {
     fn read_status(&mut self) -> u8 {
         let old_status = self.ppustatus;
         self.ppustatus = old_status & !0x80;
+        // Reading PPU STATUS Will also clear the address latch.
+        self.vram_addr = 0;
         old_status
     }
 
@@ -227,12 +230,27 @@ impl PpuMemory {
         self.ppuctrl = ctrl;
         self.raise_nmi();
     }
+    
+    fn write_mask(&mut self, mask: u8) {
+        self.ppumask = mask;
+    }
 
     fn write_addr(&mut self, addr_byte: u8) {
         let old_vram_buf = self.vram_addr_buffer as u16;
         self.vram_addr = (old_vram_buf << 8) + (addr_byte as u16);
         self.vram_addr_buffer = addr_byte;
         self.ppuaddr = addr_byte; // useless?
+    }
+
+    fn write_data(&mut self, data: u8) {
+        let addr_latch = self.vram_addr;
+        self.ppu_mem[addr_latch as usize] = data;
+//        println!("Write {} at {:X}", data, addr_latch);
+        if self.ppuctrl & 4 == 4 {
+            self.vram_addr = addr_latch + 32;
+        } else {
+            self.vram_addr = addr_latch + 1;
+        }
     }
 
     fn raise_nmi(&mut self) {

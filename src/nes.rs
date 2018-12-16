@@ -35,4 +35,10 @@ impl Nes {
             self.ppu.next(3*cpu_cycles, &mut self.memory)?;
         }
     }
+
+    pub fn decompile(&mut self) {
+        loop {
+            self.cpu.decompile(&mut self.memory);
+        }
+    }
 }

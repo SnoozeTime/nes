@@ -136,6 +136,9 @@ impl Cpu {
         // 2. NMI
         // 3. BRK/IRQ
         if memory.nmi() {
+            // Turn off nmi so that we don't do again :D
+            memory.ppu_mem.consume_nmi();
+
             // push pc and flags to the stack.
             let pc = self.PC;
             self.push(memory, ((pc & 0xFF00) >> 8) as u8);
@@ -147,13 +150,18 @@ impl Cpu {
             self.I = 1;
 
             // Set new PC from handler
-            let lsb = memory.get(0xFFFC as usize) as u16;
-            let msb = memory.get(0xFFFD as usize) as u16;
+            let lsb = memory.get(0xFFFA as usize) as u16;
+            let msb = memory.get(0xFFFB as usize) as u16;
             self.PC = lsb + (msb << 8);
             return 7;
         }
 
         0
+    }
+
+    pub fn decompile(&mut self, memory: &mut Memory) {
+        let instruction = Instruction::decode(self, memory);
+        println!("{:?}\t{: <100?}", instruction, &self);
     }
 
     pub fn next(&mut self, memory: &mut Memory) -> Result<u8, &'static str> {
@@ -162,7 +170,8 @@ impl Cpu {
         let interrupt_cycles = self.process_interrupt(memory);
 
         let instruction = Instruction::decode(self, memory);
-        //println!("{:?}\t{: <100?}", instruction, &self);
+        //
+        println!("{:?}\t{: <100?}", instruction, &self);
 
         let mut again_extra_cycles: u8 = 0;
         match &instruction {
