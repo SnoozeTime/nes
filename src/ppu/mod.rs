@@ -1,4 +1,5 @@
 pub mod memory;
+pub mod palette;
 use super::cpu::memory::Memory;
 use self::memory::RegisterType;
 
@@ -58,6 +59,10 @@ impl Ppu {
         for _ in 0..cycles_to_exec {
             if self.line < 241 {
                 if (ppu_mask & 0x2 == 0x2) || (ppu_mask & 0x8 == 0x8) {
+                    // In here we are in the visible lines. Need to fetch data according to the
+                    // current cycle.
+                    
+                    
                     //println!("Show background Line {} ccycle {} ", self.line, self.cycle);
                 }
             } else {

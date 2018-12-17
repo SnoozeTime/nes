@@ -1,6 +1,7 @@
 use super::cpu::memory::Memory;
 use super::ppu::Ppu;
-
+use super::ppu::palette;
+use std::collections::HashMap;
 /// Uses SDL 2 to render graphics.
 
 extern crate sdl2;
@@ -22,6 +23,7 @@ pub struct Graphics {
     video_subsystem: VideoSubsystem,
     canvas: WindowCanvas,
     event_pump: EventPump,
+    colors: HashMap<u8, Color>,
 }
 
 
@@ -56,7 +58,8 @@ impl Graphics {
             sdl_context,
             video_subsystem,
             canvas,
-            event_pump
+            event_pump,
+            colors: palette::build_default_colors(),
         })
     }
 
@@ -84,18 +87,39 @@ impl Graphics {
     pub fn display(&mut self, memory: &Memory, ppu: &mut Ppu) {
 
         if ppu.should_display() {
-            let nametable = &memory.ppu_mem.ppu_mem[0x2000..0x2400];
+            let ppu_mem = &memory.ppu_mem.ppu_mem;
+            let nametable = &ppu_mem[0x2000..0x2400];
+            let pattern_table = &ppu_mem[0x1000..0x2000];
 
             self.canvas.clear();
             let mut index: usize = 0;
             for row in 0..30i32 {
+                let rowattr = row / 4;
                 for col in 0..32i32 {
                     index = 32*(row as usize) + (col as usize);
-                    let tile = Tile::new(self.zoom_level, &memory.ppu_mem.ppu_mem[0x1000..0x2000], nametable[index] as usize);
+                    let tile = Tile::new(self.zoom_level, pattern_table, nametable[index] as usize);
 
                     let xtile = col*8*(self.zoom_level as i32);
                     let ytile = row*8*(self.zoom_level as i32);
-                    tile.draw(&mut self.canvas, xtile, ytile);
+
+                    // fetch attributes for this tile.
+                    let colattr = col / 4;
+                    let attr_idx = 0x3c0 + 8*rowattr+colattr;
+                    let attr_byte = nametable[attr_idx as usize];
+
+                    let box_row = (row%4) / 2;
+                    let box_col = (col%4) / 2;
+                    let attribute = match (box_row, box_col) {
+                        (0, 0) => attr_byte & 0b11,
+                        (0, 1) => (attr_byte & 0b1100) >> 2 ,
+                        (1, 0) => (attr_byte & 0b110000) >> 4,
+                        (1, 1) => (attr_byte & 0b11000000) >> 6,
+                        _ => panic!("Not possible"),
+                    };
+
+                    let palette = palette::get_bg_palette(attribute, ppu_mem, &self.colors).unwrap();
+                    // Now draw
+                    tile.draw(&mut self.canvas, xtile, ytile, &palette);
                 }
             }
             self.canvas.present();
@@ -123,7 +147,7 @@ impl Tile {
         Tile { plane1, plane2, zoom_level}
     }
 
-    fn draw<T: RenderTarget>(&self, canvas: &mut Canvas<T>, x: i32, y: i32) {
+    fn draw<T: RenderTarget>(&self, canvas: &mut Canvas<T>, x: i32, y: i32, palette: &palette::Palette) {
 
         for yline in 0..8 {
             let v1 = self.plane1[yline];
@@ -133,13 +157,13 @@ impl Tile {
                 let bit2 = ((v2 >> 8-(xline+1)) & 1) << 1;
                 let v = bit1 + bit2;
                 if v == 1 {
-                    canvas.set_draw_color(Color::RGB(255, 0, 0));
+                    canvas.set_draw_color(palette.color1);
                 } else if v == 2 {
-                    canvas.set_draw_color(Color::RGB(0, 255, 0));
+                    canvas.set_draw_color(palette.color2);
                 } else if v == 3 {
-                    canvas.set_draw_color(Color::RGB(0, 0, 255));
+                    canvas.set_draw_color(palette.color3);
                 } else {
-                    canvas.set_draw_color(Color::RGB(0, 0, 0));
+                    canvas.set_draw_color(palette.background);
                 }
 
                 let zoom = self.zoom_level as i32;
