@@ -83,7 +83,7 @@ impl Memory {
                 self.ppu_mem.write(register_type, value);
             },
             0x4014 => {
-                self.ppu_mem.write(RegisterType::OADDMA, value);    
+                self.ppu_mem.write_oamdma(&self.mem, value);    
             },
             _ => self.mem[address] = value,
         }
@@ -100,7 +100,7 @@ impl Memory {
                 let register_type = RegisterType::lookup(address).unwrap();
                 self.ppu_mem.read(register_type)
             },
-            0x4014 => self.ppu_mem.read(RegisterType::OADDMA),
+            0x4014 => self.ppu_mem.read(RegisterType::OAMDMA),
             _ => self.mem[address],
         }
     }

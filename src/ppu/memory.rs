@@ -4,8 +4,6 @@ use rom;
 // Behaviour of PPU register is quite special. For example, when reading PPUSTATUS,
 // the vblank flag will be cleared. In order to avoid cluttering the logic in 
 // Memory.rs, I'll gather all the ppu register behaviour here.
-
-
 #[allow(non_snake_case)]
 #[derive(Debug)]
 pub enum RegisterType {
@@ -17,7 +15,7 @@ pub enum RegisterType {
     PPUSCROLL,
     PPUADDR, 
     PPUDATA, 
-    OADDMA,
+    OAMDMA,
 }
 
 impl RegisterType {
@@ -32,7 +30,7 @@ impl RegisterType {
             0x2005 => Some(RegisterType::PPUSCROLL),
             0x2006 => Some(RegisterType::PPUADDR),
             0x2007 => Some(RegisterType::PPUDATA),
-            0x4014 => Some(RegisterType::OADDMA),
+            0x4014 => Some(RegisterType::OAMDMA),
             _ => None,
         }
     }
@@ -64,6 +62,11 @@ pub struct PpuMemory {
     // is here to store the first one.
     vram_addr_buffer: u8,
 
+    // Sprite stuff
+    oam_addr: u8,
+    // object attribute memory. contains the sprite data.
+    oam: [u8; 0x100],
+
     // Memory layout for  PPU
     // ----------------------
     // $0000-$0FFF  $1000   Pattern table 0
@@ -81,7 +84,7 @@ pub struct PpuMemory {
 impl fmt::Debug for PpuMemory {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "PPUCTRL:{:X} PPUMASK:{:X} PPUSTATUS:{:X} OAMADDR:{:X} OAMDATA:{:X} PPUSCROLL:{:X} PPUADDR:{:X} PPUDATA:{:X} OADDMA:{:X}",
+        write!(f, "PPUCTRL:{:X} PPUMASK:{:X} PPUSTATUS:{:X} OAMADDR:{:X} OAMDATA:{:X} PPUSCROLL:{:X} PPUADDR:{:X} PPUDATA:{:X} OAMDMA:{:X}",
                self.ppuctrl,
                self.ppumask,
                self.ppustatus,
@@ -112,6 +115,8 @@ impl PpuMemory {
             oamdma: 0,
             vram_addr: 0,
             vram_addr_buffer: 0,
+            oam_addr: 0,
+            oam: [0; 0x100],
             ppu_mem: [0; 0x4000],
         }
     }
@@ -140,6 +145,8 @@ impl PpuMemory {
             oamdma: 0,
             vram_addr: 0,
             vram_addr_buffer: 0,
+            oam_addr: 0,
+            oam: [0; 0x100],
             ppu_mem,
         })
     }
@@ -195,9 +202,9 @@ impl PpuMemory {
             PPUMASK => self.write_mask(value),
             PPUADDR => self.write_addr(value),
             PPUDATA => self.write_data(value),
-            OAMADDR => {}, //println!("OAMADDR Not implemented yet!"),
-            OAMDATA => {}, //println!("OAMDATA not implemented yet!"),
-            OAMDMA => {}, //println!("OAMDMA not implemented yet!"),
+            OAMADDR => self.write_oamaddr(value),
+            OAMDATA => self.write_oamdata(value),
+            OAMDMA => panic!("Use directly 'write_oamdma'"), 
             PPUSCROLL => {}, //println!("PPUSCROLL not implemented yet!"),
             _ => panic!("{:?} cannot be written by CPU", register_type),
         }
@@ -207,7 +214,7 @@ impl PpuMemory {
     pub fn read(&mut self, register_type: RegisterType) -> u8 {
         match register_type {
             // Those cannot be read by the CPU
-            PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR | OADDMA => {
+            PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR | OAMDMA => {
                 panic!("{:?} cannot be read by CPU", register_type);
             },
             PPUSTATUS => self.read_status(),
@@ -235,6 +242,28 @@ impl PpuMemory {
         self.ppumask = mask;
     }
 
+    fn write_oamaddr(&mut self, oamaddr: u8) {
+        self.oam_addr = oamaddr;
+    }
+    
+    fn write_oamdata(&mut self, oamdata: u8) {
+        // TODO ignored during rendering.
+        // need to add flag is_rendering...
+        self.oam[self.oam_addr as usize] = oamdata;
+        self.oam_addr += 1;
+    }
+
+    pub fn write_oamdma(&mut self, cpu_mem: &[u8], data_addr: u8) {
+        let start_range = (data_addr as usize) << 8;
+        let end_range = ((data_addr as usize) << 8) + 0xFF; // inclusive.
+
+        // that can overflow and panic hard...
+        for (i, b) in cpu_mem[start_range..=end_range].iter().enumerate() {
+            self.oam[self.oam_addr as usize +i] = *b;
+        }
+    }
+
+    // Background addr and data
     fn write_addr(&mut self, addr_byte: u8) {
         let old_vram_buf = self.vram_addr_buffer as u16;
         self.vram_addr = (old_vram_buf << 8) + (addr_byte as u16);
@@ -245,7 +274,6 @@ impl PpuMemory {
     fn write_data(&mut self, data: u8) {
         let addr_latch = self.vram_addr;
         self.ppu_mem[addr_latch as usize] = data;
-//        println!("Write {} at {:X}", data, addr_latch);
         if self.ppuctrl & 4 == 4 {
             self.vram_addr = addr_latch + 32;
         } else {

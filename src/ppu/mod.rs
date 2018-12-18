@@ -21,6 +21,7 @@ impl TileRowInfo {
         TileRowInfo { low, high, attr }
     }
 }
+
 /*
  * Fun times.
  * PPU has internal memory (pattern tables, nametable, attributes and so on)
@@ -96,7 +97,7 @@ impl Ppu {
         // No way we add more than one line at a time in the current code...
         for _ in 0..cycles_to_exec {
             if self.line < 240 {
-                // Visible lines.
+                // Visible lines. BACKGROUND
                 if (ppu_mask & 0x2 == 0x2) || (ppu_mask & 0x8 == 0x8) {
                     if self.cycle == 0 {
                         // lazy cycle
@@ -113,9 +114,13 @@ impl Ppu {
                             self.fetch_background(memory);
                         }
                     }
-
-
                 }
+
+                // SPRITES
+                // during 1-64, the secondary OAM is cleared and the primary
+                // OAM is scanned. Every sprite that will be in the line will
+                // be added to the secondary OAM
+
             } else if self.line == 240 {
                 // post render line.
             } else if self.line > 240 && self.line < 261 {
@@ -198,6 +203,7 @@ impl Ppu {
                 let bmp_low = 0x1000+addr;
                 self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
             },
+            // 8th cycle
             0 => {
                 // fetch bitmap high. One byte higher than low addr.
                 let addr = 16 * (self.nt as usize)+ 8 + (self.y as usize);
