@@ -45,7 +45,7 @@ impl Nes {
             self.ppu.next(3*cpu_cycles, &mut self.memory)?;
 
             // render
-            self.ui.real_display(&mut self.memory, &mut self.ppu);
+            self.ui.display(&mut self.memory, &mut self.ppu);
         }
 
         Ok(())

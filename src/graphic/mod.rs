@@ -81,148 +81,64 @@ impl Graphics {
 
         false
     }
-    pub fn real_display(&mut self, memory: &Memory, ppu: &mut Ppu) {
+    pub fn display(&mut self, memory: &Memory, ppu: &mut Ppu) {
 
         if ppu.should_display() {
 
             self.canvas.clear();
             let mut index: usize = 0;
             for row in 0..240i32 {
-                let rowattr = row / 4;
                 for col in 0..32i32 {
                     index = 32*(row as usize) + (col as usize);
                     let tilerow = &ppu.virtual_buffer[index];
                     let xtile = col*8*(self.zoom_level as i32);
                     let ytile = row*(self.zoom_level as i32);
-                    // Now draw
-                    draw(&mut self.canvas, xtile, ytile, self.zoom_level, &tilerow);
-                }
-            }
-            self.canvas.present();
-        }
-    }
 
-    // Will get the buffer from the ppu and display it on screen.
-    // PPU decides whether the pixel should be displayed.
-    pub fn display(&mut self, memory: &Memory, ppu: &mut Ppu) {
-
-        if ppu.should_display() {
-            let ppu_mem = &memory.ppu_mem.ppu_mem;
-            let nametable = &ppu_mem[0x2000..0x2400];
-            let pattern_table = &ppu_mem[0x1000..0x2000];
-
-            self.canvas.clear();
-            let mut index: usize = 0;
-            for row in 0..30i32 {
-                let rowattr = row / 4;
-                for col in 0..32i32 {
-                    index = 32*(row as usize) + (col as usize);
-                    let tile = Tile::new(self.zoom_level, pattern_table, nametable[index] as usize);
-
-                    let xtile = col*8*(self.zoom_level as i32);
-                    let ytile = row*8*(self.zoom_level as i32);
-
-                    // fetch attributes for this tile.
-                    let colattr = col / 4;
-                    let attr_idx = 0x3c0 + 8*rowattr+colattr;
-                    let attr_byte = nametable[attr_idx as usize];
-
-                    let box_row = (row%4) / 2;
+                    let box_row = (row/8 % 4) / 2;
                     let box_col = (col%4) / 2;
                     let attribute = match (box_row, box_col) {
-                        (0, 0) => attr_byte & 0b11,
-                        (0, 1) => (attr_byte & 0b1100) >> 2 ,
-                        (1, 0) => (attr_byte & 0b110000) >> 4,
-                        (1, 1) => (attr_byte & 0b11000000) >> 6,
+                        (0, 0) => tilerow.attr & 0b11,
+                        (0, 1) => (tilerow.attr & 0b1100) >> 2 ,
+                        (1, 0) => (tilerow.attr & 0b110000) >> 4,
+                        (1, 1) => (tilerow.attr & 0b11000000) >> 6,
                         _ => panic!("Not possible"),
                     };
 
-                    let palette = palette::get_bg_palette(attribute, ppu_mem, &self.colors).unwrap();
-                    // Now draw
-                    tile.draw(&mut self.canvas, xtile, ytile, &palette);
+                    let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.colors).unwrap();                   
+                    self.draw_tilerow(xtile, ytile, &tilerow, &palette);
                 }
             }
             self.canvas.present();
         }
     }
-}
 
-struct Tile {
-    plane1: [u8; 8],
-    plane2: [u8; 8],
-    zoom_level: u32,
-}
+    fn draw_tilerow(&mut self, x: i32, y: i32, tile_row: &TileRowInfo, palette: &palette::Palette) {
+        let v1 = tile_row.low;
+        let v2 = tile_row.high;
+        for xline in 0..8 {
+            let bit1 = (v1 >> 8-(xline+1)) & 1;
+            let bit2 = ((v2 >> 8-(xline+1)) & 1) << 1;
+            let v = bit1 + bit2;
 
-impl Tile {
-    fn new(zoom_level: u32, pattern_table: &[u8], sprite_nb: usize) -> Tile {
-
-        let mut plane1 = [0;8];
-        let mut plane2 = [0;8];
-
-        if sprite_nb != 0x24 {
-            println!("SPRITE NB {}", sprite_nb);
-        }
-        for i in 0..8 {
-            plane1[i] = pattern_table[16*sprite_nb + i];
-            plane2[i] = pattern_table[16*sprite_nb + i + 8];
-        }
-
-        Tile { plane1, plane2, zoom_level}
-    }
-
-    fn draw<T: RenderTarget>(&self, canvas: &mut Canvas<T>, x: i32, y: i32, palette: &palette::Palette) {
-
-        for yline in 0..8 {
-            let v1 = self.plane1[yline];
-            let v2 = self.plane2[yline];
-            for xline in 0..8 {
-                let bit1 = (v1 >> 8-(xline+1)) & 1;
-                let bit2 = ((v2 >> 8-(xline+1)) & 1) << 1;
-                let v = bit1 + bit2;
-                if v == 1 {
-                    canvas.set_draw_color(palette.color1);
-                } else if v == 2 {
-                    canvas.set_draw_color(palette.color2);
-                } else if v == 3 {
-                    canvas.set_draw_color(palette.color3);
-                } else {
-                    canvas.set_draw_color(palette.background);
-                }
-
-                let zoom = self.zoom_level as i32;
-                let xpixel = x + (xline as i32) * zoom;
-                let ypixel = y + (yline as i32) * zoom;
-                // // A draw a rectangle which almost fills our window with it !
-                canvas.fill_rect(Rect::new(xpixel, ypixel, self.zoom_level, self.zoom_level)).unwrap();
-
+            if v == 1 {
+                self.canvas.set_draw_color(palette.color1);
+            } else if v == 2 {
+                self.canvas.set_draw_color(palette.color2);
+            } else if v == 3 {
+                self.canvas.set_draw_color(palette.color3);
+            } else {
+                self.canvas.set_draw_color(palette.background);
             }
-        }
-    }
 
-}
-
-fn draw<T: RenderTarget>(canvas: &mut Canvas<T>, x: i32, y: i32, zoom_level: u32, tile_row: &TileRowInfo) {
-    let v1 = tile_row.low;
-    let v2 = tile_row.high;
-    for xline in 0..8 {
-        let bit1 = (v1 >> 8-(xline+1)) & 1;
-        let bit2 = ((v2 >> 8-(xline+1)) & 1) << 1;
-        let v = bit1 + bit2;
-        if v == 1 {
-            canvas.set_draw_color(Color::RGB(255, 0, 0));
-        } else if v == 2 {
-            canvas.set_draw_color(Color::RGB(0, 255, 0));
-        } else if v == 3 {
-            canvas.set_draw_color(Color::RGB(0, 0, 255));
-        } else {
-            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            let zoom = self.zoom_level as i32;
+            let xpixel = x + (xline as i32) * zoom;
+            let ypixel = y;
+            self.canvas.fill_rect(Rect::new(xpixel,
+                                            ypixel,
+                                            self.zoom_level,
+                                            self.zoom_level)).unwrap();
         }
 
-
-        let zoom = zoom_level as i32;
-        let xpixel = x + (xline as i32) * zoom;
-        let ypixel = y;
-        // // A draw a rectangle which almost fills our window with it !
-        canvas.fill_rect(Rect::new(xpixel, ypixel, zoom_level, zoom_level)).unwrap();
     }
 }
+

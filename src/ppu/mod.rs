@@ -188,7 +188,7 @@ impl Ppu {
             },
             4 => {
                 // fetch attribute byte (colors)
-                let attr_idx = (9 * (self.Y / 4) + self.X/4) as usize;
+                let attr_idx = (8 * (self.Y / 4) + self.X/4) as usize;
                 self.at = memory.ppu_mem.ppu_mem[attr_idx+0x23C0];
             },
             6 => {
@@ -210,7 +210,6 @@ impl Ppu {
                 } else {
                     let idx =
                         (self.X as usize) + 32 * ((self.y as usize) + (8*self.Y as usize));
-                    //println!("At cycle {}, IDX = X ({}) + 32 * (Y {} * 8 + y {})", self.cycle,
                     //self.X, self.Y, self.y);
                     self.virtual_buffer[idx] = TileRowInfo::new(self.low_bg_byte,
                                                                 self.high_bg_byte,
