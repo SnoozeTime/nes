@@ -1,5 +1,5 @@
 use super::cpu::memory::Memory;
-use super::ppu::Ppu;
+use super::ppu::{Ppu, TileRowInfo};
 use super::ppu::palette;
 use std::collections::HashMap;
 /// Uses SDL 2 to render graphics.
@@ -81,6 +81,26 @@ impl Graphics {
 
         false
     }
+    pub fn real_display(&mut self, memory: &Memory, ppu: &mut Ppu) {
+
+        if ppu.should_display() {
+
+            self.canvas.clear();
+            let mut index: usize = 0;
+            for row in 0..240i32 {
+                let rowattr = row / 4;
+                for col in 0..32i32 {
+                    index = 32*(row as usize) + (col as usize);
+                    let tilerow = &ppu.virtual_buffer[index];
+                    let xtile = col*8*(self.zoom_level as i32);
+                    let ytile = row*(self.zoom_level as i32);
+                    // Now draw
+                    draw(&mut self.canvas, xtile, ytile, self.zoom_level, &tilerow);
+                }
+            }
+            self.canvas.present();
+        }
+    }
 
     // Will get the buffer from the ppu and display it on screen.
     // PPU decides whether the pixel should be displayed.
@@ -139,6 +159,9 @@ impl Tile {
         let mut plane1 = [0;8];
         let mut plane2 = [0;8];
 
+        if sprite_nb != 0x24 {
+            println!("SPRITE NB {}", sprite_nb);
+        }
         for i in 0..8 {
             plane1[i] = pattern_table[16*sprite_nb + i];
             plane2[i] = pattern_table[16*sprite_nb + i + 8];
@@ -171,11 +194,35 @@ impl Tile {
                 let ypixel = y + (yline as i32) * zoom;
                 // // A draw a rectangle which almost fills our window with it !
                 canvas.fill_rect(Rect::new(xpixel, ypixel, self.zoom_level, self.zoom_level)).unwrap();
-                
+
             }
         }
     }
 
 }
 
+fn draw<T: RenderTarget>(canvas: &mut Canvas<T>, x: i32, y: i32, zoom_level: u32, tile_row: &TileRowInfo) {
+    let v1 = tile_row.low;
+    let v2 = tile_row.high;
+    for xline in 0..8 {
+        let bit1 = (v1 >> 8-(xline+1)) & 1;
+        let bit2 = ((v2 >> 8-(xline+1)) & 1) << 1;
+        let v = bit1 + bit2;
+        if v == 1 {
+            canvas.set_draw_color(Color::RGB(255, 0, 0));
+        } else if v == 2 {
+            canvas.set_draw_color(Color::RGB(0, 255, 0));
+        } else if v == 3 {
+            canvas.set_draw_color(Color::RGB(0, 0, 255));
+        } else {
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+        }
 
+
+        let zoom = zoom_level as i32;
+        let xpixel = x + (xline as i32) * zoom;
+        let ypixel = y;
+        // // A draw a rectangle which almost fills our window with it !
+        canvas.fill_rect(Rect::new(xpixel, ypixel, zoom_level, zoom_level)).unwrap();
+    }
+}

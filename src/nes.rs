@@ -27,7 +27,7 @@ impl Nes {
         cpu.set_pc(start_pc);
 
 
-        let ui = Graphics::new(3)?;
+        let ui = Graphics::new(2)?;
         Ok(Nes { cpu, ppu, memory, ui })
     }
 
@@ -45,7 +45,7 @@ impl Nes {
             self.ppu.next(3*cpu_cycles, &mut self.memory)?;
 
             // render
-            self.ui.display(&mut self.memory, &mut self.ppu);
+            self.ui.real_display(&mut self.memory, &mut self.ppu);
         }
 
         Ok(())

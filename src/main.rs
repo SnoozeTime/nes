@@ -1,3 +1,7 @@
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+
 extern crate sdl2;
 extern crate nesemu;
 use std::env;
@@ -5,7 +9,7 @@ use nesemu::nes::Nes;
 use nesemu::rom;
 
 pub fn main() {
-
+    env_logger::init();
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         panic!("Usage {} <FILENAME>", args[0]);

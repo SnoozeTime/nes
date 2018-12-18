@@ -8,3 +8,5 @@ name = "nesemu"
 
 [dependencies]
 sdl2 = "0.32"
+log = { version = "0.4", features = ["release_max_level_warn"] }
+env_logger = "0.6.0"
