@@ -55,6 +55,46 @@ pub fn get_bg_palette(palette_number: u8,
     }
 }
 
+pub fn get_sprite_palette(palette_number: u8,
+                          vram: &[u8],
+                          colors: &HashMap<u8, Color>) -> Option<Palette> {
+    // only 4 palettes for background.
+    assert!(palette_number < 4);
+
+    let background = colors.get(&vram[0x3F00]);
+
+    let (color1, color2, color3) = match palette_number {
+        0 => {
+            (colors.get(&vram[0x3F11]),
+            colors.get(&vram[0x3F12]),
+            colors.get(&vram[0x3F13]))
+        },
+        1 => {
+            (colors.get(&vram[0x3F15]),
+            colors.get(&vram[0x3F16]),
+            colors.get(&vram[0x3F17]))
+        },
+        2 => {
+            (colors.get(&vram[0x3F19]),
+            colors.get(&vram[0x3F1A]),
+            colors.get(&vram[0x3F1B]))
+        },
+        3 => {
+            (colors.get(&vram[0x3F1D]),
+            colors.get(&vram[0x3F1E]),
+            colors.get(&vram[0x3F1F]))
+        },
+        _ => panic!("impossibru"),
+    };
+
+    if let (Some(bg), Some(c1), Some(c2), Some(c3)) = (background, color1, color2, color3) {
+        Some(Palette { background: *bg, color1: *c1, color2: *c2, color3: *c3 })
+    } else {
+        None
+    }
+}
+
+
 // TODO load from file
 //
 

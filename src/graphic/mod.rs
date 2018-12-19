@@ -154,7 +154,8 @@ impl Graphics {
         let x = sprite.x as i32 * self.zoom_level as i32;
         let y = sprite.y as i32 * self.zoom_level as i32;
 
-        let palette = palette::get_bg_palette(1, &memory.ppu_mem.ppu_mem, &self.colors).unwrap();
+        let palette = palette::get_sprite_palette(
+            sprite.tile.attr & 0b11, &memory.ppu_mem.ppu_mem, &self.colors).unwrap();
         self.draw_tilerow(x, y, &sprite.tile, &palette);
     }
 }
