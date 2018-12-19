@@ -9,6 +9,10 @@ pub struct Palette {
     pub color3: Color,
 }
 
+pub fn get_bg_color(vram: &[u8], colors:&HashMap<u8, Color>) -> Color {
+    *colors.get(&vram[0x3F00]).unwrap()
+}
+
 // palette number between 0 and 4 (exclusive)
 // vram
 // colors: Color map.

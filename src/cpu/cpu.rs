@@ -164,7 +164,7 @@ impl Cpu {
         println!("{:?}\t{: <100?}", instruction, &self);
     }
 
-    pub fn next(&mut self, memory: &mut Memory) -> Result<u8, &'static str> {
+    pub fn next(&mut self, memory: &mut Memory) -> Result<u64, &'static str> {
 
         // Hey, do we have an interrupt?
         let interrupt_cycles = self.process_interrupt(memory);
@@ -173,7 +173,7 @@ impl Cpu {
         //
         info!("{:?}\t{: <100?}", instruction, &self);
 
-        let mut again_extra_cycles: u8 = 0;
+        let mut again_extra_cycles: u16 = 0;
         match &instruction {
             Instruction::ADC(_, addressing, _length) => {
                 // http://www.6502.org/tutorials/vflag.html
@@ -530,6 +530,14 @@ impl Cpu {
             },
             Instruction::STA(_, addressing, _length) => {
                 addressing.set(memory, self.A);
+
+                // TODO should only be STA that store in this register...
+               if addressing.address(memory) == 0x4014 {
+                   // DMA writing is actually loading a bunch of sprites in OAM
+                   // instead of looping and writing to OAM directly, but it still
+                   // takes quite some time.
+                    again_extra_cycles += 513;  // TODO +1 if on odd cpu cycle
+               }
             },
             Instruction::STX(_, addressing, _length) => {
                 addressing.set(memory, self.X);
@@ -745,9 +753,9 @@ impl Cpu {
                 Instruction::UNKNOWN(_,_) => {}
         };
 
-        let total_cycles = instruction.get_cycles() + again_extra_cycles + interrupt_cycles;
-        self.cycles += total_cycles as u64;
-        Ok(total_cycles)
+        let total_cycles = instruction.get_cycles() as u64 + again_extra_cycles as u64 + interrupt_cycles as u64;
+        self.cycles += total_cycles;
+        Ok(total_cycles as u64)
     }
 
     // set negative or zero flag depending on result of operation.

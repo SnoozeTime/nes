@@ -1,5 +1,5 @@
 use super::cpu::memory::Memory;
-use super::ppu::{Ppu, TileRowInfo};
+use super::ppu::{Ppu, TileRowInfo, SpriteInfo};
 use super::ppu::palette;
 use std::collections::HashMap;
 /// Uses SDL 2 to render graphics.
@@ -84,7 +84,7 @@ impl Graphics {
     pub fn display(&mut self, memory: &Memory, ppu: &mut Ppu) {
 
         if ppu.should_display() {
-
+            self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.ppu_mem, &self.colors));
             self.canvas.clear();
             let mut index: usize = 0;
             for row in 0..240i32 {
@@ -108,6 +108,13 @@ impl Graphics {
                     self.draw_tilerow(xtile, ytile, &tilerow, &palette);
                 }
             }
+
+            // now the sprites.
+            let sprites = &ppu.virtual_sprite_buffer;
+            for sprite in sprites {
+                self.draw_sprite(sprite, memory);
+            }
+
             self.canvas.present();
         }
     }
@@ -120,25 +127,35 @@ impl Graphics {
             let bit2 = ((v2 >> 8-(xline+1)) & 1) << 1;
             let v = bit1 + bit2;
 
-            if v == 1 {
-                self.canvas.set_draw_color(palette.color1);
-            } else if v == 2 {
-                self.canvas.set_draw_color(palette.color2);
-            } else if v == 3 {
-                self.canvas.set_draw_color(palette.color3);
-            } else {
-                self.canvas.set_draw_color(palette.background);
-            }
+            if v > 0 {
+                if v == 1 {
+                    self.canvas.set_draw_color(palette.color1);
+                } else if v == 2 {
+                    self.canvas.set_draw_color(palette.color2);
+                } else if v == 3 {
+                    self.canvas.set_draw_color(palette.color3);
+                } else {
+                    self.canvas.set_draw_color(palette.background);
+                }
 
-            let zoom = self.zoom_level as i32;
-            let xpixel = x + (xline as i32) * zoom;
-            let ypixel = y;
-            self.canvas.fill_rect(Rect::new(xpixel,
-                                            ypixel,
-                                            self.zoom_level,
-                                            self.zoom_level)).unwrap();
+                let zoom = self.zoom_level as i32;
+                let xpixel = x + (xline as i32) * zoom;
+                let ypixel = y;
+                self.canvas.fill_rect(Rect::new(xpixel,
+                                                ypixel,
+                                                self.zoom_level,
+                                                self.zoom_level)).unwrap();
+            }
         }
 
+    }
+
+    fn draw_sprite(&mut self, sprite: &SpriteInfo, memory: &Memory) {
+        let x = sprite.x as i32 * self.zoom_level as i32;
+        let y = sprite.y as i32 * self.zoom_level as i32;
+
+        let palette = palette::get_bg_palette(1, &memory.ppu_mem.ppu_mem, &self.colors).unwrap();
+        self.draw_tilerow(x, y, &sprite.tile, &palette);
     }
 }
 

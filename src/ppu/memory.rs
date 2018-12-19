@@ -63,9 +63,9 @@ pub struct PpuMemory {
     vram_addr_buffer: u8,
 
     // Sprite stuff
-    oam_addr: u8,
+    pub oam_addr: u8,
     // object attribute memory. contains the sprite data.
-    oam: [u8; 0x100],
+    pub oam: [u8; 0x100],
 
     // Memory layout for  PPU
     // ----------------------

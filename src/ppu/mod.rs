@@ -22,6 +22,12 @@ impl TileRowInfo {
     }
 }
 
+pub struct SpriteInfo {
+    pub tile: TileRowInfo,
+    pub x: usize,
+    pub y: usize,
+}
+
 /*
  * Fun times.
  * PPU has internal memory (pattern tables, nametable, attributes and so on)
@@ -50,8 +56,12 @@ pub struct Ppu {
     low_bg_byte: u8,
     high_bg_byte: u8,
 
+    // For sprites
+    secondary_oam: [u8; 32],
+    nb_sprites: usize,
     // one 8x1 pixels (slice of tile). 8 slices to make a tile.
     pub virtual_buffer: [TileRowInfo; 0x1e00], 
+    pub virtual_sprite_buffer: Vec<SpriteInfo>,
 }
 
 impl Ppu {
@@ -67,8 +77,25 @@ impl Ppu {
         let at = 0;
         let low_bg_byte = 0;
         let high_bg_byte = 0;
+        let secondary_oam = [0; 32];
+        let nb_sprites = 0;
         let virtual_buffer = [TileRowInfo::new(0,0,0); 0x1e00]; 
-        Ppu { line, cycle, display_flag, y, X, Y, nt, at, low_bg_byte, high_bg_byte, virtual_buffer}
+        let virtual_sprite_buffer = Vec::new();
+        Ppu { line,
+        cycle,
+        display_flag,
+        y,
+        X,
+        Y,
+        nt,
+        at,
+        low_bg_byte,
+        high_bg_byte,
+        secondary_oam,
+        nb_sprites,
+        virtual_buffer,
+        virtual_sprite_buffer
+        }
     }
 
     // Do not display too much :D
@@ -88,7 +115,7 @@ impl Ppu {
     // In this emulator, I chose to run the CPU first, then the PPU. The CPU
     // will return the number of cycles it had executed and the PPU will execute
     // 3 times as many cycles.
-    pub fn next(&mut self, cycles_to_exec: u8, memory: &mut Memory) -> Result<(), &'static str> {
+    pub fn next(&mut self, cycles_to_exec: u64, memory: &mut Memory) -> Result<(), &'static str> {
 
         let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
         let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
@@ -103,7 +130,6 @@ impl Ppu {
                         // lazy cycle
                     } else if self.cycle > 0 && self.cycle <= 256 {
                         // Draw background
-                        //
                         self.fetch_background(memory);  
                     } else if self.cycle == 257 {
                         // Reset X
@@ -117,9 +143,7 @@ impl Ppu {
                 }
 
                 // SPRITES
-                // during 1-64, the secondary OAM is cleared and the primary
-                // OAM is scanned. Every sprite that will be in the line will
-                // be added to the secondary OAM
+                self.fetch_sprites(memory);
 
             } else if self.line == 240 {
                 // post render line.
@@ -130,6 +154,10 @@ impl Ppu {
                     // UI object will display the current frame now that we 
                     // are in vblank
                     self.display_flag = true;
+                }
+
+                if self.line == 260 {
+                    self.virtual_sprite_buffer.clear();
                 }
             } else {
                 // at line 261, it is the end of vblank. We are also going to fetch the
@@ -142,6 +170,9 @@ impl Ppu {
                 self.Y = 0;
                 // prefetch data :D
                 self.fetch_background(memory);
+
+                // sprites as well.
+                self.fetch_sprites(memory);
             }
 
             self.cycle = (self.cycle + 1) % 341;
@@ -179,7 +210,77 @@ impl Ppu {
             self.y += 1;
         }
 
-        //println!("Increase y, now Y:{} and yyy:{}", self.Y, self.y);
+    }
+
+    fn fetch_sprites(&mut self, memory: &mut Memory) {
+        // during 1-64, the secondary OAM is cleared and the primary
+        // OAM is scanned. Every sprite that will be in the line will
+        // be added to the secondary OAM
+        if self.cycle == 1 {    
+            // Clear secondary OAM
+            self.secondary_oam = [0; 32]; 
+            self.nb_sprites = 0;
+        } else if self.cycle == 65 {
+            // populate secondary OAM
+            // Find the sprites that are in range for the next Y.
+            let mut addr = memory.ppu_mem.oam_addr as usize;
+            
+            let mut secondary_oam_addr = 0;
+            while addr < 0x100 {
+
+                let sprite_y = memory.ppu_mem.oam[addr] as usize;
+                // TODO implement for 16 pixels tall.
+                if self.line +1 >= sprite_y && self.line+1 <= sprite_y + 8 {
+                    self.secondary_oam[secondary_oam_addr] = memory.ppu_mem.oam[addr];
+                    self.secondary_oam[secondary_oam_addr+1] = memory.ppu_mem.oam[addr+1];
+                    self.secondary_oam[secondary_oam_addr+2] = memory.ppu_mem.oam[addr+2];
+                    self.secondary_oam[secondary_oam_addr+3] = memory.ppu_mem.oam[addr+3];
+                    secondary_oam_addr += 4;
+                    self.nb_sprites += 1;
+                }
+
+                // 4 bytes per sprites.
+                addr += 4;
+
+                // if we already have 8 sprites, stop here.
+                if secondary_oam_addr == 32 {
+                    break;
+                }
+            }
+        } else if self.cycle >= 257 && self.cycle < 320 {
+            memory.ppu_mem.oam_addr = 0; 
+        } else if self.cycle == 320 {
+            let ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
+            let nametable = match (ppu_ctrl >> 3) & 1 {
+                0 => 0x0,
+                1 => 0x1000,
+                _ => panic!("Fix that"),
+            };
+            // print to some virtual buffer
+            for i in 0..self.nb_sprites {
+                let secondary_oam_addr = 4*i;
+                let y = self.line + 1;
+                let x = self.secondary_oam[secondary_oam_addr+3] as usize;
+                let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
+
+                let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
+                let bmp_low = self.tile_low_addr(nametable,
+                                                 tile_byte,
+                                                 tile_y);
+                let bmp_high = bmp_low + 8;
+                // see bit 3 of PPUCTRL.
+                let attr_byte = self.secondary_oam[secondary_oam_addr+2];
+                    //self.X, self.Y, self.y);
+                    self.virtual_sprite_buffer.push(
+                        SpriteInfo{ tile: TileRowInfo::new(
+                                memory.ppu_mem.ppu_mem[bmp_low],
+                                memory.ppu_mem.ppu_mem[bmp_high],
+                                attr_byte),
+                                    x,
+                                    y});
+
+            }
+        }
     }
 
     fn fetch_background(&mut self, memory: &mut Memory) {
@@ -198,17 +299,19 @@ impl Ppu {
             },
             6 => {
                 // fetch bitmap low. Address is held in self.nt
-                let addr = 16 * (self.nt as usize) + (self.y as usize);
+                let bmp_low = self.tile_low_addr(0x1000,
+                                                 self.nt as usize,
+                                                 self.y as usize);
                 // TODO dynamically choose the pattern table based on register.
-                let bmp_low = 0x1000+addr;
                 self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
             },
             // 8th cycle
             0 => {
                 // fetch bitmap high. One byte higher than low addr.
-                let addr = 16 * (self.nt as usize)+ 8 + (self.y as usize);
-
-                let bmp_high = 0x1000+addr;
+                let addr = self.tile_low_addr(0x1000,
+                                              self.nt as usize,
+                                              self.y as usize);
+                let bmp_high = addr + 8;
                 self.high_bg_byte = memory.ppu_mem.ppu_mem[bmp_high];
 
                 if self.cycle > 239 && self.cycle <= 257 {
@@ -234,8 +337,10 @@ impl Ppu {
                 //nothing, intermediate cycles
             }
         }
+    }
 
-
+    fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {
+        pattern_table + 16 * tile_nb + fine_y
     }
 }
 

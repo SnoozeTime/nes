@@ -89,6 +89,7 @@ pub trait AddressingMode {
 
     // will set the value to memory
     fn set(&self, mem: &mut Memory, value: u8);
+    fn address(&self, _mem: &mut Memory) -> u16;
 
     // return extra cycles when crossing a page
     fn extra_cycles(&self) -> u8 { 0 }
@@ -123,6 +124,8 @@ impl AddressingMode for ImpliedAddressing {
     }
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
+
+    fn address(&self, _mem: &mut Memory) -> u16 { 0 }
 
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
@@ -162,6 +165,7 @@ impl AddressingMode for ImmediateAddressing {
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
 
+    fn address(&self, _mem: &mut Memory) -> u16 { 0 }
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
@@ -196,6 +200,7 @@ impl AddressingMode for RelativeAddressing {
         self.offset
     }
 
+    fn address(&self, _mem: &mut Memory) -> u16 { 0 }
     fn set(&self, _mem: &mut Memory, _v: u8) {}    
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
@@ -233,6 +238,7 @@ impl AddressingMode for ZeroPageAddressing {
         mem.get(self.address as usize)
     }
 
+    fn address(&self, _mem: &mut Memory) -> u16 { self.address as u16 }
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
     }    
@@ -278,6 +284,9 @@ impl AddressingMode for IndexedZeroPageAddressing {
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address.wrapping_add(self.offset) as usize, v);
     }    
+
+    fn address(&self, _mem: &mut Memory) -> u16 { self.address.wrapping_add(self.offset) as u16 }
+
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
@@ -320,6 +329,7 @@ impl AddressingMode for AbsoluteAddressing {
         self.address
     }
 
+    fn address(&self, _mem: &mut Memory) -> u16 { self.address }
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
     }    
@@ -364,6 +374,9 @@ impl AddressingMode for IndexedAbsoluteAddressing {
         let target = self.address.wrapping_add(self.offset as u16);
         mem.set(target as usize, v)
     }    
+    
+    fn address(&self, _mem: &mut Memory) -> u16 { self.address.wrapping_add(self.offset as u16) }
+
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
@@ -423,11 +436,15 @@ impl AddressingMode for IndirectAddressing {
         address
     }
 
-    fn set(&self, mem: &mut Memory, v: u8) {
+    fn address(&self, mem: &mut Memory) -> u16 {
         let lsb = mem.get(self.lsb_location as usize);
         let msb = mem.get((self.lsb_location+1) as usize);
-
-        let address = ((msb as u16) << 8) + (lsb as u16);
+        ((msb as u16) << 8) + (lsb as u16)
+    }
+    
+    
+    fn set(&self, mem: &mut Memory, v: u8) {
+        let address = self.address(mem);
         mem.set(address as usize, v);
     }    
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -466,27 +483,26 @@ impl AddressingMode for PreIndexedIndirectAddressing {
     }
 
     fn fetch(&self, mem: &mut Memory) -> u8 {
-        let lsb_location = self.address.wrapping_add(self.offset);
-        let lsb = mem.get(lsb_location as usize);
-        let msb = mem.get(lsb_location.wrapping_add(1) as usize);
-
-
-        let address = ((msb as u16) << 8) + (lsb as u16);
+        let address = self.address(mem);
         mem.get(address as usize)
     }
 
     fn set(&self, mem: &mut Memory, v: u8) {
-        let lsb_location = self.address.wrapping_add(self.offset);
-        let lsb = mem.get(lsb_location as usize);
-        let msb = mem.get(lsb_location.wrapping_add(1) as usize);
-
-        let address = ((msb as u16) << 8) + (lsb as u16);
+        let address = self.address(mem);
         mem.set(address as usize, v);
     }
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
 
+    fn address(&self, mem: &mut Memory) -> u16 {
+        let lsb_location = self.address.wrapping_add(self.offset);
+        let lsb = mem.get(lsb_location as usize);
+        let msb = mem.get(lsb_location.wrapping_add(1) as usize);
+
+        ((msb as u16) << 8) + (lsb as u16)
+    }
+ 
     fn extra_cycles(&self) -> u8 {
         let (_, overflow) = ((self.address & 0xFF) as u8).overflowing_add(self.offset);
         if overflow {
@@ -535,12 +551,15 @@ impl AddressingMode for PostIndexedIndirectAddressing {
         mem.get(fetch_addr as usize)
     }
 
-    fn set(&self, mem: &mut Memory, v: u8) {
+    fn address(&self, mem: &mut Memory) -> u16 {
         let lsb = mem.get(self.address as usize);
         let msb = mem.get(self.address.wrapping_add(1) as usize);
         let address = ((msb as u16) << 8) + (lsb as u16);
-        let fetch_addr: u16 = address.wrapping_add(self.offset as u16);
+        address.wrapping_add(self.offset as u16)
+    }
 
+    fn set(&self, mem: &mut Memory, v: u8) {
+        let fetch_addr = self.address(mem);
         mem.set(fetch_addr as usize, v);
     }
 
@@ -580,6 +599,11 @@ impl AddressingMode for AccumulatorAddressing {
     fn fetch(&self, _mem: &mut Memory) -> u8 {
         self.accumulator
     }
+
+    fn address(&self, _mem: &mut Memory) -> u16 {
+        0
+    }
+
 
     fn set(&self, _mem: &mut Memory, _v: u8) {
         // exceptional case. A is set directly
