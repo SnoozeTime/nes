@@ -3,6 +3,22 @@ pub mod palette;
 use super::cpu::memory::Memory;
 use self::memory::RegisterType;
 
+fn reverse_bit(mut in_byte: u8) -> u8 {
+
+    let mut out_byte: u8 = 0;
+    let mut rest = 8;
+
+    while in_byte != 0 {
+        
+        out_byte <<= 1;
+        out_byte |= in_byte & 1;
+        in_byte >>= 1;
+        rest -= 1;
+    }
+
+    out_byte << rest
+
+}
 #[derive(Copy, Clone)]
 pub struct TileRowInfo {
     pub low: u8,
@@ -270,11 +286,19 @@ impl Ppu {
                 let bmp_high = bmp_low + 8;
                 // see bit 3 of PPUCTRL.
                 let attr_byte = self.secondary_oam[secondary_oam_addr+2];
-                    //self.X, self.Y, self.y);
-                    self.virtual_sprite_buffer.push(
+                
+                let mut tile_low = memory.ppu_mem.ppu_mem[bmp_low];
+                let mut tile_high = memory.ppu_mem.ppu_mem[bmp_high];
+                if (attr_byte >> 6) & 1 == 1 {
+                    // flip horizontally :D
+                    tile_low = reverse_bit(tile_low);
+                    tile_high = reverse_bit(tile_high);
+                }
+
+                self.virtual_sprite_buffer.push(
                         SpriteInfo{ tile: TileRowInfo::new(
-                                memory.ppu_mem.ppu_mem[bmp_low],
-                                memory.ppu_mem.ppu_mem[bmp_high],
+                                tile_low,
+                                tile_high,
                                 attr_byte),
                                     x,
                                     y});
@@ -376,5 +400,12 @@ mod tests {
         assert_eq!(0, ppu.y);
     }
 
+    #[test]
+    fn reverse_byte_test() {
+        
+        assert_eq!(0b00010000, reverse_bit(0b00001000));
+        assert_eq!(0b11010000, reverse_bit(0b00001011));
+
+    }
 }
 
