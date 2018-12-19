@@ -6,3 +6,4 @@ pub mod ppu;
 pub mod rom;
 pub mod nes;
 pub mod graphic;
+pub mod joypad;

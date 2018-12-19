@@ -14,8 +14,23 @@ use self::sdl2::keyboard::Keycode;
 use std::time::Duration;
 use self::sdl2::render::{RenderTarget, Canvas, WindowCanvas};
 
+use joypad::InputAction;
+
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
+fn build_default_input() -> HashMap<Keycode, InputAction> {
+
+    let mut m = HashMap::new();
+    m.insert(Keycode::W, InputAction::UP);
+    m.insert(Keycode::S, InputAction::DOWN);
+    m.insert(Keycode::A, InputAction::LEFT);
+    m.insert(Keycode::D, InputAction::RIGHT);
+    m.insert(Keycode::B, InputAction::START);
+    m.insert(Keycode::V, InputAction::SELECT);
+    m.insert(Keycode::K, InputAction::A);
+    m.insert(Keycode::L, InputAction::B);
+    m
+}
 
 pub struct Graphics {
     zoom_level: u32,
@@ -24,6 +39,9 @@ pub struct Graphics {
     canvas: WindowCanvas,
     event_pump: EventPump,
     colors: HashMap<u8, Color>,
+
+    input_map: HashMap<Keycode, InputAction>,
+    input_flag: u8,
 }
 
 
@@ -60,13 +78,15 @@ impl Graphics {
             canvas,
             event_pump,
             colors: palette::build_default_colors(),
+            input_map: build_default_input(),
+            input_flag: 0,
         })
     }
 
     // This is called in the main loop and will listen for 
     // input pressed. If a key is pressed, it will modify
     // the register accordingly.
-    pub fn handle_events(&mut self, _mem: &mut Memory) -> bool {
+    pub fn handle_events(&mut self, mem: &mut Memory) -> bool {
         for event in self.event_pump.poll_iter() {
             match event {
                 Event::Quit{..} |
@@ -74,11 +94,21 @@ impl Graphics {
                 => {
                     return true;
                 },
-                _ => {},
+                Event::KeyDown { keycode: Some(keycode), ..} => {
+                    if let Some(action) = self.input_map.get(&keycode) {
+                        mem.joypad.button_down(action);
+                    }
+                },
+                Event::KeyUp { keycode: Some(keycode), ..} => {
+                    if let Some(action) = self.input_map.get(&keycode) {
+                        mem.joypad.button_up(action);
+                    }
+                },
 
+                _ => {
+                },
             }
         }
-
         false
     }
     pub fn display(&mut self, memory: &Memory, ppu: &mut Ppu) {

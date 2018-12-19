@@ -1,5 +1,6 @@
 use rom;
 use ppu::memory::{RegisterType, PpuMemory};
+use joypad::Joypad;
 use std::default::Default;
 
 // 
@@ -30,6 +31,10 @@ pub struct Memory {
     // Memory of PPU
     // -------------
     pub ppu_mem: PpuMemory,
+
+    // Joypad control
+    // --------------
+    pub joypad: Joypad,
 }
 
 impl Default for Memory {
@@ -38,6 +43,7 @@ impl Default for Memory {
         Memory {
             mem: [0; 0x10000],
             ppu_mem: PpuMemory::empty(),
+            joypad: Joypad::new(),
         }
     }
 
@@ -85,6 +91,9 @@ impl Memory {
             0x4014 => {
                 self.ppu_mem.write_oamdma(&self.mem, value);    
             },
+            0x4016 => {
+                self.joypad.write(value);
+            },
             _ => self.mem[address] = value,
         }
     }
@@ -101,6 +110,7 @@ impl Memory {
                 self.ppu_mem.read(register_type)
             },
             0x4014 => self.ppu_mem.read(RegisterType::OAMDMA),
+            0x4016 => self.joypad.read(),
             _ => self.mem[address],
         }
     }
