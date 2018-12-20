@@ -62,6 +62,11 @@ pub struct PpuMemory {
     // is here to store the first one.
     vram_addr_buffer: u8,
 
+    // When reading from 0-$3EFF, Place data into buffer and return previous buffer
+    // Reading requires a dummy read first. Then you can get the data.
+    // This is not the case for palettes, that can be read directly.
+    vram_read_buffer: u8,
+
     // Sprite stuff
     pub oam_addr: u8,
     // object attribute memory. contains the sprite data.
@@ -115,6 +120,7 @@ impl PpuMemory {
             oamdma: 0,
             vram_addr: 0,
             vram_addr_buffer: 0,
+            vram_read_buffer: 0,
             oam_addr: 0,
             oam: [0; 0x100],
             ppu_mem: [0; 0x4000],
@@ -145,6 +151,7 @@ impl PpuMemory {
             oamdma: 0,
             vram_addr: 0,
             vram_addr_buffer: 0,
+            vram_read_buffer: 0,
             oam_addr: 0,
             oam: [0; 0x100],
             ppu_mem,
@@ -218,6 +225,7 @@ impl PpuMemory {
                 panic!("{:?} cannot be read by CPU", register_type);
             },
             PPUSTATUS => self.read_status(),
+            PPUDATA => self.read_data(),
             _ => 8,
         }
     }
@@ -272,13 +280,28 @@ impl PpuMemory {
     }
 
     fn write_data(&mut self, data: u8) {
+        // TODO PALETTE MIRRORS.
         let addr_latch = self.vram_addr;
-        self.ppu_mem[addr_latch as usize] = data;
+        self.ppu_mem[(addr_latch as usize) % 0x4000] = data;
         if self.ppuctrl & 4 == 4 {
             self.vram_addr = addr_latch + 32;
         } else {
             self.vram_addr = addr_latch + 1;
         }
+    }
+
+    fn read_data(&mut self) -> u8 {
+        let addr_latch = self.vram_addr;
+        // TODO SHould not do buffering for palettes
+        let old_buffer = self.vram_read_buffer;
+        self.vram_read_buffer = self.ppu_mem[(addr_latch as usize) % 0x4000];
+        if self.ppuctrl & 4 == 4 {
+            self.vram_addr = addr_latch + 32;
+        } else {
+            self.vram_addr = addr_latch + 1;
+        }
+
+        old_buffer
     }
 
     fn raise_nmi(&mut self) {

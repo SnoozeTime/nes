@@ -86,7 +86,6 @@ impl Joypad {
         };
     
         self.current_index += 1;
-        println!("Read {} at index {}", return_value, self.current_index);
         return_value
     }
 
