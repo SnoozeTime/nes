@@ -53,6 +53,7 @@ pub struct SpriteInfo {
  */
 #[allow(non_snake_case)]
 pub struct Ppu {
+    ppu_ctrl: u8,
 
     // 262 line per frame.
     line: usize,
@@ -84,6 +85,7 @@ impl Ppu {
 
     pub fn new() -> Ppu {
         Ppu { 
+            ppu_ctrl: 0,
             line: 0,
             cycle: 0,
             display_flag: false,
@@ -122,6 +124,7 @@ impl Ppu {
 
         let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
         let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
+        self.ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
 
         // no rendering. just add the cycles.
         // No way we add more than one line at a time in the current code...
@@ -253,13 +256,8 @@ impl Ppu {
         } else if self.cycle >= 257 && self.cycle < 320 {
             memory.ppu_mem.oam_addr = 0; 
         } else if self.cycle == 320 {
-            let ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
-            let nametable = match (ppu_ctrl >> 3) & 1 {
-                0 => 0x0,
-                1 => 0x1000,
-                _ => panic!("Fix that"),
-            };
-            // print to some virtual buffer
+            let nametable = 0x1000 * ((self.ppu_ctrl >> 3) & 1) as usize;
+
             for i in 0..self.nb_sprites {
                 let secondary_oam_addr = 4*i;
                 let y = self.line + 1;
@@ -310,16 +308,19 @@ impl Ppu {
             },
             6 => {
                 // fetch bitmap low. Address is held in self.nt
-                let bmp_low = self.tile_low_addr(0x1000,
+	        let pattern_table_addr = 0x1000 *
+	            ((self.ppu_ctrl >> 4) & 1) as usize;
+                let bmp_low = self.tile_low_addr(pattern_table_addr,
                                                  self.nt as usize,
                                                  self.y as usize);
-                // TODO dynamically choose the pattern table based on register.
                 self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
             },
             // 8th cycle
             0 => {
                 // fetch bitmap high. One byte higher than low addr.
-                let addr = self.tile_low_addr(0x1000,
+	        let pattern_table_addr = 0x1000 *
+	            ((self.ppu_ctrl >> 4) & 1) as usize;
+                let addr = self.tile_low_addr(pattern_table_addr,
                                               self.nt as usize,
                                               self.y as usize);
                 let bmp_high = addr + 8;
