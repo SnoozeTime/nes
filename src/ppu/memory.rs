@@ -398,8 +398,8 @@ impl PpuMemory {
             },
             0x2C00..=0x2FFF => self.read_from_2nd_nametable(addr),
 
-            // palettes mirrors
-            0x3F20..=0x3FFF => {
+            // palettes 
+            0x3F00..=0x3FFF => {
                 let offset = (addr & 0xFF) % 0x20;
                 self.ppu_mem[0x3F00+offset]
             }
