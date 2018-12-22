@@ -131,7 +131,7 @@ impl Ppu {
         for _ in 0..cycles_to_exec {
             if self.line < 240 {
                 // Visible lines. BACKGROUND
-                if (ppu_mask & 0x2 == 0x2) || (ppu_mask & 0x8 == 0x8) {
+                if (ppu_mask >> 3) & 1 == 1 {
                     if self.cycle == 0 {
                         // lazy cycle
                     } else if self.cycle > 0 && self.cycle <= 256 {
@@ -149,7 +149,9 @@ impl Ppu {
                 }
 
                 // SPRITES
-                self.fetch_sprites(memory);
+                if (ppu_mask >> 4) & 1 == 1 {
+                    self.fetch_sprites(memory);
+                }
 
             } else if self.line == 240 {
                 // post render line.
