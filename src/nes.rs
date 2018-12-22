@@ -1,7 +1,7 @@
 // Hello
 //
 use cpu::cpu::Cpu;
-use graphic::Graphics;
+use graphic::{EmulatorInput, Graphics};
 use cpu::memory::Memory;
 use ppu::Ppu; 
 use rom;
@@ -34,18 +34,29 @@ impl Nes {
 
     // main loop
     pub fn run(&mut self) -> Result<(), &'static str> {
+        let mut is_pause = false;
         'should_run: loop {
             // handle events.
-            if self.ui.handle_events(&mut self.memory) {
-                break 'should_run;
+            match self.ui.handle_events(&mut self.memory, is_pause) {
+                Some(EmulatorInput::QUIT) => break 'should_run,
+                Some(EmulatorInput::PAUSE) => is_pause = !is_pause,
+                None => {},
             }
 
             // Update CPU and PPU (and later APU)
-            let cpu_cycles = self.cpu.next(&mut self.memory)?;
-            self.ppu.next(3*cpu_cycles, &mut self.memory)?;
-
+            if !is_pause {
+                let cpu_cycles = self.cpu.next(&mut self.memory)?;
+                self.ppu.next(3*cpu_cycles, &mut self.memory)?;
+            }
             // render
             self.ui.display(&mut self.memory, &mut self.ppu);
+
+            // If pause, let's wait a bit to avoid taking all the CPU
+            if is_pause {
+		self.ui.draw_debug(&self.memory);
+                let ten_millis = std::time::Duration::from_millis(10);
+                std::thread::sleep(ten_millis);
+            }
         }
 
         Ok(())

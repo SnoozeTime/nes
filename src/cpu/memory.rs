@@ -75,7 +75,7 @@ impl Memory {
         }
 
         // Now the PPU ROM and init
-        let mut ppu_mem = PpuMemory::new(ines)?;
+        let ppu_mem = PpuMemory::new(ines)?;
         Ok(Memory { mem, ppu_mem, ..Default::default()})
     }
 

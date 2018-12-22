@@ -19,6 +19,7 @@ pub fn main() {
     let ines = rom::read(name).unwrap();
 
     let mut nes = Nes::new(ines).unwrap();
+    info!("Will start {}", args[1]);
     nes.run().unwrap();
 
 }

@@ -9,7 +9,7 @@ fn reverse_bit(mut in_byte: u8) -> u8 {
     let mut rest = 8;
 
     while in_byte != 0 {
-        
+
         out_byte <<= 1;
         out_byte |= in_byte & 1;
         in_byte >>= 1;
@@ -83,34 +83,21 @@ pub struct Ppu {
 impl Ppu {
 
     pub fn new() -> Ppu {
-        let line = 0;
-        let cycle = 0;
-        let display_flag = false;
-        let y = 0;
-        let X = 3;
-        let Y = 0;
-        let nt = 0;
-        let at = 0;
-        let low_bg_byte = 0;
-        let high_bg_byte = 0;
-        let secondary_oam = [0; 32];
-        let nb_sprites = 0;
-        let virtual_buffer = [TileRowInfo::new(0,0,0); 0x1e00]; 
-        let virtual_sprite_buffer = Vec::new();
-        Ppu { line,
-        cycle,
-        display_flag,
-        y,
-        X,
-        Y,
-        nt,
-        at,
-        low_bg_byte,
-        high_bg_byte,
-        secondary_oam,
-        nb_sprites,
-        virtual_buffer,
-        virtual_sprite_buffer
+        Ppu { 
+            line: 0,
+            cycle: 0,
+            display_flag: false,
+            y: 0,
+            X: 3,
+            Y: 0,
+            nt: 0,
+            at: 0,
+            low_bg_byte: 0,
+            high_bg_byte: 0,
+            secondary_oam: [0; 32],
+            nb_sprites: 0,
+            virtual_buffer: [TileRowInfo::new(0, 0, 0); 0x1e00],
+            virtual_sprite_buffer: Vec::new(),
         }
     }
 
@@ -240,7 +227,7 @@ impl Ppu {
             // populate secondary OAM
             // Find the sprites that are in range for the next Y.
             let mut addr = memory.ppu_mem.oam_addr as usize;
-            
+
             let mut secondary_oam_addr = 0;
             while addr < 0x100 {
 
@@ -286,7 +273,7 @@ impl Ppu {
                 let bmp_high = bmp_low + 8;
                 // see bit 3 of PPUCTRL.
                 let attr_byte = self.secondary_oam[secondary_oam_addr+2];
-                
+
                 let mut tile_low = memory.ppu_mem.ppu_mem[bmp_low];
                 let mut tile_high = memory.ppu_mem.ppu_mem[bmp_high];
                 if (attr_byte >> 6) & 1 == 1 {
@@ -296,12 +283,12 @@ impl Ppu {
                 }
 
                 self.virtual_sprite_buffer.push(
-                        SpriteInfo{ tile: TileRowInfo::new(
-                                tile_low,
-                                tile_high,
-                                attr_byte),
-                                    x,
-                                    y});
+                    SpriteInfo{ tile: TileRowInfo::new(
+                            tile_low,
+                            tile_high,
+                            attr_byte),
+                            x,
+                            y});
 
             }
         }
@@ -402,7 +389,7 @@ mod tests {
 
     #[test]
     fn reverse_byte_test() {
-        
+
         assert_eq!(0b00010000, reverse_bit(0b00001000));
         assert_eq!(0b11010000, reverse_bit(0b00001011));
 

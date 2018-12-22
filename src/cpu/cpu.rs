@@ -43,7 +43,7 @@ impl Cpu {
     // will create a new NES with the given code.
     pub fn new() -> Cpu {
         Cpu {
-            PC: 0x8000,// TODO set the correct
+            PC: 0x8000,
             SP: 0xFD, 
             A: 0,
             X: 0,
@@ -376,7 +376,7 @@ impl Cpu {
                 addressing.set(memory, result);
             },
             Instruction::INX(_, _addressing, _cycles) => {
-                // TODO Wrapping add?
+                // Wrapping add?
                 let result = self.X.wrapping_add(1);
                 self.set_result_flags(result);
                 self.X = result;

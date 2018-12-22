@@ -2,6 +2,7 @@ extern crate sdl2;
 use self::sdl2::pixels::Color;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct Palette {
     pub background: Color,
     pub color1: Color,
