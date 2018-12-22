@@ -18,6 +18,13 @@ pub enum RegisterType {
     OAMDMA,
 }
 
+
+#[derive(Debug)]
+pub enum Mirroring {
+    HORIZONTAL,
+    VERTICAL,
+}
+
 impl RegisterType {
 
     pub fn lookup(value: usize) -> Option<RegisterType> {
@@ -84,6 +91,8 @@ pub struct PpuMemory {
     // $3F00-$3F1F  $0020   Palette RAM indexes
     // $3F20-$3FFF  $00E0   Mirrors of $3F00-$3F1F 
     pub ppu_mem: [u8; 0x4000],
+
+    mirroring: Mirroring,
 }
 
 impl fmt::Debug for PpuMemory {
@@ -124,6 +133,7 @@ impl PpuMemory {
             oam_addr: 0,
             oam: [0; 0x100],
             ppu_mem: [0; 0x4000],
+            mirroring: Mirroring::HORIZONTAL,
         }
     }
 
@@ -155,6 +165,7 @@ impl PpuMemory {
             oam_addr: 0,
             oam: [0; 0x100],
             ppu_mem,
+            mirroring: ines.get_mirroring(),
         })
     }
 
@@ -245,7 +256,7 @@ impl PpuMemory {
         self.ppuctrl = ctrl;
         self.raise_nmi();
     }
-    
+
     fn write_mask(&mut self, mask: u8) {
         self.ppumask = mask;
     }
@@ -253,7 +264,7 @@ impl PpuMemory {
     fn write_oamaddr(&mut self, oamaddr: u8) {
         self.oam_addr = oamaddr;
     }
-    
+
     fn write_oamdata(&mut self, oamdata: u8) {
         // TODO ignored during rendering.
         // need to add flag is_rendering...
@@ -280,9 +291,8 @@ impl PpuMemory {
     }
 
     fn write_data(&mut self, data: u8) {
-        // TODO PALETTE MIRRORS.
         let addr_latch = self.vram_addr;
-        self.ppu_mem[(addr_latch as usize) % 0x4000] = data;
+        self.write_vram_at((addr_latch as usize) % 0x4000, data);
         if self.ppuctrl & 4 == 4 {
             self.vram_addr = addr_latch + 32;
         } else {
@@ -290,23 +300,130 @@ impl PpuMemory {
         }
     }
 
+    fn write_vram_at(&mut self, addr: usize, data: u8) {
+
+        // TODO PALETTE MIRRORS.
+        match addr {
+            0x2000..=0x23FF => {
+                self.write_to_1st_nametable(addr, data);
+            },
+            0x2400..=0x27FF => {
+                match self.mirroring {
+                    Mirroring::HORIZONTAL => self.write_to_1st_nametable(addr, data),
+                    Mirroring::VERTICAL => self.write_to_2nd_nametable(addr, data),
+                }
+            },
+            0x2800..=0x2BFF => {
+
+                match self.mirroring {
+                    Mirroring::HORIZONTAL => self.write_to_2nd_nametable(addr, data),
+                    Mirroring::VERTICAL => self.write_to_1st_nametable(addr, data),
+                }
+            },
+            0x2C00..=0x2FFF => {
+                self.write_to_2nd_nametable(addr, data);
+            },
+            _ => {
+                self.ppu_mem[addr] = data;
+            }
+        }
+    }
+
+    fn write_to_1st_nametable(&mut self, addr: usize, data: u8) {
+        let offset = addr % 0x400;
+        self.ppu_mem[0x2000+offset] = data;
+    }
+
+    fn write_to_2nd_nametable(&mut self, addr: usize, data: u8) {
+        let offset = addr % 0x400;
+        self.ppu_mem[0x2400+offset] = data;
+    }
+
     fn read_data(&mut self) -> u8 {
         let addr_latch = self.vram_addr;
-        // TODO SHould not do buffering for palettes
-        let old_buffer = self.vram_read_buffer;
-        self.vram_read_buffer = self.ppu_mem[(addr_latch as usize) % 0x4000];
+
+        let v = match addr_latch % 0x4000 {
+            0x3F00..=0x4000 => {
+                self.read_vram_at((addr_latch as usize) % 0x4000)
+            },
+            _ => {
+                let old_buffer = self.vram_read_buffer;
+                self.vram_read_buffer = self.read_vram_at((addr_latch as usize) % 0x4000);
+                old_buffer
+            }
+        };
+
         if self.ppuctrl & 4 == 4 {
             self.vram_addr = addr_latch + 32;
         } else {
             self.vram_addr = addr_latch + 1;
         }
+        
+        v
+    }
 
-        old_buffer
+    fn read_vram_at(&mut self, addr: usize) -> u8 {
+
+        match addr {
+            0x2000..=0x23FF => self.read_from_1st_nametable(addr),
+            0x2400..=0x27FF => {
+                match self.mirroring {
+                    Mirroring::HORIZONTAL => self.read_from_1st_nametable(addr),
+                    Mirroring::VERTICAL => self.read_from_2nd_nametable(addr),
+                }
+            },
+            0x2800..=0x2BFF => {
+
+                match self.mirroring {
+                    Mirroring::HORIZONTAL => self.read_from_2nd_nametable(addr),
+                    Mirroring::VERTICAL => self.read_from_1st_nametable(addr),
+                }
+            },
+            0x2C00..=0x2FFF => self.read_from_2nd_nametable(addr),
+            _ => self.ppu_mem[addr],
+        }
+
+    }
+
+    fn read_from_1st_nametable(&mut self, addr: usize) -> u8 {
+        let offset = addr % 0x400;
+        self.ppu_mem[0x2000+offset]
+    }
+
+    fn read_from_2nd_nametable(&mut self, addr: usize) -> u8 {
+        let offset = addr % 0x400;
+        self.ppu_mem[0x2400+offset]
     }
 
     fn raise_nmi(&mut self) {
         self.nmi = (self.ppustatus & 0x80 == 0x80) &&
             (self.ppuctrl & 0x80 == 0x80);
+    }
+
+
+    // ---------------------------------------------------
+    // Virtual nametable. There is space for only 2 nametables
+    // in NES vram, but with mirroring the logical tables are 4.
+    // ------------------------------------------------------
+    pub fn get_logical_table(&self, table_nb: u8) -> &[u8] {
+        match table_nb {
+            0 => &self.ppu_mem[0x2000..0x2400],
+            1 => {
+                match self.mirroring {
+                    Mirroring::HORIZONTAL => &self.ppu_mem[0x2000..0x2400],
+                    Mirroring::VERTICAL => &self.ppu_mem[0x2400..0x2800],
+                }
+            },
+            2 => {
+                match self.mirroring {
+                    Mirroring::VERTICAL => &self.ppu_mem[0x2000..0x2400],
+                    Mirroring::HORIZONTAL => &self.ppu_mem[0x2400..0x2800],
+                }
+
+            },
+            3 => &self.ppu_mem[0x2400..0x2800],
+            _ => panic!("Only 4 nametables"),
+        }
     }
 }
 

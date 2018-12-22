@@ -213,16 +213,20 @@ impl Graphics {
 	// X = WIDTH*zoom_level + 10
 	// Y = 10
 	// First draw 2 nametables in memory, then we take care of mirroring
-	let nametable1 = &memory.ppu_mem.ppu_mem[0x2000..0x2400]; 
-	let nametable2 = &memory.ppu_mem.ppu_mem[0x2400..0x2800]; 
 	let pattern_table_addr = 0x1000 *
 	    ((memory.ppu_mem.peek(RegisterType::PPUCTRL) >> 4) & 1) as usize;
 	let pattern_table = &memory.ppu_mem.ppu_mem[pattern_table_addr..pattern_table_addr+0x1000]; 
 
 	let x1 = WIDTH*self.zoom_level + 10;
 	let x2 = WIDTH*self.zoom_level + 20 + WIDTH;
+        let nametable1 = &memory.ppu_mem.get_logical_table(0);
+        let nametable2 = &memory.ppu_mem.get_logical_table(1);
+        let nametable3 = &memory.ppu_mem.get_logical_table(2);
+        let nametable4 = &memory.ppu_mem.get_logical_table(3);
 	self.draw_nametable(nametable1, pattern_table, &memory.ppu_mem.ppu_mem, x1 as i32, 10);
 	self.draw_nametable(nametable2, pattern_table, &memory.ppu_mem.ppu_mem, x2 as i32, 10);
+	self.draw_nametable(nametable3, pattern_table, &memory.ppu_mem.ppu_mem, x1 as i32, 20+HEIGHT as i32);
+	self.draw_nametable(nametable4, pattern_table, &memory.ppu_mem.ppu_mem, x2 as i32, 20+HEIGHT as i32);
         self.canvas.present();
     }
 

@@ -2,6 +2,7 @@
 //
 use std::fs::File;
 use std::io::prelude::*;
+use super::ppu::memory::Mirroring;
 
 fn load(filename: String) -> Result<Vec<u8>, String> {
     File::open(filename)
@@ -122,6 +123,14 @@ impl INesFile {
         }
 
         Ok(&self.chr_rom[(page_nb-1)*8*1024..page_nb*8*1024])
+    }
+
+    pub fn get_mirroring(&self) -> Mirroring {
+        if self.flags_6 & 1 == 1 {
+            Mirroring::VERTICAL
+        } else {
+            Mirroring::HORIZONTAL
+        }
     }
 
 
