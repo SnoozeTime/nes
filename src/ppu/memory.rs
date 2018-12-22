@@ -143,9 +143,11 @@ impl PpuMemory {
         let mut ppu_mem = [0;0x4000];
 
         // Just copy the ROM to pattern tables.
-        let vrom = ines.get_chr_rom(1)?;
-        for (i, b) in vrom.iter().enumerate() {
-            ppu_mem[i] = *b;
+        if ines.get_chr_rom_pages() > 0 {
+            let vrom = ines.get_chr_rom(1)?;
+            for (i, b) in vrom.iter().enumerate() {
+                ppu_mem[i] = *b;
+        }
         }
 
         Ok(PpuMemory {
@@ -323,9 +325,23 @@ impl PpuMemory {
             0x2C00..=0x2FFF => {
                 self.write_to_2nd_nametable(addr, data);
             },
+            // palettes mirrors
+            0x3F00..=0x3FFF => {
+                let offset = (addr & 0xFF) % 0x20;
+                self.write_palette(offset, data); 
+            },
             _ => {
                 self.ppu_mem[addr] = data;
             }
+        }
+    }
+
+    fn write_palette(&mut self, offset: usize, data: u8) {
+        if offset == 0x10 || offset == 0x00 {
+            self.ppu_mem[0x3F00] = data;
+            self.ppu_mem[0x3F10] = data;
+        } else {
+            self.ppu_mem[0x3F00+offset] = data;
         }
     }
 
@@ -344,7 +360,8 @@ impl PpuMemory {
 
         let v = match addr_latch % 0x4000 {
             0x3F00..=0x4000 => {
-                self.read_vram_at((addr_latch as usize) % 0x4000)
+                self.vram_read_buffer = self.read_vram_at((addr_latch as usize) % 0x4000);
+                self.vram_read_buffer
             },
             _ => {
                 let old_buffer = self.vram_read_buffer;
@@ -380,6 +397,12 @@ impl PpuMemory {
                 }
             },
             0x2C00..=0x2FFF => self.read_from_2nd_nametable(addr),
+
+            // palettes mirrors
+            0x3F20..=0x3FFF => {
+                let offset = (addr & 0xFF) % 0x20;
+                self.ppu_mem[0x3F00+offset]
+            }
             _ => self.ppu_mem[addr],
         }
 
