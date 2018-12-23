@@ -88,6 +88,12 @@ impl Memory {
                 let register_type = RegisterType::lookup(address).unwrap();
                 self.ppu_mem.write(register_type, value);
             },
+            0x2008..=0x3FFF => {
+                // mirrors of ppu registers.
+                let offset = address & 0x7;
+                let register_type = RegisterType::lookup(0x2000+offset).unwrap();
+                self.ppu_mem.write(register_type, value);
+            },
             0x4014 => {
                 self.ppu_mem.write_oamdma(&self.mem, value);    
             },
@@ -107,6 +113,12 @@ impl Memory {
             },
             0x2000..=0x2007 => {
                 let register_type = RegisterType::lookup(address).unwrap();
+                self.ppu_mem.read(register_type)
+            },
+            0x2008..=0x3FFF => {
+                // mirrors of ppu registers.
+                let offset = address & 0x7;
+                let register_type = RegisterType::lookup(0x2000+offset).unwrap();
                 self.ppu_mem.read(register_type)
             },
             0x4014 => self.ppu_mem.read(RegisterType::OAMDMA),
