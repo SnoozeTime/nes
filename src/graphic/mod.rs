@@ -149,7 +149,7 @@ impl Graphics {
 			_ => panic!("Not possible"),
 		    };
 
-		    let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.colors).unwrap();                   
+		    let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.colors).expect("Cannot get palette for background");                   
 		    self.draw_tilerow(xtile, ytile, &tilerow, &palette);
 
 		}
@@ -190,7 +190,8 @@ impl Graphics {
 		self.canvas.fill_rect(Rect::new(xpixel,
 						ypixel,
 						self.zoom_level,
-						self.zoom_level)).unwrap();
+						self.zoom_level))
+                    .expect("In draw_tilerow, cannot fill_rect");
 	    }
 	}
 
@@ -201,7 +202,8 @@ impl Graphics {
 	let y = sprite.y as i32 * self.zoom_level as i32;
 
 	let palette = palette::get_sprite_palette(
-	    sprite.tile.attr & 0b11, &memory.ppu_mem.ppu_mem, &self.colors).unwrap();
+	    sprite.tile.attr & 0b11, &memory.ppu_mem.ppu_mem, &self.colors)
+            .expect("In draw-sprite, cannot get sprite_palette");
 	self.draw_tilerow(x, y, &sprite.tile, &palette);
     }
 
@@ -255,7 +257,9 @@ impl Graphics {
 		    _ => panic!("Not possible"),
 		};
 
-		let palette = palette::get_bg_palette(attribute, ppu_mem, &self.colors).unwrap();
+		let palette = palette::get_bg_palette(attribute, ppu_mem, &self.colors)
+                    .expect("Cannot get palette from attribute");
+
 		// Now draw
 		tile.draw(&mut self.canvas, x+xtile, y+ytile, &palette);
 	    }
@@ -305,7 +309,8 @@ impl Tile {
 		let xpixel = x + (xline as i32);
 		let ypixel = y + (yline as i32);
 		// // A draw a rectangle which almost fills our window with it !
-		canvas.fill_rect(Rect::new(xpixel, ypixel, 1, 1)).unwrap();
+		canvas.fill_rect(Rect::new(xpixel, ypixel, 1, 1))
+                    .expect("In Tile::draw, cannot fill_rect");
 	    }
 	}
     }

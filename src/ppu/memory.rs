@@ -93,6 +93,7 @@ pub struct PpuMemory {
     pub ppu_mem: [u8; 0x4000],
 
     mirroring: Mirroring,
+    pub is_rendering: bool,
 }
 
 impl fmt::Debug for PpuMemory {
@@ -134,6 +135,7 @@ impl PpuMemory {
             oam: [0; 0x100],
             ppu_mem: [0; 0x4000],
             mirroring: Mirroring::HORIZONTAL,
+            is_rendering: false,
         }
     }
 
@@ -168,6 +170,7 @@ impl PpuMemory {
             oam: [0; 0x100],
             ppu_mem,
             mirroring: ines.get_mirroring(),
+            is_rendering: false,
         })
     }
 
@@ -226,6 +229,7 @@ impl PpuMemory {
             OAMDATA => self.write_oamdata(value),
             OAMDMA => panic!("Use directly 'write_oamdma'"), 
             PPUSCROLL => {}, //println!("PPUSCROLL not implemented yet!"),
+            PPUSTATUS => {},
             _ => panic!("{:?} cannot be written by CPU", register_type),
         }
     }
@@ -303,8 +307,6 @@ impl PpuMemory {
     }
 
     fn write_vram_at(&mut self, addr: usize, data: u8) {
-
-        // TODO PALETTE MIRRORS.
         match addr {
             0x2000..=0x23FF => {
                 self.write_to_1st_nametable(addr, data);

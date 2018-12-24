@@ -85,13 +85,15 @@ impl Memory {
             0x00..=0x1FFF => self.mem[address & 0x7FFF] = value,
             // These are the PPU registers
             0x2000..=0x2007 => {
-                let register_type = RegisterType::lookup(address).unwrap();
+                let register_type = RegisterType::lookup(address)
+                    .expect("Issue with RegisterType::lookup");
                 self.ppu_mem.write(register_type, value);
             },
             0x2008..=0x3FFF => {
                 // mirrors of ppu registers.
                 let offset = address & 0x7;
-                let register_type = RegisterType::lookup(0x2000+offset).unwrap();
+                let register_type = RegisterType::lookup(0x2000+offset)
+                    .expect("Issue with RegisterType::lookup");
                 self.ppu_mem.write(register_type, value);
             },
             0x4014 => {
@@ -112,13 +114,15 @@ impl Memory {
                 self.mem[address & 0x7FFF]
             },
             0x2000..=0x2007 => {
-                let register_type = RegisterType::lookup(address).unwrap();
+                let register_type = RegisterType::lookup(address)
+                    .expect("Issue with RegisterType::lookup");
                 self.ppu_mem.read(register_type)
             },
             0x2008..=0x3FFF => {
                 // mirrors of ppu registers.
                 let offset = address & 0x7;
-                let register_type = RegisterType::lookup(0x2000+offset).unwrap();
+                let register_type = RegisterType::lookup(0x2000+offset)
+                    .expect("Issue with RegisterType::lookup");
                 self.ppu_mem.read(register_type)
             },
             0x4014 => self.ppu_mem.read(RegisterType::OAMDMA),

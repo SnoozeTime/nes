@@ -130,6 +130,7 @@ impl Ppu {
         // No way we add more than one line at a time in the current code...
         for _ in 0..cycles_to_exec {
             if self.line < 240 {
+                memory.ppu_mem.is_rendering = true;
                 // Visible lines. BACKGROUND
                 if (ppu_mask >> 3) & 1 == 1 {
                     if self.cycle == 0 {
@@ -154,6 +155,7 @@ impl Ppu {
                 }
 
             } else if self.line == 240 {
+                memory.ppu_mem.is_rendering = false;
                 // post render line.
             } else if self.line > 240 && self.line < 261 {
                 // inside VBlank :)
