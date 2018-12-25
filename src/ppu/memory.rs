@@ -72,13 +72,13 @@ pub struct PpuMemory {
 
     // Temporary VRAM address, can also be though as the address of the
     // top-left corner of the screen.
-    t: u16,
+    pub t: u16,
 
     // VRAM address
-    v: u16,
+    pub v: u16,
 
     // Fine x scroll. 3 bits
-    x: u8,
+    pub x: u8,
 
     // First or second write toggle. When writing to 2006 or 2005, we need
     // to know if it is the first write or second.
