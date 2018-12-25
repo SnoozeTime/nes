@@ -60,15 +60,31 @@ pub struct PpuMemory {
 
     // Pattern tables actually store the tileset used in the game.
 
-    // Nametables are used to draw the background. They are basically big
-    // 2d arrays. A tile can be 8x8 so the nametable can have 32x30 tiles
-    // (256x240 pixels)
-    // There is also some mirroring going on but not now.
-    vram_addr: u16,
-    // when writing to vram_addr, we can only write byte by byte. vram_addr_buffer
-    // is here to store the first one.
-    vram_addr_buffer: u8,
+    // registers for reading/writing vram and printing to screen.
+    // in reality, these are 15 bits registers.
+    // During reading and writing, t and v are vram addresses.
+    // During rendering, t and v are composed like:
+    // yyy NN YYYYY XXXXX
+    // yyy: fine Y scroll (between 0 and 7. line of tile)
+    // NN: Nametable select. (4 logical nametables)
+    // YYYYY: Coarse Y (between 0 and 31)
+    // XXXXX: Coarse X (between 0 and 31)
 
+    // Temporary VRAM address, can also be though as the address of the
+    // top-left corner of the screen.
+    t: u16,
+
+    // VRAM address
+    v: u16,
+
+    // Fine x scroll. 3 bits
+    x: u8,
+
+    // First or second write toggle. When writing to 2006 or 2005, we need
+    // to know if it is the first write or second.
+    // if 0, first write. If 1, second write.
+    w: u8,
+    
     // When reading from 0-$3EFF, Place data into buffer and return previous buffer
     // Reading requires a dummy read first. Then you can get the data.
     // This is not the case for palettes, that can be read directly.
@@ -128,8 +144,10 @@ impl PpuMemory {
             ppuaddr: 0,
             ppudata: 0,
             oamdma: 0,
-            vram_addr: 0,
-            vram_addr_buffer: 0,
+            t: 0,
+            v: 0,
+            x: 0,
+            w: 0,
             vram_read_buffer: 0,
             oam_addr: 0,
             oam: [0; 0x100],
@@ -163,8 +181,10 @@ impl PpuMemory {
             ppuaddr: 0,
             ppudata: 0,
             oamdma: 0,
-            vram_addr: 0,
-            vram_addr_buffer: 0,
+            t: 0,
+            v: 0,
+            x: 0,
+            w: 0,
             vram_read_buffer: 0,
             oam_addr: 0,
             oam: [0; 0x100],
@@ -254,7 +274,9 @@ impl PpuMemory {
         let old_status = self.ppustatus;
         self.ppustatus = old_status & !0x80;
         // Reading PPU STATUS Will also clear the address latch.
-        self.vram_addr = 0;
+        self.w = 0;
+        // self.t = 0;
+        // self.v = 0;
         old_status
     }
 
@@ -290,19 +312,25 @@ impl PpuMemory {
 
     // Background addr and data
     fn write_addr(&mut self, addr_byte: u8) {
-        let old_vram_buf = self.vram_addr_buffer as u16;
-        self.vram_addr = (old_vram_buf << 8) + (addr_byte as u16);
-        self.vram_addr_buffer = addr_byte;
-        self.ppuaddr = addr_byte; // useless?
+        if self.w == 0 {
+            // first write
+            self.t = (((addr_byte & 0b111111) as u16) << 8) + (self.t & 0xFF);
+            self.w = 1;
+        } else {
+            // second write
+            self.t = (self.t & (0xFF00)) | addr_byte as u16;
+            self.v = self.t;
+            self.w = 0;
+        }
     }
 
     fn write_data(&mut self, data: u8) {
-        let addr_latch = self.vram_addr;
+        let addr_latch = self.v;
         self.write_vram_at((addr_latch as usize) % 0x4000, data);
         if self.ppuctrl & 4 == 4 {
-            self.vram_addr = addr_latch + 32;
+            self.v = addr_latch + 32;
         } else {
-            self.vram_addr = addr_latch + 1;
+            self.v = addr_latch + 1;
         }
     }
 
@@ -358,7 +386,7 @@ impl PpuMemory {
     }
 
     fn read_data(&mut self) -> u8 {
-        let addr_latch = self.vram_addr;
+        let addr_latch = self.v;
 
         let v = match addr_latch % 0x4000 {
             0x3F00..=0x4000 => {
@@ -373,9 +401,9 @@ impl PpuMemory {
         };
 
         if self.ppuctrl & 4 == 4 {
-            self.vram_addr = addr_latch + 32;
+            self.v = addr_latch + 32;
         } else {
-            self.vram_addr = addr_latch + 1;
+            self.v = addr_latch + 1;
         }
         
         v
@@ -464,6 +492,6 @@ mod tests {
         memory.write(RegisterType::PPUADDR, 0x20);
         memory.write(RegisterType::PPUADDR, 0x09);
 
-        assert_eq!(0x2009, memory.vram_addr);
+        assert_eq!(0x2009, memory.v);
     }
 }
