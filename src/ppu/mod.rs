@@ -69,6 +69,11 @@ pub struct Ppu {
     low_bg_byte: u8,
     high_bg_byte: u8,
 
+    // 2 16-bits shift registers to display background.
+    // Every 8 cycles, the bitmap data for the next sprite is loaded in the upper 8 bits
+    high_bg_shift_reg: u16,
+    low_bg_shift_reg: u16,
+
     // For sprites
     secondary_oam: [u8; 32],
     nb_sprites: usize,
@@ -89,6 +94,8 @@ impl Ppu {
             at: 0,
             low_bg_byte: 0,
             high_bg_byte: 0,
+            high_bg_shift_reg: 0,
+            low_bg_shift_reg: 0,
             secondary_oam: [0; 32],
             nb_sprites: 0,
             virtual_buffer: [TileRowInfo::new(0, 0, 0); 0x1e00],
@@ -104,6 +111,109 @@ impl Ppu {
         } else {
             false
         }
+    }
+
+    fn tick(&mut self) {
+
+        // skip x if odd frame
+        // increase x.
+    }
+
+    fn exec_cycle(&mut self, memory: &mut Memory) {
+
+        let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
+        let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
+        let ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
+
+        let render_bg = ((ppu_mask >> 3) & 1) == 1;
+        let render_sprite = ((ppu_mask >> 4) & 1) == 1;
+        let rendering_enabled = render_bg || render_sprite;
+        let visible_line = self.line < 240;
+        let post_render_line = self.line == 240;
+        let pre_render_line = self.line == 261;
+        let vbl_line = self.line < 261 && self.line > 240;
+
+
+        let fetch_cycles = (self.cycle > 0 && self.cycle <= 256) || (self.cycle >= 321); 
+
+        // first, display the pixel at (x,y)
+
+
+        // fetch the pixel info
+        if (visible_line || pre_render_line) && fetch_cycles && rendering_enabled {
+            // shift registers 2 bits.
+            self.high_bg_shift_reg >>= 2;
+            self.low_bg_shift_reg >>= 2;
+
+            match self.cycle % 8 {
+                2 => self.fetch_nt(memory),
+                4 => self.fetch_attr(memory),
+                6 => self.fetch_bmp_low(memory),
+                0 => {
+                    self.fetch_bmp_high(memory);
+
+                    // fetch high bmp and add to internal shift registers
+                    self.load_bitmap();           
+
+                    // Increase horizontal v (coarse X)
+                    self.coarse_x_increment(memory);
+                },
+                _ => {},
+            }
+
+            if self.cycle == 256 {
+                //  increase vertical v (fine y)
+                self.y_increment(memory);
+            }
+
+            if self.cycle == 257 {
+                // copy horizontal t to horizontal v
+                self.copy_horizontal_t(memory);
+            }
+        }
+
+        // Only during the pre-render line, during a few cycles 
+        // the vertical t is copied multiple time to vertical v
+        if pre_render_line && rendering_enabled && self.cycle >= 280 && self.cycle <= 304 {
+            self.copy_vertical_t(memory);
+        }
+    }
+
+    fn fetch_nt(&mut self, memory: &Memory) {
+        let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
+        self.nt = memory.ppu_mem.ppu_mem[addr as usize];
+    }
+
+    fn fetch_attr(&mut self, memory: &Memory) {
+        // attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
+        let v = memory.ppu_mem.v;
+        let addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
+        self.attr = memory.ppu_mem.ppu_mem[addr as usize];
+    }
+
+    fn fetch_bmp_low(&mut self, memory: &Memory) {
+        let pattern_table_addr = 0x1000 *
+            ((self.ppu_ctrl >> 4) & 1) as usize;
+        let bmp_low = self.tile_low_addr(pattern_table_addr,
+                                         self.nt as usize,
+                                         self.fine_y(memory) as usize);
+        self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
+    }
+
+    fn fetch_bmp_high(&mut self, memory: &Memory) {
+        // fetch bitmap high. One byte higher than low addr.
+        let pattern_table_addr = 0x1000 *
+            ((self.ppu_ctrl >> 4) & 1) as usize;
+        let addr = self.tile_low_addr(pattern_table_addr,
+                                      self.nt as usize,
+                                      self.fine_y(memory) as usize);
+        let bmp_high = addr + 8;
+        self.high_bg_byte = memory.ppu_mem.ppu_mem[bmp_high];
+    }
+
+    fn load_bitmap(&mut self) {
+        self.high_bg_shift_reg = (self.high_bg_shift_reg & 0xFF) | (self.high_bg_byte as u16 << 8);
+        self.low_bg_shift_reg = self.low_bg_shift_reg & 0xFF | (self.low_bg_byte as u16 << 8);
     }
 
     // PPU cycles are a bit more complicated than CPU
@@ -169,7 +279,7 @@ impl Ppu {
                 if self.cycle > 278 && self.cycle < 305 {
                     let mut v = memory.ppu_mem.v;
                     v = (memory.ppu_mem.v & !0x3E0) | (memory.ppu_mem.t & 0x3e0);
-                memory.ppu_mem.v = v;
+                    memory.ppu_mem.v = v;
                 }
                 // prefetch data :D
                 if (ppu_mask >> 3) & 1 == 1 {
@@ -195,7 +305,7 @@ impl Ppu {
 
                 if self.cycle == 337 {
                     println!("At the end of VBLANK, X is {}, Y is {} and v {:X}", self.coarse_x(memory),
-                        self.coarse_y(memory), memory.ppu_mem.v);
+                    self.coarse_y(memory), memory.ppu_mem.v);
                 }
             }
 
@@ -404,6 +514,22 @@ impl Ppu {
         }
 
         memory.ppu_mem.v = v;
+    }
+
+    fn copy_vertical_t(&self, memory: &mut Memory) {
+        let t = memory.ppu_mem.t;
+        let v = memory.ppu_mem.v;
+
+        let vert_t = t & 0x3e0;
+        memory.ppu_mem.v = (v & !0x3e0) | vert_t;
+    }
+
+    fn copy_horizontal_t(&self, memory: &mut Memory) {
+        let t = memory.ppu_mem.t;
+        let v = memory.ppu_mem.v;
+
+        let horiz_t = t & 0x1f;
+        memory.ppu_mem.v = (v & !0x1f) | horiz_t;
     }
 
     fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {
