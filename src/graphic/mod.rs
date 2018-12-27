@@ -132,34 +132,54 @@ impl Graphics {
 	if ppu.should_display() {
 	    self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.ppu_mem, &self.colors));
 	    self.canvas.clear();
-	    for row in 0..240i32 {
-		for col in 0..32i32 {
-		    let index = 32*(row as usize) + (col as usize);
-		    let tilerow = &ppu.virtual_buffer[index];
-		    let xtile = col*8*(self.zoom_level as i32);
-		    let ytile = row*(self.zoom_level as i32);
+            for row in 0..240i32 {
+                for col in 0..256i32 {
+                    let idx = row*256+col;
+                    let pixel = ppu.pixels[idx as usize];
 
-		    let box_row = (row/8 % 4) / 2;
-		    let box_col = (col%4) / 2;
-		    let attribute = match (box_row, box_col) {
-			(0, 0) => tilerow.attr & 0b11,
-			(0, 1) => (tilerow.attr & 0b1100) >> 2 ,
-			(1, 0) => (tilerow.attr & 0b110000) >> 4,
-			(1, 1) => (tilerow.attr & 0b11000000) >> 6,
-			_ => panic!("Not possible"),
-		    };
+                    match pixel {
+                    1 => self.canvas.set_draw_color(Color::RGB(255,0,0)),
+                    2 => self.canvas.set_draw_color(Color::RGB(0,255,0)),
+                    3 => self.canvas.set_draw_color(Color::RGB(0,0,255)),
+                    _ => self.canvas.set_draw_color(Color::RGB(0,0,0)),
+                    }
 
-		    let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.colors).expect("Cannot get palette for background");                   
-		    self.draw_tilerow(xtile, ytile, &tilerow, &palette);
-
-		}
-	    }
-
-	    // now the sprites.
-	    let sprites = &ppu.virtual_sprite_buffer;
-	    for sprite in sprites {
-		self.draw_sprite(sprite, memory);
-	    }
+                    let xpixel = col * (self.zoom_level as i32);
+                    let ypixel = row * (self.zoom_level as i32);
+                    self.canvas.fill_rect(Rect::new(xpixel, 
+                                                   ypixel,
+                                                   self.zoom_level,
+                                                   self.zoom_level));
+                }
+            }
+//	    for row in 0..240i32 {
+//		for col in 0..32i32 {
+//		    let index = 32*(row as usize) + (col as usize);
+//		    let tilerow = &ppu.virtual_buffer[index];
+//		    let xtile = col*8*(self.zoom_level as i32);
+//		    let ytile = row*(self.zoom_level as i32);
+//
+//		    let box_row = (row/8 % 4) / 2;
+//		    let box_col = (col%4) / 2;
+//		    let attribute = match (box_row, box_col) {
+//			(0, 0) => tilerow.attr & 0b11,
+//			(0, 1) => (tilerow.attr & 0b1100) >> 2 ,
+//			(1, 0) => (tilerow.attr & 0b110000) >> 4,
+//			(1, 1) => (tilerow.attr & 0b11000000) >> 6,
+//			_ => panic!("Not possible"),
+//		    };
+//
+//		    let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.colors).expect("Cannot get palette for background");                   
+//		    self.draw_tilerow(xtile, ytile, &tilerow, &palette);
+//
+//		}
+//	    }
+//
+//	    // now the sprites.
+//	    let sprites = &ppu.virtual_sprite_buffer;
+//	    for sprite in sprites {
+//		self.draw_sprite(sprite, memory);
+//	    }
 
 	    self.canvas.present();
 	}

@@ -248,7 +248,7 @@ impl PpuMemory {
             OAMADDR => self.write_oamaddr(value),
             OAMDATA => self.write_oamdata(value),
             OAMDMA => panic!("Use directly 'write_oamdma'"), 
-            PPUSCROLL => {}, //println!("PPUSCROLL not implemented yet!"),
+            PPUSCROLL => self.write_scroll(value),
             PPUSTATUS => {},
             _ => panic!("{:?} cannot be written by CPU", register_type),
         }
@@ -308,6 +308,21 @@ impl PpuMemory {
         for (i, b) in cpu_mem[start_range..=end_range].iter().enumerate() {
             self.oam[self.oam_addr as usize +i] = *b;
         }
+    }
+
+    fn write_scroll(&mut self, value: u8) {
+        if self.w == 0 {
+            self.t = ((value >> 3)as u16) | (self.t & !0b11111);
+            self.x = value & 0b111;
+            self.w = 1;
+        } else {
+            let mut masked_t = self.t & 0x73E0;
+            masked_t |= ((value >> 3) as u16) << 5; 
+            masked_t |= ((value & 0b111) as u16) << 12;
+            self.t = masked_t;
+            self.w = 0;
+        }
+
     }
 
     // Background addr and data

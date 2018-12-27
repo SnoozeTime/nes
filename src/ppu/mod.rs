@@ -74,12 +74,16 @@ pub struct Ppu {
     high_bg_shift_reg: u16,
     low_bg_shift_reg: u16,
 
+    odd_frame: bool,
     // For sprites
     secondary_oam: [u8; 32],
     nb_sprites: usize,
     // one 8x1 pixels (slice of tile). 8 slices to make a tile.
     pub virtual_buffer: [TileRowInfo; 0x1e00], 
     pub virtual_sprite_buffer: Vec<SpriteInfo>,
+
+
+    pub pixels: [u8; 0xf000],
 }
 
 impl Ppu {
@@ -96,10 +100,12 @@ impl Ppu {
             high_bg_byte: 0,
             high_bg_shift_reg: 0,
             low_bg_shift_reg: 0,
+            odd_frame: false,
             secondary_oam: [0; 32],
             nb_sprites: 0,
             virtual_buffer: [TileRowInfo::new(0, 0, 0); 0x1e00],
             virtual_sprite_buffer: Vec::new(),
+            pixels: [0; 0xf000],
         }
     }
 
@@ -114,12 +120,37 @@ impl Ppu {
     }
 
     fn tick(&mut self) {
+        self.cycle += 1;
 
-        // skip x if odd frame
-        // increase x.
+        if self.cycle == 341 {
+            
+            self.line = (self.line + 1) % 262;
+
+            if self.odd_frame && self.line == 0 {
+                self.cycle = 1;
+            } else {
+                self.cycle = 0;
+            }
+        }
+    }
+
+    fn render_pixel(&mut self, render_bg: bool, _render_sprite: bool) {
+        if render_bg {
+            let idx = 256*self.line + (self.cycle - 1);   
+            self.pixels[idx] = self.fetch_bg_pixel();
+        }
+    }
+
+    fn fetch_bg_pixel(&self) -> u8 {
+        let low_plane_bit = self.low_bg_shift_reg & 1;
+        let high_plane_bit = self.high_bg_shift_reg & 1;
+        
+        (low_plane_bit | (high_plane_bit << 1)) as u8
     }
 
     fn exec_cycle(&mut self, memory: &mut Memory) {
+
+        self.tick();
 
         let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
         let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
@@ -135,15 +166,17 @@ impl Ppu {
 
 
         let fetch_cycles = (self.cycle > 0 && self.cycle <= 256) || (self.cycle >= 321); 
-
+        let pixel_cycles = (self.cycle > 0 && self.cycle <= 256) && visible_line;
+        //
         // first, display the pixel at (x,y)
-
+        if rendering_enabled && pixel_cycles {
+            self.render_pixel(render_bg, render_sprite);
+        }
 
         // fetch the pixel info
         if (visible_line || pre_render_line) && fetch_cycles && rendering_enabled {
-            // shift registers 2 bits.
-            self.high_bg_shift_reg >>= 2;
-            self.low_bg_shift_reg >>= 2;
+            self.high_bg_shift_reg >>= 1;
+            self.low_bg_shift_reg >>= 1;
 
             match self.cycle % 8 {
                 2 => self.fetch_nt(memory),
@@ -165,18 +198,30 @@ impl Ppu {
                 //  increase vertical v (fine y)
                 self.y_increment(memory);
             }
-
-            if self.cycle == 257 {
-                // copy horizontal t to horizontal v
-                self.copy_horizontal_t(memory);
-            }
         }
 
+        if rendering_enabled && self.cycle == 257 {
+            self.copy_horizontal_t(memory);
+        }
         // Only during the pre-render line, during a few cycles 
         // the vertical t is copied multiple time to vertical v
         if pre_render_line && rendering_enabled && self.cycle >= 280 && self.cycle <= 304 {
             self.copy_vertical_t(memory);
         }
+
+        // Vertical blank stuff.
+        if self.line == 241 && self.cycle == 1 {
+            memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
+            self.display_flag = true;
+        }
+
+        if self.line == 261 && self.cycle == 1 {
+            memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
+        }
+
+        //if (pre_render_line && self.cycle == 237) && rendering_enabled {
+        //  println!("v at beginning: {:08b}", memory.ppu_mem.v);
+        //}
     }
 
     fn fetch_nt(&mut self, memory: &Memory) {
@@ -188,7 +233,7 @@ impl Ppu {
         // attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
         let v = memory.ppu_mem.v;
         let addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-        self.attr = memory.ppu_mem.ppu_mem[addr as usize];
+        self.at = memory.ppu_mem.ppu_mem[addr as usize];
     }
 
     fn fetch_bmp_low(&mut self, memory: &Memory) {
@@ -212,8 +257,8 @@ impl Ppu {
     }
 
     fn load_bitmap(&mut self) {
-        self.high_bg_shift_reg = (self.high_bg_shift_reg & 0xFF) | (self.high_bg_byte as u16 << 8);
-        self.low_bg_shift_reg = self.low_bg_shift_reg & 0xFF | (self.low_bg_byte as u16 << 8);
+        self.high_bg_shift_reg = (self.high_bg_shift_reg & 0xFF) | ((self.high_bg_byte as u16) << 8);
+        self.low_bg_shift_reg = self.low_bg_shift_reg & 0xFF | ((self.low_bg_byte as u16) << 8);
     }
 
     // PPU cycles are a bit more complicated than CPU
@@ -225,96 +270,97 @@ impl Ppu {
     // 3 times as many cycles.
     pub fn next(&mut self, cycles_to_exec: u64, memory: &mut Memory) -> Result<(), &'static str> {
 
-        let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
-        let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
-        self.ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
+    //    let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
+    //    let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
+    //    self.ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
 
         // no rendering. just add the cycles.
         // No way we add more than one line at a time in the current code...
         for _ in 0..cycles_to_exec {
-            if self.line < 240 {
-                memory.ppu_mem.is_rendering = true;
-                // Visible lines. BACKGROUND
-                if (ppu_mask >> 3) & 1 == 1 {
-                    if self.cycle == 0 {
-                        // lazy cycle
-                    } else if self.cycle > 0 && self.cycle <= 256 {
-                        // Draw background
-                        self.fetch_background(memory);  
-                    } else if self.cycle == 257 {
-                        // Reset X
-                        let v = memory.ppu_mem.v;
-                        memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
-                    }  else if self.cycle > 320 && self.cycle <= 336 {
-                        // fetch the two tiles for the next line
-                        if self.line != 239 {
-                            self.fetch_background(memory);
-                        }
-                    }
-                }
+           self.exec_cycle(memory); 
+    //        if self.line < 240 {
+    //            memory.ppu_mem.is_rendering = true;
+    //            // Visible lines. BACKGROUND
+    //            if (ppu_mask >> 3) & 1 == 1 {
+    //                if self.cycle == 0 {
+    //                    // lazy cycle
+    //                } else if self.cycle > 0 && self.cycle <= 256 {
+    //                    // Draw background
+    //                    self.fetch_background(memory);  
+    //                } else if self.cycle == 257 {
+    //                    // Reset X
+    //                    let v = memory.ppu_mem.v;
+    //                    memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
+    //                }  else if self.cycle > 320 && self.cycle <= 336 {
+    //                    // fetch the two tiles for the next line
+    //                    if self.line != 239 {
+    //                        self.fetch_background(memory);
+    //                    }
+    //                }
+    //            }
 
-            } else if self.line == 240 {
-                memory.ppu_mem.is_rendering = false;
-                // post render line.
-            } else if self.line > 240 && self.line < 261 {
-                // inside VBlank :)
-                if self.line == 241 && self.cycle == 1 {
-                    memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
-                    // UI object will display the current frame now that we 
-                    // are in vblank
-                    self.display_flag = true;
-                }
+    //        } else if self.line == 240 {
+    //            memory.ppu_mem.is_rendering = false;
+    //            // post render line.
+    //        } else if self.line > 240 && self.line < 261 {
+    //            // inside VBlank :)
+    //            if self.line == 241 && self.cycle == 1 {
+    //                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
+    //                // UI object will display the current frame now that we 
+    //                // are in vblank
+    //                self.display_flag = true;
+    //            }
 
-                if self.line == 260 {
-                    self.virtual_sprite_buffer.clear();
-                }
+    //            if self.line == 260 {
+    //                self.virtual_sprite_buffer.clear();
+    //            }
 
-            } else if self.line == 261 {
-                // at line 261, it is the end of vblank. We are also going to fetch the
-                // tiles for the first line of the next frame.
-                if self.cycle == 1 {
-                    memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
-                }
+    //        } else if self.line == 261 {
+    //            // at line 261, it is the end of vblank. We are also going to fetch the
+    //            // tiles for the first line of the next frame.
+    //            if self.cycle == 1 {
+    //                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
+    //            }
 
-                if self.cycle > 278 && self.cycle < 305 {
-                    let mut v = memory.ppu_mem.v;
-                    v = (memory.ppu_mem.v & !0x3E0) | (memory.ppu_mem.t & 0x3e0);
-                    memory.ppu_mem.v = v;
-                }
-                // prefetch data :D
-                if (ppu_mask >> 3) & 1 == 1 {
-                    if self.cycle == 0 {
-                        // lazy cycle
-                    } else if self.cycle > 0 && self.cycle <= 256 {
-                        // Draw background
-                        self.fetch_background(memory);  
-                    } else if self.cycle == 257 {
-                        // Reset X
-                        let v = memory.ppu_mem.v;
-                        memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
-                    }  else if self.cycle > 320 && self.cycle <= 336 {
-                        // fetch the two tiles for the next line
-                        self.fetch_background(memory);
-                    }
-                }
+    //            if self.cycle > 278 && self.cycle < 305 {
+    //                let mut v = memory.ppu_mem.v;
+    //                v = (memory.ppu_mem.v & !0x3E0) | (memory.ppu_mem.t & 0x3e0);
+    //                memory.ppu_mem.v = v;
+    //            }
+    //            // prefetch data :D
+    //            if (ppu_mask >> 3) & 1 == 1 {
+    //                if self.cycle == 0 {
+    //                    // lazy cycle
+    //                } else if self.cycle > 0 && self.cycle <= 256 {
+    //                    // Draw background
+    //                    self.fetch_background(memory);  
+    //                } else if self.cycle == 257 {
+    //                    // Reset X
+    //                    let v = memory.ppu_mem.v;
+    //                    memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
+    //                }  else if self.cycle > 320 && self.cycle <= 336 {
+    //                    // fetch the two tiles for the next line
+    //                    self.fetch_background(memory);
+    //                }
+    //            }
 
-                // SPRITES
-                if (ppu_mask >> 4) & 1 == 1 {
-                    self.fetch_sprites(memory);
-                }
+    //            // SPRITES
+    //            if (ppu_mask >> 4) & 1 == 1 {
+    //                self.fetch_sprites(memory);
+    //            }
 
-                if self.cycle == 337 {
-                    println!("At the end of VBLANK, X is {}, Y is {} and v {:X}", self.coarse_x(memory),
-                    self.coarse_y(memory), memory.ppu_mem.v);
-                }
-            }
+    //            if self.cycle == 337 {
+    //                println!("At the end of VBLANK, X is {}, Y is {} and v {:X}", self.coarse_x(memory),
+    //                self.coarse_y(memory), memory.ppu_mem.v);
+    //            }
+    //        }
 
-            self.cycle = (self.cycle + 1) % 341;
-            if self.cycle == 0 {
-                self.line += 1;
-            }
+    //        self.cycle = (self.cycle + 1) % 341;
+    //        if self.cycle == 0 {
+    //            self.line += 1;
+    //        }
 
-            self.line = self.line % 262;
+    //        self.line = self.line % 262;
         }
 
         Ok(())
@@ -530,6 +576,7 @@ impl Ppu {
 
         let horiz_t = t & 0x1f;
         memory.ppu_mem.v = (v & !0x1f) | horiz_t;
+        //println!("After copy horizontal: {:b}", memory.ppu_mem.v);
     }
 
     fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {
