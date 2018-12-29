@@ -282,6 +282,7 @@ impl PpuMemory {
 
     fn write_ctrl(&mut self, ctrl: u8) {
         self.ppuctrl = ctrl;
+        self.t = (self.t & !0xc00) | ((ctrl & 0b11) as u16) << 10;
         self.raise_nmi();
     }
 

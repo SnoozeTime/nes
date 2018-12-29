@@ -183,7 +183,7 @@ impl Ppu {
             self.low_bg_shift_reg >>= 1;
 
             match self.cycle % 8 {
-                2 => self.fetch_nt(memory, ppu_ctrl),
+                2 => self.fetch_nt(memory),
                 4 => self.fetch_attr(memory),
                 6 => self.fetch_bmp_low(memory, ppu_ctrl),
                 0 => {
@@ -231,8 +231,8 @@ impl Ppu {
         }
     }
 
-    fn fetch_nt(&mut self, memory: &Memory, ppu_ctrl: u8) {
-        let addr = 0x2000 | ((ppu_ctrl & 0b11) as u16) << 10 | (memory.ppu_mem.v & 0x03FF);
+    fn fetch_nt(&mut self, memory: &Memory) {
+        let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
         self.nt = memory.ppu_mem.ppu_mem[addr as usize];
     }
 
