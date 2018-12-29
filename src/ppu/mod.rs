@@ -150,6 +150,7 @@ impl Ppu {
 
         self.tick();
 
+
         let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
         let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
         let ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
@@ -182,7 +183,7 @@ impl Ppu {
             self.low_bg_shift_reg >>= 1;
 
             match self.cycle % 8 {
-                2 => self.fetch_nt(memory),
+                2 => self.fetch_nt(memory, ppu_ctrl),
                 4 => self.fetch_attr(memory),
                 6 => self.fetch_bmp_low(memory, ppu_ctrl),
                 0 => {
@@ -213,8 +214,8 @@ impl Ppu {
         
             if self.cycle == 304 {
             
-            println!("V at prerender {:X}, X:{}, Y:{}, fineY:{}", memory.ppu_mem.v,
-                     self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory));
+            println!("V at prerender {:X}, X:{}, Y:{}, fineY:{}, nametable:{}", memory.ppu_mem.v,
+                     self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory), self.nametable(memory));
             println!("t at pre-render {:b}", memory.ppu_mem.t);
             }
         }
@@ -230,8 +231,8 @@ impl Ppu {
         }
     }
 
-    fn fetch_nt(&mut self, memory: &Memory) {
-        let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
+    fn fetch_nt(&mut self, memory: &Memory, ppu_ctrl: u8) {
+        let addr = 0x2000 | ((ppu_ctrl & 0b11) as u16) << 10 | (memory.ppu_mem.v & 0x03FF);
         self.nt = memory.ppu_mem.ppu_mem[addr as usize];
     }
 
@@ -446,65 +447,6 @@ impl Ppu {
         }
     }
 
-//    fn fetch_background(&mut self, memory: &mut Memory) {
-//        // fetch the two tiles for the next line
-//        match self.cycle % 8 {
-//            2 => {
-//                // fetch nametable byte, which is the index of the tile
-//                let nt_idx = (self.coarse_x(memory) as usize) + 32 * (self.coarse_y(memory) as usize);
-//                // let's assume unique screen, only one nametable so far
-//                self.nt = memory.ppu_mem.ppu_mem[nt_idx+0x2000];
-//            },
-//            4 => {
-//                // fetch attribute byte (colors)
-//                let attr_idx = (8 * (self.coarse_y(memory) / 4) + self.coarse_x(memory)/4) as usize;
-//                self.at = memory.ppu_mem.ppu_mem[attr_idx+0x23C0];
-//            },
-//            6 => {
-//                // fetch bitmap low. Address is held in self.nt
-//                let pattern_table_addr = 0x1000 *
-//                    ((self.ppu_ctrl >> 4) & 1) as usize;
-//                let bmp_low = self.tile_low_addr(pattern_table_addr,
-//                                                 self.nt as usize,
-//                                                 self.fine_y(memory) as usize);
-//                self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
-//            },
-//            // 8th cycle
-//            0 => {
-//                // fetch bitmap high. One byte higher than low addr.
-//                let pattern_table_addr = 0x1000 *
-//                    ((self.ppu_ctrl >> 4) & 1) as usize;
-//                let addr = self.tile_low_addr(pattern_table_addr,
-//                                              self.nt as usize,
-//                                              self.fine_y(memory) as usize);
-//                let bmp_high = addr + 8;
-//                self.high_bg_byte = memory.ppu_mem.ppu_mem[bmp_high];
-//
-//                if self.cycle > 239 && self.cycle <= 257 {
-//
-//                } else {
-//                    println!("X:{} Y:{} fine y:{}", self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory));
-//                    let idx =
-//                        (self.coarse_x(memory) as usize) + 32 * ((self.fine_y(memory) as usize) + (8*self.coarse_y(memory) as usize));
-//                    self.virtual_buffer[idx] = TileRowInfo::new(self.low_bg_byte,
-//                                                                self.high_bg_byte,
-//                                                                self.at);
-//                }
-//                // Now we can write to the virtual buffer the 8 bits.
-//                // modify internal register.
-//                if self.cycle == 256 {
-//                    self.y_increment(memory);
-//                } else {
-//                    self.coarse_x_increment(memory);
-//                }
-//
-//            }
-//            _ => {
-//                //nothing, intermediate cycles
-//            }
-//        }
-//    }
-
     fn fine_y(&self, memory: &Memory) -> u8 {
         ((memory.ppu_mem.v & 0x7000) >> 12) as u8
     }
@@ -554,6 +496,7 @@ impl Ppu {
                 y = 0;
                 // switch vertical nametable
                 v ^= 0x800;
+          //      println!("bim at line {} and cycle {}", self.line, self.cycle);
             } else if y == 31 {
                 // y can be set out of bound to read attributes. in that case, wrap to 0
                 // without changing the nametable.
@@ -571,18 +514,18 @@ impl Ppu {
     fn copy_vertical_t(&self, memory: &mut Memory) {
         let t = memory.ppu_mem.t;
         let v = memory.ppu_mem.v;
-
         let vert_t = t & 0x73e0;
-        memory.ppu_mem.v = (v & !0x73e0) | vert_t;
+//        memory.ppu_mem.v = (v & !0x73e0) | vert_t;
+        memory.ppu_mem.v = (v & 0x841F) | (t & 0x7BE0)
     }
 
     fn copy_horizontal_t(&self, memory: &mut Memory) {
         let t = memory.ppu_mem.t;
         let v = memory.ppu_mem.v;
 
-        let horiz_t = t & 0x1f;
-        memory.ppu_mem.v = (v & !0x1f) | horiz_t;
-        //println!("After copy horizontal: {:b}", memory.ppu_mem.v);
+       let horiz_t = t & 0x1f;
+        memory.ppu_mem.v = (v & 0xFBE0) | (t & 0x041F)
+//        memory.ppu_mem.v = (v & !0x1f) | horiz_t;
     }
 
     fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {

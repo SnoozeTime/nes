@@ -341,11 +341,13 @@ impl PpuMemory {
     // Background addr and data
     fn write_addr(&mut self, addr_byte: u8) {
         if self.w == 0 {
+            println!("write addr first byte {:X}", addr_byte);
             // first write
             self.t = (((addr_byte & 0b111111) as u16) << 8) + (self.t & 0xFF);
             self.w = 1;
         } else {
             // second write
+            println!("write addr second byte {:X}", addr_byte);
             self.t = (self.t & (0xFF00)) | addr_byte as u16;
             self.v = self.t;
             self.w = 0;
@@ -385,6 +387,8 @@ impl PpuMemory {
             },
             // palettes mirrors
             0x3F00..=0x3FFF => {
+
+                println!("Write to palette");
                 let offset = (addr & 0xFF) % 0x20;
                 self.write_palette(offset, data); 
             },
