@@ -53,7 +53,6 @@ pub struct SpriteInfo {
  */
 #[allow(non_snake_case)]
 pub struct Ppu {
-    ppu_ctrl: u8,
 
     // 262 line per frame.
     line: usize,
@@ -90,7 +89,6 @@ impl Ppu {
 
     pub fn new() -> Ppu {
         Ppu { 
-            ppu_ctrl: 0,
             line: 0,
             cycle: 0,
             display_flag: false,
@@ -125,7 +123,7 @@ impl Ppu {
         if self.cycle == 341 {
             
             self.line = (self.line + 1) % 262;
-
+            self.odd_frame = !self.odd_frame;
             if self.odd_frame && self.line == 0 {
                 self.cycle = 1;
             } else {
@@ -173,6 +171,11 @@ impl Ppu {
             self.render_pixel(render_bg, render_sprite);
         }
 
+        if self.line == 0 && self.cycle == 1 {
+            println!("V at beginning {:X}, X:{}, Y:{}, fineY:{}, nametable: {}", memory.ppu_mem.v,
+                     self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory), self.nametable(memory));
+        }
+
         // fetch the pixel info
         if (visible_line || pre_render_line) && fetch_cycles && rendering_enabled {
             self.high_bg_shift_reg >>= 1;
@@ -181,9 +184,9 @@ impl Ppu {
             match self.cycle % 8 {
                 2 => self.fetch_nt(memory),
                 4 => self.fetch_attr(memory),
-                6 => self.fetch_bmp_low(memory),
+                6 => self.fetch_bmp_low(memory, ppu_ctrl),
                 0 => {
-                    self.fetch_bmp_high(memory);
+                    self.fetch_bmp_high(memory, ppu_ctrl);
 
                     // fetch high bmp and add to internal shift registers
                     self.load_bitmap();           
@@ -207,6 +210,13 @@ impl Ppu {
         // the vertical t is copied multiple time to vertical v
         if pre_render_line && rendering_enabled && self.cycle >= 280 && self.cycle <= 304 {
             self.copy_vertical_t(memory);
+        
+            if self.cycle == 304 {
+            
+            println!("V at prerender {:X}, X:{}, Y:{}, fineY:{}", memory.ppu_mem.v,
+                     self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory));
+            println!("t at pre-render {:b}", memory.ppu_mem.t);
+            }
         }
 
         // Vertical blank stuff.
@@ -218,10 +228,6 @@ impl Ppu {
         if self.line == 261 && self.cycle == 1 {
             memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
         }
-
-        //if (pre_render_line && self.cycle == 237) && rendering_enabled {
-        //  println!("v at beginning: {:08b}", memory.ppu_mem.v);
-        //}
     }
 
     fn fetch_nt(&mut self, memory: &Memory) {
@@ -236,19 +242,19 @@ impl Ppu {
         self.at = memory.ppu_mem.ppu_mem[addr as usize];
     }
 
-    fn fetch_bmp_low(&mut self, memory: &Memory) {
+    fn fetch_bmp_low(&mut self, memory: &Memory, ppu_ctrl: u8) {
         let pattern_table_addr = 0x1000 *
-            ((self.ppu_ctrl >> 4) & 1) as usize;
+            ((ppu_ctrl >> 4) & 1) as usize;
         let bmp_low = self.tile_low_addr(pattern_table_addr,
                                          self.nt as usize,
                                          self.fine_y(memory) as usize);
         self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
     }
 
-    fn fetch_bmp_high(&mut self, memory: &Memory) {
+    fn fetch_bmp_high(&mut self, memory: &Memory, ppu_ctrl: u8) {
         // fetch bitmap high. One byte higher than low addr.
         let pattern_table_addr = 0x1000 *
-            ((self.ppu_ctrl >> 4) & 1) as usize;
+            ((ppu_ctrl >> 4) & 1) as usize;
         let addr = self.tile_low_addr(pattern_table_addr,
                                       self.nt as usize,
                                       self.fine_y(memory) as usize);
@@ -366,7 +372,7 @@ impl Ppu {
         Ok(())
     }
 
-    fn fetch_sprites(&mut self, memory: &mut Memory) {
+    fn fetch_sprites(&mut self, memory: &mut Memory, ppu_ctrl: u8) {
         // during 1-64, the secondary OAM is cleared and the primary
         // OAM is scanned. Every sprite that will be in the line will
         // be added to the secondary OAM
@@ -404,7 +410,7 @@ impl Ppu {
         } else if self.cycle >= 257 && self.cycle < 320 {
             memory.ppu_mem.oam_addr = 0; 
         } else if self.cycle == 320 {
-            let nametable = 0x1000 * ((self.ppu_ctrl >> 3) & 1) as usize;
+            let nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
 
             for i in 0..self.nb_sprites {
                 let secondary_oam_addr = 4*i;
@@ -440,64 +446,64 @@ impl Ppu {
         }
     }
 
-    fn fetch_background(&mut self, memory: &mut Memory) {
-        // fetch the two tiles for the next line
-        match self.cycle % 8 {
-            2 => {
-                // fetch nametable byte, which is the index of the tile
-                let nt_idx = (self.coarse_x(memory) as usize) + 32 * (self.coarse_y(memory) as usize);
-                // let's assume unique screen, only one nametable so far
-                self.nt = memory.ppu_mem.ppu_mem[nt_idx+0x2000];
-            },
-            4 => {
-                // fetch attribute byte (colors)
-                let attr_idx = (8 * (self.coarse_y(memory) / 4) + self.coarse_x(memory)/4) as usize;
-                self.at = memory.ppu_mem.ppu_mem[attr_idx+0x23C0];
-            },
-            6 => {
-                // fetch bitmap low. Address is held in self.nt
-                let pattern_table_addr = 0x1000 *
-                    ((self.ppu_ctrl >> 4) & 1) as usize;
-                let bmp_low = self.tile_low_addr(pattern_table_addr,
-                                                 self.nt as usize,
-                                                 self.fine_y(memory) as usize);
-                self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
-            },
-            // 8th cycle
-            0 => {
-                // fetch bitmap high. One byte higher than low addr.
-                let pattern_table_addr = 0x1000 *
-                    ((self.ppu_ctrl >> 4) & 1) as usize;
-                let addr = self.tile_low_addr(pattern_table_addr,
-                                              self.nt as usize,
-                                              self.fine_y(memory) as usize);
-                let bmp_high = addr + 8;
-                self.high_bg_byte = memory.ppu_mem.ppu_mem[bmp_high];
-
-                if self.cycle > 239 && self.cycle <= 257 {
-
-                } else {
-                    println!("X:{} Y:{} fine y:{}", self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory));
-                    let idx =
-                        (self.coarse_x(memory) as usize) + 32 * ((self.fine_y(memory) as usize) + (8*self.coarse_y(memory) as usize));
-                    self.virtual_buffer[idx] = TileRowInfo::new(self.low_bg_byte,
-                                                                self.high_bg_byte,
-                                                                self.at);
-                }
-                // Now we can write to the virtual buffer the 8 bits.
-                // modify internal register.
-                if self.cycle == 256 {
-                    self.y_increment(memory);
-                } else {
-                    self.coarse_x_increment(memory);
-                }
-
-            }
-            _ => {
-                //nothing, intermediate cycles
-            }
-        }
-    }
+//    fn fetch_background(&mut self, memory: &mut Memory) {
+//        // fetch the two tiles for the next line
+//        match self.cycle % 8 {
+//            2 => {
+//                // fetch nametable byte, which is the index of the tile
+//                let nt_idx = (self.coarse_x(memory) as usize) + 32 * (self.coarse_y(memory) as usize);
+//                // let's assume unique screen, only one nametable so far
+//                self.nt = memory.ppu_mem.ppu_mem[nt_idx+0x2000];
+//            },
+//            4 => {
+//                // fetch attribute byte (colors)
+//                let attr_idx = (8 * (self.coarse_y(memory) / 4) + self.coarse_x(memory)/4) as usize;
+//                self.at = memory.ppu_mem.ppu_mem[attr_idx+0x23C0];
+//            },
+//            6 => {
+//                // fetch bitmap low. Address is held in self.nt
+//                let pattern_table_addr = 0x1000 *
+//                    ((self.ppu_ctrl >> 4) & 1) as usize;
+//                let bmp_low = self.tile_low_addr(pattern_table_addr,
+//                                                 self.nt as usize,
+//                                                 self.fine_y(memory) as usize);
+//                self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
+//            },
+//            // 8th cycle
+//            0 => {
+//                // fetch bitmap high. One byte higher than low addr.
+//                let pattern_table_addr = 0x1000 *
+//                    ((self.ppu_ctrl >> 4) & 1) as usize;
+//                let addr = self.tile_low_addr(pattern_table_addr,
+//                                              self.nt as usize,
+//                                              self.fine_y(memory) as usize);
+//                let bmp_high = addr + 8;
+//                self.high_bg_byte = memory.ppu_mem.ppu_mem[bmp_high];
+//
+//                if self.cycle > 239 && self.cycle <= 257 {
+//
+//                } else {
+//                    println!("X:{} Y:{} fine y:{}", self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory));
+//                    let idx =
+//                        (self.coarse_x(memory) as usize) + 32 * ((self.fine_y(memory) as usize) + (8*self.coarse_y(memory) as usize));
+//                    self.virtual_buffer[idx] = TileRowInfo::new(self.low_bg_byte,
+//                                                                self.high_bg_byte,
+//                                                                self.at);
+//                }
+//                // Now we can write to the virtual buffer the 8 bits.
+//                // modify internal register.
+//                if self.cycle == 256 {
+//                    self.y_increment(memory);
+//                } else {
+//                    self.coarse_x_increment(memory);
+//                }
+//
+//            }
+//            _ => {
+//                //nothing, intermediate cycles
+//            }
+//        }
+//    }
 
     fn fine_y(&self, memory: &Memory) -> u8 {
         ((memory.ppu_mem.v & 0x7000) >> 12) as u8
@@ -566,8 +572,8 @@ impl Ppu {
         let t = memory.ppu_mem.t;
         let v = memory.ppu_mem.v;
 
-        let vert_t = t & 0x3e0;
-        memory.ppu_mem.v = (v & !0x3e0) | vert_t;
+        let vert_t = t & 0x73e0;
+        memory.ppu_mem.v = (v & !0x73e0) | vert_t;
     }
 
     fn copy_horizontal_t(&self, memory: &mut Memory) {

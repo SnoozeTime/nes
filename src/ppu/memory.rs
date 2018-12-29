@@ -311,15 +311,28 @@ impl PpuMemory {
     }
 
     fn write_scroll(&mut self, value: u8) {
+        /*
+         *$2005 first write (w is 0)
+         t: ....... ...HGFED = d: HGFED...
+         x:              CBA = d: .....CBA
+         w:                  = 1
+
+         $2005 second write (w is 1)
+         t: CBA..HG FED..... = d: HGFEDCBA
+         w:                  = 0
+
+         * */
         if self.w == 0 {
             self.t = ((value >> 3)as u16) | (self.t & !0b11111);
             self.x = value & 0b111;
             self.w = 1;
         } else {
-            let mut masked_t = self.t & 0x73E0;
-            masked_t |= ((value >> 3) as u16) << 5; 
-            masked_t |= ((value & 0b111) as u16) << 12;
-            self.t = masked_t;
+            
+            let masked_t = self.t & !0x73E0;
+            let y_value = (value >> 3) as u16;
+            let fine_y_value = (value & 0b111) as u16;
+
+            self.t = masked_t | (y_value << 5) | (fine_y_value << 12);
             self.w = 0;
         }
 
