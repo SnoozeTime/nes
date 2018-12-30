@@ -137,12 +137,7 @@ impl Graphics {
                     let idx = row*256+col;
                     let pixel = ppu.pixels[idx as usize];
 
-                    match pixel {
-                    1 => self.canvas.set_draw_color(Color::RGB(255,0,0)),
-                    2 => self.canvas.set_draw_color(Color::RGB(0,255,0)),
-                    3 => self.canvas.set_draw_color(Color::RGB(0,0,255)),
-                    _ => self.canvas.set_draw_color(Color::RGB(0,0,0)),
-                    }
+                    self.canvas.set_draw_color(Color::RGB(pixel.0,pixel.1,pixel.2));
 
                     let xpixel = col * (self.zoom_level as i32);
                     let ypixel = row * (self.zoom_level as i32);

@@ -2,6 +2,11 @@ pub mod memory;
 pub mod palette;
 use super::cpu::memory::Memory;
 use self::memory::RegisterType;
+use std::collections::HashMap;
+
+extern crate sdl2;
+use self::sdl2::pixels::Color;
+
 
 fn reverse_bit(mut in_byte: u8) -> u8 {
 
@@ -64,6 +69,7 @@ pub struct Ppu {
     // For background rendering.
     // reset at each frame...
     nt: u8, // nametable byte
+    next_at: u8, //attribute for next tile
     at: u8, // attribute table byte
     low_bg_byte: u8,
     high_bg_byte: u8,
@@ -77,12 +83,19 @@ pub struct Ppu {
     // For sprites
     secondary_oam: [u8; 32],
     nb_sprites: usize,
+
+    // 8 sprites per line!
+    high_sprite_bmp_reg: [u8; 8],
+    low_sprite_bmp_reg: [u8; 8],
+    x_position_counters: [u8; 8],
+
     // one 8x1 pixels (slice of tile). 8 slices to make a tile.
     pub virtual_buffer: [TileRowInfo; 0x1e00], 
     pub virtual_sprite_buffer: Vec<SpriteInfo>,
 
 
-    pub pixels: [u8; 0xf000],
+    pub pixels: [(u8, u8, u8); 0xf000],
+    background_colors: HashMap<u8, Color>,
 }
 
 impl Ppu {
@@ -94,6 +107,7 @@ impl Ppu {
             display_flag: false,
             nt: 0,
             at: 0,
+            next_at: 0,
             low_bg_byte: 0,
             high_bg_byte: 0,
             high_bg_shift_reg: 0,
@@ -101,9 +115,13 @@ impl Ppu {
             odd_frame: false,
             secondary_oam: [0; 32],
             nb_sprites: 0,
+            high_sprite_bmp_reg: [0; 8],
+            low_sprite_bmp_reg: [0; 8],
+            x_position_counters: [0; 8],
             virtual_buffer: [TileRowInfo::new(0, 0, 0); 0x1e00],
             virtual_sprite_buffer: Vec::new(),
-            pixels: [0; 0xf000],
+            pixels: [(0, 0, 0); 0xf000],
+	    background_colors: palette::build_default_colors(),
         }
     }
 
@@ -132,16 +150,36 @@ impl Ppu {
         }
     }
 
-    fn render_pixel(&mut self, render_bg: bool, _render_sprite: bool) {
+    fn render_pixel(&mut self, memory: &Memory, render_bg: bool, _render_sprite: bool) {
         if render_bg {
-            let idx = 256*self.line + (self.cycle - 1);   
-            self.pixels[idx] = self.fetch_bg_pixel();
+            let idx = 256*self.line + (self.cycle - 1); 
+            
+            let box_row = ((self.line/8)% 4) / 2;
+            let box_col = ((self.cycle/8)%4) / 2;
+	    let attribute = match (box_row, box_col) {
+	        (0, 0) => self.at & 0b11,
+		(0, 1) => (self.at & 0b1100) >> 2 ,
+		(1, 0) => (self.at & 0b110000) >> 4,
+		(1, 1) => (self.at & 0b11000000) >> 6,
+		_ => panic!("Not possible"),
+	    };
+
+	    let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.background_colors).expect("Cannot get palette for background");                   
+            
+            let color = match self.fetch_bg_pixel() {
+                1 => palette.color1,
+                2 => palette.color2,
+                3 => palette.color3,
+                _ => palette.background,
+            };
+            self.pixels[idx] = (color.r, color.g, color.b);
+
         }
     }
 
     fn fetch_bg_pixel(&self) -> u8 {
-        let low_plane_bit = self.low_bg_shift_reg & 1;
-        let high_plane_bit = self.high_bg_shift_reg & 1;
+        let low_plane_bit = (self.low_bg_shift_reg >> 15) & 1;
+        let high_plane_bit = (self.high_bg_shift_reg >> 15) & 1;
         
         (low_plane_bit | (high_plane_bit << 1)) as u8
     }
@@ -169,18 +207,18 @@ impl Ppu {
         //
         // first, display the pixel at (x,y)
         if rendering_enabled && pixel_cycles {
-            self.render_pixel(render_bg, render_sprite);
+            self.render_pixel(memory, render_bg, render_sprite);
         }
 
-        if self.line == 0 && self.cycle == 1 {
-            println!("V at beginning {:X}, X:{}, Y:{}, fineY:{}, nametable: {}", memory.ppu_mem.v,
-                     self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory), self.nametable(memory));
-        }
+//        if self.line == 0 && self.cycle == 1 {
+//            println!("V at beginning {:X}, X:{}, Y:{}, fineY:{}, nametable: {}", memory.ppu_mem.v,
+//                     self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory), self.nametable(memory));
+//        }
 
         // fetch the pixel info
         if (visible_line || pre_render_line) && fetch_cycles && rendering_enabled {
-            self.high_bg_shift_reg >>= 1;
-            self.low_bg_shift_reg >>= 1;
+            self.high_bg_shift_reg <<= 1;
+            self.low_bg_shift_reg <<= 1;
 
             match self.cycle % 8 {
                 2 => self.fetch_nt(memory),
@@ -212,12 +250,12 @@ impl Ppu {
         if pre_render_line && rendering_enabled && self.cycle >= 280 && self.cycle <= 304 {
             self.copy_vertical_t(memory);
         
-            if self.cycle == 304 {
-            
-            println!("V at prerender {:X}, X:{}, Y:{}, fineY:{}, nametable:{}", memory.ppu_mem.v,
-                     self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory), self.nametable(memory));
-            println!("t at pre-render {:b}", memory.ppu_mem.t);
-            }
+            //if self.cycle == 304 {
+            //
+            //println!("V at prerender {:X}, X:{}, Y:{}, fineY:{}, nametable:{}", memory.ppu_mem.v,
+            //         self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory), self.nametable(memory));
+            //println!("t at pre-render {:b}", memory.ppu_mem.t);
+            //}
         }
 
         // Vertical blank stuff.
@@ -240,7 +278,7 @@ impl Ppu {
         // attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
         let v = memory.ppu_mem.v;
         let addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-        self.at = memory.ppu_mem.ppu_mem[addr as usize];
+        self.next_at = memory.ppu_mem.ppu_mem[addr as usize];
     }
 
     fn fetch_bmp_low(&mut self, memory: &Memory, ppu_ctrl: u8) {
@@ -264,8 +302,9 @@ impl Ppu {
     }
 
     fn load_bitmap(&mut self) {
-        self.high_bg_shift_reg = (self.high_bg_shift_reg & 0xFF) | ((self.high_bg_byte as u16) << 8);
-        self.low_bg_shift_reg = self.low_bg_shift_reg & 0xFF | ((self.low_bg_byte as u16) << 8);
+        self.at = self.next_at;
+        self.high_bg_shift_reg = (self.high_bg_shift_reg & 0xFF00) | (self.high_bg_byte as u16);
+        self.low_bg_shift_reg = (self.low_bg_shift_reg & 0xFF00) | (self.low_bg_byte as u16);
     }
 
     // PPU cycles are a bit more complicated than CPU
