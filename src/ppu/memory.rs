@@ -259,7 +259,9 @@ impl PpuMemory {
         match register_type {
             // Those cannot be read by the CPU
             PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR | OAMDMA => {
-                panic!("{:?} cannot be read by CPU", register_type);
+     //           panic!("{:?} cannot be read by CPU", register_type);
+     //
+                0
             },
             PPUSTATUS => self.read_status(),
             PPUDATA => self.read_data(),
@@ -357,6 +359,7 @@ impl PpuMemory {
 
     fn write_data(&mut self, data: u8) {
         let addr_latch = self.v;
+
         self.write_vram_at((addr_latch as usize) % 0x4000, data);
         if self.ppuctrl & 4 == 4 {
             self.v = addr_latch + 32;
@@ -436,7 +439,7 @@ impl PpuMemory {
         } else {
             self.v = addr_latch + 1;
         }
-        
+ 
         v
     }
 

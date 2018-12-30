@@ -172,8 +172,9 @@ impl Ppu {
                 3 => palette.color3,
                 _ => palette.background,
             };
+            
+            
             self.pixels[idx] = (color.r, color.g, color.b);
-
         }
     }
 
@@ -188,11 +189,9 @@ impl Ppu {
 
         self.tick();
 
-
         let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
         let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
         let ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
-
         let render_bg = ((ppu_mask >> 3) & 1) == 1;
         let render_sprite = ((ppu_mask >> 4) & 1) == 1;
         let rendering_enabled = render_bg || render_sprite;
@@ -204,17 +203,18 @@ impl Ppu {
 
         let fetch_cycles = (self.cycle > 0 && self.cycle <= 256) || (self.cycle >= 321); 
         let pixel_cycles = (self.cycle > 0 && self.cycle <= 256) && visible_line;
+        
+        if self.line == 241 {
+            memory.ppu_mem.is_rendering = false;
+        } else if self.line == 0 {
+            memory.ppu_mem.is_rendering = true;
+        }
         //
         // first, display the pixel at (x,y)
         if rendering_enabled && pixel_cycles {
             self.render_pixel(memory, render_bg, render_sprite);
         }
-
-//        if self.line == 0 && self.cycle == 1 {
-//            println!("V at beginning {:X}, X:{}, Y:{}, fineY:{}, nametable: {}", memory.ppu_mem.v,
-//                     self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory), self.nametable(memory));
-//        }
-
+        
         // fetch the pixel info
         if (visible_line || pre_render_line) && fetch_cycles && rendering_enabled {
             self.high_bg_shift_reg <<= 1;
