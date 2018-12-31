@@ -88,6 +88,8 @@ pub struct Ppu {
     high_sprite_bmp_reg: [u8; 8],
     low_sprite_bmp_reg: [u8; 8],
     x_position_counters: [u8; 8],
+    x_position_offset: [u8; 8],
+    is_active: [bool; 8],
 
     // one 8x1 pixels (slice of tile). 8 slices to make a tile.
     pub virtual_buffer: [TileRowInfo; 0x1e00], 
@@ -118,10 +120,12 @@ impl Ppu {
             high_sprite_bmp_reg: [0; 8],
             low_sprite_bmp_reg: [0; 8],
             x_position_counters: [0; 8],
+            x_position_offset: [0; 8],
+            is_active: [false; 8],
             virtual_buffer: [TileRowInfo::new(0, 0, 0); 0x1e00],
             virtual_sprite_buffer: Vec::new(),
             pixels: [(0, 0, 0); 0xf000],
-	    background_colors: palette::build_default_colors(),
+            background_colors: palette::build_default_colors(),
         }
     }
 
@@ -139,7 +143,7 @@ impl Ppu {
         self.cycle += 1;
 
         if self.cycle == 341 {
-            
+
             self.line = (self.line + 1) % 262;
             self.odd_frame = !self.odd_frame;
             if self.odd_frame && self.line == 0 {
@@ -150,38 +154,90 @@ impl Ppu {
         }
     }
 
-    fn render_pixel(&mut self, memory: &Memory, render_bg: bool, _render_sprite: bool) {
-        if render_bg {
-            let idx = 256*self.line + (self.cycle - 1); 
-            
-            let box_row = ((self.line/8)% 4) / 2;
-            let box_col = ((self.cycle/8)%4) / 2;
-	    let attribute = match (box_row, box_col) {
-	        (0, 0) => self.at & 0b11,
-		(0, 1) => (self.at & 0b1100) >> 2 ,
-		(1, 0) => (self.at & 0b110000) >> 4,
-		(1, 1) => (self.at & 0b11000000) >> 6,
-		_ => panic!("Not possible"),
-	    };
+    fn render_pixel(&mut self, memory: &Memory, render_bg: bool, render_sprite: bool) {
 
-	    let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.background_colors).expect("Cannot get palette for background");                   
-            
-            let color = match self.fetch_bg_pixel() {
-                1 => palette.color1,
-                2 => palette.color2,
-                3 => palette.color3,
-                _ => palette.background,
-            };
-            
-            
-            self.pixels[idx] = (color.r, color.g, color.b);
+        let idx = 256*self.line + (self.cycle - 1); 
+        let bg_pixel = {
+            if render_bg {
+
+                let box_row = ((self.line/8)% 4) / 2;
+                let box_col = ((self.cycle/8)%4) / 2;
+                let attribute = match (box_row, box_col) {
+                    (0, 0) => self.at & 0b11,
+                    (0, 1) => (self.at & 0b1100) >> 2 ,
+                    (1, 0) => (self.at & 0b110000) >> 4,
+                    (1, 1) => (self.at & 0b11000000) >> 6,
+                    _ => panic!("Not possible"),
+                };
+
+                let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.background_colors).expect("Cannot get palette for background");                   
+
+                let color = match self.fetch_bg_pixel() {
+                    1 => palette.color1,
+                    2 => palette.color2,
+                    3 => palette.color3,
+                    _ => palette.background,
+                };
+
+                (color.r, color.g, color.b)
+            } else {
+                (0, 0, 0)
+            }
+        };
+
+        let sprite_pixels = {
+
+            let mut pixels: Vec<(u8, u8, u8)> = Vec::new();
+            if render_sprite {
+                // x between 0 and -7 are active.
+                for i in 0..8 {    
+                    if self.is_active[i] {
+                        
+                        let bmp_low = self.low_sprite_bmp_reg[i];
+                        let bmp_high = self.high_sprite_bmp_reg[i];
+
+                        // choose the pixel
+                        let offset = self.x_position_offset[i];
+                        println!("offset -> {}", offset);
+                        if offset == 0 {
+                            println!("WILL RENDER SPRITE AT {}", self.cycle);
+                        }
+                        if offset >= 8 {
+                            // nothing to display anymore.
+                            self.is_active[i] = false;
+                        } else {
+                            let low_bit = (bmp_low >> (7 - offset)) & 1;
+                            let high_bit = (bmp_high >> (7 - offset)) & 1;
+                            let v = low_bit | (high_bit << 1);
+
+                            let color = match v {
+                                1 => pixels.push((255, 0, 0)),
+                                2 => pixels.push((0, 255, 0)),
+                                3 => pixels.push((0, 0, 255)),
+                                _ => {},
+                            };
+
+                            self.x_position_offset[i] += 1;
+                        }
+
+                    }
+                }
+                
+            }
+            pixels
+        };
+
+        if sprite_pixels.len() > 0 {
+            self.pixels[idx] = sprite_pixels[0]; 
+        } else {
+            self.pixels[idx] = bg_pixel;
         }
     }
 
     fn fetch_bg_pixel(&self) -> u8 {
         let low_plane_bit = (self.low_bg_shift_reg >> 15) & 1;
         let high_plane_bit = (self.high_bg_shift_reg >> 15) & 1;
-        
+
         (low_plane_bit | (high_plane_bit << 1)) as u8
     }
 
@@ -200,21 +256,31 @@ impl Ppu {
         let pre_render_line = self.line == 261;
         let vbl_line = self.line < 261 && self.line > 240;
 
-
         let fetch_cycles = (self.cycle > 0 && self.cycle <= 256) || (self.cycle >= 321); 
         let pixel_cycles = (self.cycle > 0 && self.cycle <= 256) && visible_line;
-        
+
         if self.line == 241 {
             memory.ppu_mem.is_rendering = false;
         } else if self.line == 0 {
             memory.ppu_mem.is_rendering = true;
         }
-        //
+
         // first, display the pixel at (x,y)
-        if rendering_enabled && pixel_cycles {
-            self.render_pixel(memory, render_bg, render_sprite);
+         if visible_line && rendering_enabled && pixel_cycles {
+             for i in 0..8 {
+                if self.x_position_counters[i] != 0 {
+                    println!("At cycle {}, before {}, after {}", self.cycle,
+                             self.x_position_counters[i], self.x_position_counters[i]-1);
+                    self.x_position_counters[i] -= 1;
+                    if self.x_position_counters[i] == 0 {
+                        self.is_active[i] = true;
+                    }
+                }
+            }
+             println!("Cycle -> {}", self.cycle);
+           self.render_pixel(memory, render_bg, render_sprite);
         }
-        
+
         // fetch the pixel info
         if (visible_line || pre_render_line) && fetch_cycles && rendering_enabled {
             self.high_bg_shift_reg <<= 1;
@@ -249,14 +315,103 @@ impl Ppu {
         // the vertical t is copied multiple time to vertical v
         if pre_render_line && rendering_enabled && self.cycle >= 280 && self.cycle <= 304 {
             self.copy_vertical_t(memory);
-        
-            //if self.cycle == 304 {
-            //
-            //println!("V at prerender {:X}, X:{}, Y:{}, fineY:{}, nametable:{}", memory.ppu_mem.v,
-            //         self.coarse_x(memory), self.coarse_y(memory), self.fine_y(memory), self.nametable(memory));
-            //println!("t at pre-render {:b}", memory.ppu_mem.t);
-            //}
         }
+
+        // -----------------------------------------------------------
+        // Sprites. During rendering cycles, we just fill 
+        // the secondary OAM with the sprites of the next line while
+        // the sprites of the current line are printed to the screen
+        // ------------------------------------------------------------
+        // during 1-64, the secondary OAM is cleared and the primary
+        // OAM is scanned. Every sprite that will be in the line will
+        // be added to the secondary OAM
+
+        if (visible_line || pre_render_line) && rendering_enabled {
+        if self.cycle == 1 {    
+            // Clear secondary OAM
+            self.secondary_oam = [0; 32]; 
+            self.nb_sprites = 0;
+        } else if self.cycle == 65 {
+            // populate secondary OAM
+            // Find the sprites that are in range for the next Y.
+            let mut addr = memory.ppu_mem.oam_addr as usize;
+
+            let mut secondary_oam_addr = 0;
+            while addr < 0x100 {
+
+                let sprite_y = memory.ppu_mem.oam[addr] as usize;
+                // TODO implement for 16 pixels tall.
+                let next_line = (self.line+1)%240;
+                if next_line >= sprite_y && next_line <= sprite_y + 8 {
+                    self.secondary_oam[secondary_oam_addr] = memory.ppu_mem.oam[addr];
+                    self.secondary_oam[secondary_oam_addr+1] = memory.ppu_mem.oam[addr+1];
+                    self.secondary_oam[secondary_oam_addr+2] = memory.ppu_mem.oam[addr+2];
+                    self.secondary_oam[secondary_oam_addr+3] = memory.ppu_mem.oam[addr+3];
+                    secondary_oam_addr += 4;
+                    self.nb_sprites += 1;
+                }
+
+                // 4 bytes per sprites.
+                addr += 4;
+
+                // if we already have 8 sprites, stop here.
+                if secondary_oam_addr == 32 {
+                    break;
+                }
+            }
+        } else if self.cycle >= 257 && self.cycle < 320 {
+            memory.ppu_mem.oam_addr = 0; 
+        } else if self.cycle == 320 {
+            //println!("At line {}, will evaluate {} sprites", self.line, self.nb_sprites);
+            //  at this point, the sprites for current line
+            //  are already rendered so we can update the registers
+            //  for next line.
+            let nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
+            for i in 0..8 {
+                if i <= self.nb_sprites {
+                let secondary_oam_addr = 4 * i;
+
+                let y = (self.line + 1) % 240;
+                let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
+
+                let x = self.secondary_oam[secondary_oam_addr+3];
+                println!("SPRITE X IS {}", x);
+                let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
+
+                let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
+                let bmp_low = self.tile_low_addr(nametable,
+                                                 tile_byte,
+                                                 tile_y);
+                let bmp_high = bmp_low + 8;
+                // see bit 3 of PPUCTRL.
+                let attr_byte = self.secondary_oam[secondary_oam_addr+2];
+
+                let mut tile_low = memory.ppu_mem.ppu_mem[bmp_low];
+                let mut tile_high = memory.ppu_mem.ppu_mem[bmp_high];
+                if (attr_byte >> 6) & 1 == 1 {
+                    // flip horizontally :D
+                    tile_low = reverse_bit(tile_low);
+                    tile_high = reverse_bit(tile_high);
+                }
+
+
+                self.high_sprite_bmp_reg[i] = tile_high;
+                self.low_sprite_bmp_reg[i] = tile_low;
+                self.x_position_counters[i] = x;
+                self.x_position_offset[i] = 0;
+                self.is_active[i] = false;
+                } else {
+                self.high_sprite_bmp_reg[i] = 0;
+                self.low_sprite_bmp_reg[i] = 0;
+                self.x_position_counters[i] = 0;
+                self.x_position_offset[i] = 0;
+                self.is_active[i] = false;
+
+                }
+            }
+        }
+        }
+
 
         // Vertical blank stuff.
         if self.line == 241 && self.cycle == 1 {
@@ -316,97 +471,97 @@ impl Ppu {
     // 3 times as many cycles.
     pub fn next(&mut self, cycles_to_exec: u64, memory: &mut Memory) -> Result<(), &'static str> {
 
-    //    let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
-    //    let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
-    //    self.ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
+        //    let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
+        //    let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
+        //    self.ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
 
         // no rendering. just add the cycles.
         // No way we add more than one line at a time in the current code...
         for _ in 0..cycles_to_exec {
-           self.exec_cycle(memory); 
-    //        if self.line < 240 {
-    //            memory.ppu_mem.is_rendering = true;
-    //            // Visible lines. BACKGROUND
-    //            if (ppu_mask >> 3) & 1 == 1 {
-    //                if self.cycle == 0 {
-    //                    // lazy cycle
-    //                } else if self.cycle > 0 && self.cycle <= 256 {
-    //                    // Draw background
-    //                    self.fetch_background(memory);  
-    //                } else if self.cycle == 257 {
-    //                    // Reset X
-    //                    let v = memory.ppu_mem.v;
-    //                    memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
-    //                }  else if self.cycle > 320 && self.cycle <= 336 {
-    //                    // fetch the two tiles for the next line
-    //                    if self.line != 239 {
-    //                        self.fetch_background(memory);
-    //                    }
-    //                }
-    //            }
+            self.exec_cycle(memory); 
+            //        if self.line < 240 {
+            //            memory.ppu_mem.is_rendering = true;
+            //            // Visible lines. BACKGROUND
+            //            if (ppu_mask >> 3) & 1 == 1 {
+            //                if self.cycle == 0 {
+            //                    // lazy cycle
+            //                } else if self.cycle > 0 && self.cycle <= 256 {
+            //                    // Draw background
+            //                    self.fetch_background(memory);  
+            //                } else if self.cycle == 257 {
+            //                    // Reset X
+            //                    let v = memory.ppu_mem.v;
+            //                    memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
+            //                }  else if self.cycle > 320 && self.cycle <= 336 {
+            //                    // fetch the two tiles for the next line
+            //                    if self.line != 239 {
+            //                        self.fetch_background(memory);
+            //                    }
+            //                }
+            //            }
 
-    //        } else if self.line == 240 {
-    //            memory.ppu_mem.is_rendering = false;
-    //            // post render line.
-    //        } else if self.line > 240 && self.line < 261 {
-    //            // inside VBlank :)
-    //            if self.line == 241 && self.cycle == 1 {
-    //                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
-    //                // UI object will display the current frame now that we 
-    //                // are in vblank
-    //                self.display_flag = true;
-    //            }
+            //        } else if self.line == 240 {
+            //            memory.ppu_mem.is_rendering = false;
+            //            // post render line.
+            //        } else if self.line > 240 && self.line < 261 {
+            //            // inside VBlank :)
+            //            if self.line == 241 && self.cycle == 1 {
+            //                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
+            //                // UI object will display the current frame now that we 
+            //                // are in vblank
+            //                self.display_flag = true;
+            //            }
 
-    //            if self.line == 260 {
-    //                self.virtual_sprite_buffer.clear();
-    //            }
+            //            if self.line == 260 {
+            //                self.virtual_sprite_buffer.clear();
+            //            }
 
-    //        } else if self.line == 261 {
-    //            // at line 261, it is the end of vblank. We are also going to fetch the
-    //            // tiles for the first line of the next frame.
-    //            if self.cycle == 1 {
-    //                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
-    //            }
+            //        } else if self.line == 261 {
+            //            // at line 261, it is the end of vblank. We are also going to fetch the
+            //            // tiles for the first line of the next frame.
+            //            if self.cycle == 1 {
+            //                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
+            //            }
 
-    //            if self.cycle > 278 && self.cycle < 305 {
-    //                let mut v = memory.ppu_mem.v;
-    //                v = (memory.ppu_mem.v & !0x3E0) | (memory.ppu_mem.t & 0x3e0);
-    //                memory.ppu_mem.v = v;
-    //            }
-    //            // prefetch data :D
-    //            if (ppu_mask >> 3) & 1 == 1 {
-    //                if self.cycle == 0 {
-    //                    // lazy cycle
-    //                } else if self.cycle > 0 && self.cycle <= 256 {
-    //                    // Draw background
-    //                    self.fetch_background(memory);  
-    //                } else if self.cycle == 257 {
-    //                    // Reset X
-    //                    let v = memory.ppu_mem.v;
-    //                    memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
-    //                }  else if self.cycle > 320 && self.cycle <= 336 {
-    //                    // fetch the two tiles for the next line
-    //                    self.fetch_background(memory);
-    //                }
-    //            }
+            //            if self.cycle > 278 && self.cycle < 305 {
+            //                let mut v = memory.ppu_mem.v;
+            //                v = (memory.ppu_mem.v & !0x3E0) | (memory.ppu_mem.t & 0x3e0);
+            //                memory.ppu_mem.v = v;
+            //            }
+            //            // prefetch data :D
+            //            if (ppu_mask >> 3) & 1 == 1 {
+            //                if self.cycle == 0 {
+            //                    // lazy cycle
+            //                } else if self.cycle > 0 && self.cycle <= 256 {
+            //                    // Draw background
+            //                    self.fetch_background(memory);  
+            //                } else if self.cycle == 257 {
+            //                    // Reset X
+            //                    let v = memory.ppu_mem.v;
+            //                    memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
+            //                }  else if self.cycle > 320 && self.cycle <= 336 {
+            //                    // fetch the two tiles for the next line
+            //                    self.fetch_background(memory);
+            //                }
+            //            }
 
-    //            // SPRITES
-    //            if (ppu_mask >> 4) & 1 == 1 {
-    //                self.fetch_sprites(memory);
-    //            }
+            //            // SPRITES
+            //            if (ppu_mask >> 4) & 1 == 1 {
+            //                self.fetch_sprites(memory);
+            //            }
 
-    //            if self.cycle == 337 {
-    //                println!("At the end of VBLANK, X is {}, Y is {} and v {:X}", self.coarse_x(memory),
-    //                self.coarse_y(memory), memory.ppu_mem.v);
-    //            }
-    //        }
+            //            if self.cycle == 337 {
+            //                println!("At the end of VBLANK, X is {}, Y is {} and v {:X}", self.coarse_x(memory),
+            //                self.coarse_y(memory), memory.ppu_mem.v);
+            //            }
+            //        }
 
-    //        self.cycle = (self.cycle + 1) % 341;
-    //        if self.cycle == 0 {
-    //            self.line += 1;
-    //        }
+            //        self.cycle = (self.cycle + 1) % 341;
+            //        if self.cycle == 0 {
+            //            self.line += 1;
+            //        }
 
-    //        self.line = self.line % 262;
+            //        self.line = self.line % 262;
         }
 
         Ok(())
@@ -535,7 +690,7 @@ impl Ppu {
                 y = 0;
                 // switch vertical nametable
                 v ^= 0x800;
-          //      println!("bim at line {} and cycle {}", self.line, self.cycle);
+                //      println!("bim at line {} and cycle {}", self.line, self.cycle);
             } else if y == 31 {
                 // y can be set out of bound to read attributes. in that case, wrap to 0
                 // without changing the nametable.
@@ -554,7 +709,7 @@ impl Ppu {
         let t = memory.ppu_mem.t;
         let v = memory.ppu_mem.v;
         let vert_t = t & 0x73e0;
-//        memory.ppu_mem.v = (v & !0x73e0) | vert_t;
+        //        memory.ppu_mem.v = (v & !0x73e0) | vert_t;
         memory.ppu_mem.v = (v & 0x841F) | (t & 0x7BE0)
     }
 
@@ -562,9 +717,9 @@ impl Ppu {
         let t = memory.ppu_mem.t;
         let v = memory.ppu_mem.v;
 
-       let horiz_t = t & 0x1f;
+        let horiz_t = t & 0x1f;
         memory.ppu_mem.v = (v & 0xFBE0) | (t & 0x041F)
-//        memory.ppu_mem.v = (v & !0x1f) | horiz_t;
+            //        memory.ppu_mem.v = (v & !0x1f) | horiz_t;
     }
 
     fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {
