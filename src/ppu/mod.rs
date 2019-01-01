@@ -198,10 +198,6 @@ impl Ppu {
 
                         // choose the pixel
                         let offset = self.x_position_offset[i];
-                        println!("offset -> {}", offset);
-                        if offset == 0 {
-                            println!("WILL RENDER SPRITE AT {}", self.cycle);
-                        }
                         if offset >= 8 {
                             // nothing to display anymore.
                             self.is_active[i] = false;
@@ -269,15 +265,12 @@ impl Ppu {
          if visible_line && rendering_enabled && pixel_cycles {
              for i in 0..8 {
                 if self.x_position_counters[i] != 0 {
-                    println!("At cycle {}, before {}, after {}", self.cycle,
-                             self.x_position_counters[i], self.x_position_counters[i]-1);
                     self.x_position_counters[i] -= 1;
                     if self.x_position_counters[i] == 0 {
                         self.is_active[i] = true;
                     }
                 }
             }
-             println!("Cycle -> {}", self.cycle);
            self.render_pixel(memory, render_bg, render_sprite);
         }
 
@@ -375,7 +368,6 @@ impl Ppu {
                 let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
 
                 let x = self.secondary_oam[secondary_oam_addr+3];
-                println!("SPRITE X IS {}", x);
                 let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
 
                 let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
