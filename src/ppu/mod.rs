@@ -89,6 +89,7 @@ pub struct Ppu {
     low_sprite_bmp_reg: [u8; 8],
     x_position_counters: [u8; 8],
     x_position_offset: [u8; 8],
+    sprite_attributes: [u8; 8],
     is_active: [bool; 8],
 
     // one 8x1 pixels (slice of tile). 8 slices to make a tile.
@@ -122,6 +123,7 @@ impl Ppu {
             x_position_counters: [0; 8],
             x_position_offset: [0; 8],
             is_active: [false; 8],
+            sprite_attributes: [0; 8],
             virtual_buffer: [TileRowInfo::new(0, 0, 0); 0x1e00],
             virtual_sprite_buffer: Vec::new(),
             pixels: [(0, 0, 0); 0xf000],
@@ -192,9 +194,10 @@ impl Ppu {
                 // x between 0 and -7 are active.
                 for i in 0..8 {    
                     if self.is_active[i] {
-                        
+
                         let bmp_low = self.low_sprite_bmp_reg[i];
                         let bmp_high = self.high_sprite_bmp_reg[i];
+                        let attr = self.sprite_attributes[i];
 
                         // choose the pixel
                         let offset = self.x_position_offset[i];
@@ -205,11 +208,19 @@ impl Ppu {
                             let low_bit = (bmp_low >> (7 - offset)) & 1;
                             let high_bit = (bmp_high >> (7 - offset)) & 1;
                             let v = low_bit | (high_bit << 1);
+                            let palette = palette::get_sprite_palette(attr & 0b11, &memory.ppu_mem.ppu_mem, &self.background_colors)
+            .expect("In draw-sprite, cannot get sprite_palette");
 
                             let color = match v {
-                                1 => pixels.push((255, 0, 0)),
-                                2 => pixels.push((0, 255, 0)),
-                                3 => pixels.push((0, 0, 255)),
+                                1 => pixels.push((palette.color1.r,
+                                                  palette.color1.g,
+                                                  palette.color1.b)),
+                                2 => pixels.push((palette.color2.r,
+                                                  palette.color2.g,
+                                                  palette.color2.b)),
+                                3 => pixels.push((palette.color3.r,
+                                                  palette.color3.g,
+                                                  palette.color3.b)),
                                 _ => {},
                             };
 
@@ -218,7 +229,7 @@ impl Ppu {
 
                     }
                 }
-                
+
             }
             pixels
         };
@@ -262,8 +273,8 @@ impl Ppu {
         }
 
         // first, display the pixel at (x,y)
-         if visible_line && rendering_enabled && pixel_cycles {
-             for i in 0..8 {
+        if visible_line && rendering_enabled && pixel_cycles {
+            for i in 0..8 {
                 if self.x_position_counters[i] != 0 {
                     self.x_position_counters[i] -= 1;
                     if self.x_position_counters[i] == 0 {
@@ -271,7 +282,7 @@ impl Ppu {
                     }
                 }
             }
-           self.render_pixel(memory, render_bg, render_sprite);
+            self.render_pixel(memory, render_bg, render_sprite);
         }
 
         // fetch the pixel info
@@ -320,88 +331,89 @@ impl Ppu {
         // be added to the secondary OAM
 
         if (visible_line || pre_render_line) && rendering_enabled {
-        if self.cycle == 1 {    
-            // Clear secondary OAM
-            self.secondary_oam = [0; 32]; 
-            self.nb_sprites = 0;
-        } else if self.cycle == 65 {
-            // populate secondary OAM
-            // Find the sprites that are in range for the next Y.
-            let mut addr = memory.ppu_mem.oam_addr as usize;
+            if self.cycle == 1 {    
+                // Clear secondary OAM
+                self.secondary_oam = [0; 32]; 
+                self.nb_sprites = 0;
+            } else if self.cycle == 65 {
+                // populate secondary OAM
+                // Find the sprites that are in range for the next Y.
+                let mut addr = memory.ppu_mem.oam_addr as usize;
 
-            let mut secondary_oam_addr = 0;
-            while addr < 0x100 {
+                let mut secondary_oam_addr = 0;
+                while addr < 0x100 {
 
-                let sprite_y = memory.ppu_mem.oam[addr] as usize;
-                // TODO implement for 16 pixels tall.
-                let next_line = (self.line+1)%240;
-                if next_line >= sprite_y && next_line <= sprite_y + 8 {
-                    self.secondary_oam[secondary_oam_addr] = memory.ppu_mem.oam[addr];
-                    self.secondary_oam[secondary_oam_addr+1] = memory.ppu_mem.oam[addr+1];
-                    self.secondary_oam[secondary_oam_addr+2] = memory.ppu_mem.oam[addr+2];
-                    self.secondary_oam[secondary_oam_addr+3] = memory.ppu_mem.oam[addr+3];
-                    secondary_oam_addr += 4;
-                    self.nb_sprites += 1;
+                    let sprite_y = memory.ppu_mem.oam[addr] as usize;
+                    // TODO implement for 16 pixels tall.
+                    let next_line = (self.line+1)%240;
+                    if next_line >= sprite_y && next_line <= sprite_y + 8 {
+                        self.secondary_oam[secondary_oam_addr] = memory.ppu_mem.oam[addr];
+                        self.secondary_oam[secondary_oam_addr+1] = memory.ppu_mem.oam[addr+1];
+                        self.secondary_oam[secondary_oam_addr+2] = memory.ppu_mem.oam[addr+2];
+                        self.secondary_oam[secondary_oam_addr+3] = memory.ppu_mem.oam[addr+3];
+                        secondary_oam_addr += 4;
+                        self.nb_sprites += 1;
+                    }
+
+                    // 4 bytes per sprites.
+                    addr += 4;
+
+                    // if we already have 8 sprites, stop here.
+                    if secondary_oam_addr == 32 {
+                        break;
+                    }
                 }
+            } else if self.cycle >= 257 && self.cycle < 320 {
+                memory.ppu_mem.oam_addr = 0; 
+            } else if self.cycle == 320 {
+                //println!("At line {}, will evaluate {} sprites", self.line, self.nb_sprites);
+                //  at this point, the sprites for current line
+                //  are already rendered so we can update the registers
+                //  for next line.
+                let nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
+                for i in 0..8 {
+                    if i <= self.nb_sprites {
+                        let secondary_oam_addr = 4 * i;
 
-                // 4 bytes per sprites.
-                addr += 4;
+                        let y = (self.line + 1) % 240;
+                        let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
 
-                // if we already have 8 sprites, stop here.
-                if secondary_oam_addr == 32 {
-                    break;
+                        let x = self.secondary_oam[secondary_oam_addr+3];
+                        let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
+
+                        let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
+                        let bmp_low = self.tile_low_addr(nametable,
+                                                         tile_byte,
+                                                         tile_y);
+                        let bmp_high = bmp_low + 8;
+                        // see bit 3 of PPUCTRL.
+                        let attr_byte = self.secondary_oam[secondary_oam_addr+2];
+
+                        let mut tile_low = memory.ppu_mem.ppu_mem[bmp_low];
+                        let mut tile_high = memory.ppu_mem.ppu_mem[bmp_high];
+                        if (attr_byte >> 6) & 1 == 1 {
+                            // flip horizontally :D
+                            tile_low = reverse_bit(tile_low);
+                            tile_high = reverse_bit(tile_high);
+                        }
+
+
+                        self.high_sprite_bmp_reg[i] = tile_high;
+                        self.low_sprite_bmp_reg[i] = tile_low;
+                        self.x_position_counters[i] = x;
+                        self.x_position_offset[i] = 0;
+                        self.is_active[i] = false;
+                        self.sprite_attributes[i] = attr_byte;
+                    } else {
+                        self.high_sprite_bmp_reg[i] = 0;
+                        self.low_sprite_bmp_reg[i] = 0;
+                        self.x_position_counters[i] = 0;
+                        self.x_position_offset[i] = 0;
+                        self.is_active[i] = false;
+                        self.sprite_attributes[i] = 0;
+                    }
                 }
             }
-        } else if self.cycle >= 257 && self.cycle < 320 {
-            memory.ppu_mem.oam_addr = 0; 
-        } else if self.cycle == 320 {
-            //println!("At line {}, will evaluate {} sprites", self.line, self.nb_sprites);
-            //  at this point, the sprites for current line
-            //  are already rendered so we can update the registers
-            //  for next line.
-            let nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
-            for i in 0..8 {
-                if i <= self.nb_sprites {
-                let secondary_oam_addr = 4 * i;
-
-                let y = (self.line + 1) % 240;
-                let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
-
-                let x = self.secondary_oam[secondary_oam_addr+3];
-                let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
-
-                let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
-                let bmp_low = self.tile_low_addr(nametable,
-                                                 tile_byte,
-                                                 tile_y);
-                let bmp_high = bmp_low + 8;
-                // see bit 3 of PPUCTRL.
-                let attr_byte = self.secondary_oam[secondary_oam_addr+2];
-
-                let mut tile_low = memory.ppu_mem.ppu_mem[bmp_low];
-                let mut tile_high = memory.ppu_mem.ppu_mem[bmp_high];
-                if (attr_byte >> 6) & 1 == 1 {
-                    // flip horizontally :D
-                    tile_low = reverse_bit(tile_low);
-                    tile_high = reverse_bit(tile_high);
-                }
-
-
-                self.high_sprite_bmp_reg[i] = tile_high;
-                self.low_sprite_bmp_reg[i] = tile_low;
-                self.x_position_counters[i] = x;
-                self.x_position_offset[i] = 0;
-                self.is_active[i] = false;
-                } else {
-                self.high_sprite_bmp_reg[i] = 0;
-                self.low_sprite_bmp_reg[i] = 0;
-                self.x_position_counters[i] = 0;
-                self.x_position_offset[i] = 0;
-                self.is_active[i] = false;
-
-                }
-            }
-        }
         }
 
 
