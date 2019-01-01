@@ -59,6 +59,12 @@ impl Nes {
                 let ten_millis = std::time::Duration::from_millis(10);
                 std::thread::sleep(ten_millis);
             }
+
+            if is_debug {
+                
+                self.memory.dump();
+                panic!("BIM");
+            }
         }
 
         Ok(())

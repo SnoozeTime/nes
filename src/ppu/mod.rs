@@ -395,8 +395,8 @@ impl Ppu {
                         // see bit 3 of PPUCTRL.
                         let attr_byte = self.secondary_oam[secondary_oam_addr+2];
 
-                        let mut tile_low = memory.ppu_mem.ppu_mem[bmp_low];
-                        let mut tile_high = memory.ppu_mem.ppu_mem[bmp_high];
+                        let mut tile_low = memory.ppu_mem.read_vram_at(bmp_low);
+                        let mut tile_high = memory.ppu_mem.read_vram_at(bmp_high);
                         if (attr_byte >> 6) & 1 == 1 {
                             // flip horizontally :D
                             tile_low = reverse_bit(tile_low);
@@ -436,7 +436,7 @@ impl Ppu {
 
     fn fetch_nt(&mut self, memory: &Memory) {
         let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
-        self.nt = memory.ppu_mem.ppu_mem[addr as usize];
+        self.nt = memory.ppu_mem.read_vram_at(addr as usize);
         if self.debug {
             println!("L:{} C:{} addr: {:X} NT:{}", self.line, self.cycle, addr, self.nt);
         }
@@ -446,7 +446,7 @@ impl Ppu {
         // attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
         let v = memory.ppu_mem.v;
         let addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-        self.next_at = memory.ppu_mem.ppu_mem[addr as usize];
+        self.next_at = memory.ppu_mem.read_vram_at(addr as usize);
     }
 
     fn fetch_bmp_low(&mut self, memory: &Memory, ppu_ctrl: u8) {
@@ -455,7 +455,7 @@ impl Ppu {
         let bmp_low = self.tile_low_addr(pattern_table_addr,
                                          self.nt as usize,
                                          self.fine_y(memory) as usize);
-        self.low_bg_byte = memory.ppu_mem.ppu_mem[bmp_low];
+        self.low_bg_byte = memory.ppu_mem.read_vram_at(bmp_low);
     }
 
     fn fetch_bmp_high(&mut self, memory: &Memory, ppu_ctrl: u8) {
@@ -466,7 +466,7 @@ impl Ppu {
                                       self.nt as usize,
                                       self.fine_y(memory) as usize);
         let bmp_high = addr + 8;
-        self.high_bg_byte = memory.ppu_mem.ppu_mem[bmp_high];
+        self.high_bg_byte = memory.ppu_mem.read_vram_at(bmp_high);
     }
 
     fn load_bitmap(&mut self) {
@@ -475,184 +475,14 @@ impl Ppu {
         self.low_bg_shift_reg = (self.low_bg_shift_reg & 0xFF00) | (self.low_bg_byte as u16);
     }
 
-    // PPU cycles are a bit more complicated than CPU
-    // https://wiki.nesdev.com/w/index.php/PPU_frame_timing
-    // https://wiki.nesdev.com/w/index.php/PPU_rendering
-    //
-    // In this emulator, I chose to run the CPU first, then the PPU. The CPU
-    // will return the number of cycles it had executed and the PPU will execute
-    // 3 times as many cycles.
     pub fn next(&mut self, cycles_to_exec: u64, memory: &mut Memory, debug: bool) -> Result<(), &'static str> {
         self.debug = debug;
 
-        //    let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
-        //    let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
-        //    self.ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
-
-        // no rendering. just add the cycles.
-        // No way we add more than one line at a time in the current code...
         for _ in 0..cycles_to_exec {
             self.exec_cycle(memory); 
-            //        if self.line < 240 {
-            //            memory.ppu_mem.is_rendering = true;
-            //            // Visible lines. BACKGROUND
-            //            if (ppu_mask >> 3) & 1 == 1 {
-            //                if self.cycle == 0 {
-            //                    // lazy cycle
-            //                } else if self.cycle > 0 && self.cycle <= 256 {
-            //                    // Draw background
-            //                    self.fetch_background(memory);  
-            //                } else if self.cycle == 257 {
-            //                    // Reset X
-            //                    let v = memory.ppu_mem.v;
-            //                    memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
-            //                }  else if self.cycle > 320 && self.cycle <= 336 {
-            //                    // fetch the two tiles for the next line
-            //                    if self.line != 239 {
-            //                        self.fetch_background(memory);
-            //                    }
-            //                }
-            //            }
-
-            //        } else if self.line == 240 {
-            //            memory.ppu_mem.is_rendering = false;
-            //            // post render line.
-            //        } else if self.line > 240 && self.line < 261 {
-            //            // inside VBlank :)
-            //            if self.line == 241 && self.cycle == 1 {
-            //                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
-            //                // UI object will display the current frame now that we 
-            //                // are in vblank
-            //                self.display_flag = true;
-            //            }
-
-            //            if self.line == 260 {
-            //                self.virtual_sprite_buffer.clear();
-            //            }
-
-            //        } else if self.line == 261 {
-            //            // at line 261, it is the end of vblank. We are also going to fetch the
-            //            // tiles for the first line of the next frame.
-            //            if self.cycle == 1 {
-            //                memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
-            //            }
-
-            //            if self.cycle > 278 && self.cycle < 305 {
-            //                let mut v = memory.ppu_mem.v;
-            //                v = (memory.ppu_mem.v & !0x3E0) | (memory.ppu_mem.t & 0x3e0);
-            //                memory.ppu_mem.v = v;
-            //            }
-            //            // prefetch data :D
-            //            if (ppu_mask >> 3) & 1 == 1 {
-            //                if self.cycle == 0 {
-            //                    // lazy cycle
-            //                } else if self.cycle > 0 && self.cycle <= 256 {
-            //                    // Draw background
-            //                    self.fetch_background(memory);  
-            //                } else if self.cycle == 257 {
-            //                    // Reset X
-            //                    let v = memory.ppu_mem.v;
-            //                    memory.ppu_mem.v = (v & !0x1F) + (memory.ppu_mem.t & 0x1F);
-            //                }  else if self.cycle > 320 && self.cycle <= 336 {
-            //                    // fetch the two tiles for the next line
-            //                    self.fetch_background(memory);
-            //                }
-            //            }
-
-            //            // SPRITES
-            //            if (ppu_mask >> 4) & 1 == 1 {
-            //                self.fetch_sprites(memory);
-            //            }
-
-            //            if self.cycle == 337 {
-            //                println!("At the end of VBLANK, X is {}, Y is {} and v {:X}", self.coarse_x(memory),
-            //                self.coarse_y(memory), memory.ppu_mem.v);
-            //            }
-            //        }
-
-            //        self.cycle = (self.cycle + 1) % 341;
-            //        if self.cycle == 0 {
-            //            self.line += 1;
-            //        }
-
-            //        self.line = self.line % 262;
         }
 
         Ok(())
-    }
-
-    fn fetch_sprites(&mut self, memory: &mut Memory, ppu_ctrl: u8) {
-        // during 1-64, the secondary OAM is cleared and the primary
-        // OAM is scanned. Every sprite that will be in the line will
-        // be added to the secondary OAM
-        if self.cycle == 1 {    
-            // Clear secondary OAM
-            self.secondary_oam = [0; 32]; 
-            self.nb_sprites = 0;
-        } else if self.cycle == 65 {
-            // populate secondary OAM
-            // Find the sprites that are in range for the next Y.
-            let mut addr = memory.ppu_mem.oam_addr as usize;
-
-            let mut secondary_oam_addr = 0;
-            while addr < 0x100 {
-
-                let sprite_y = memory.ppu_mem.oam[addr] as usize;
-                // TODO implement for 16 pixels tall.
-                if self.line +1 >= sprite_y && self.line+1 <= sprite_y + 8 {
-                    self.secondary_oam[secondary_oam_addr] = memory.ppu_mem.oam[addr];
-                    self.secondary_oam[secondary_oam_addr+1] = memory.ppu_mem.oam[addr+1];
-                    self.secondary_oam[secondary_oam_addr+2] = memory.ppu_mem.oam[addr+2];
-                    self.secondary_oam[secondary_oam_addr+3] = memory.ppu_mem.oam[addr+3];
-                    secondary_oam_addr += 4;
-                    self.nb_sprites += 1;
-                }
-
-                // 4 bytes per sprites.
-                addr += 4;
-
-                // if we already have 8 sprites, stop here.
-                if secondary_oam_addr == 32 {
-                    break;
-                }
-            }
-        } else if self.cycle >= 257 && self.cycle < 320 {
-            memory.ppu_mem.oam_addr = 0; 
-        } else if self.cycle == 320 {
-            let nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
-
-            for i in 0..self.nb_sprites {
-                let secondary_oam_addr = 4*i;
-                let y = self.line + 1;
-                let x = self.secondary_oam[secondary_oam_addr+3] as usize;
-                let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
-
-                let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
-                let bmp_low = self.tile_low_addr(nametable,
-                                                 tile_byte,
-                                                 tile_y);
-                let bmp_high = bmp_low + 8;
-                // see bit 3 of PPUCTRL.
-                let attr_byte = self.secondary_oam[secondary_oam_addr+2];
-
-                let mut tile_low = memory.ppu_mem.ppu_mem[bmp_low];
-                let mut tile_high = memory.ppu_mem.ppu_mem[bmp_high];
-                if (attr_byte >> 6) & 1 == 1 {
-                    // flip horizontally :D
-                    tile_low = reverse_bit(tile_low);
-                    tile_high = reverse_bit(tile_high);
-                }
-
-                self.virtual_sprite_buffer.push(
-                    SpriteInfo{ tile: TileRowInfo::new(
-                            tile_low,
-                            tile_high,
-                            attr_byte),
-                            x,
-                            y});
-
-            }
-        }
     }
 
     fn fine_y(&self, memory: &Memory) -> u8 {

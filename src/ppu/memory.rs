@@ -443,7 +443,7 @@ impl PpuMemory {
         v
     }
 
-    fn read_vram_at(&mut self, addr: usize) -> u8 {
+    pub fn read_vram_at(&self, addr: usize) -> u8 {
 
         match addr {
             0x2000..=0x23FF => self.read_from_1st_nametable(addr),
@@ -472,12 +472,12 @@ impl PpuMemory {
 
     }
 
-    fn read_from_1st_nametable(&mut self, addr: usize) -> u8 {
+    fn read_from_1st_nametable(&self, addr: usize) -> u8 {
         let offset = addr % 0x400;
         self.ppu_mem[0x2000+offset]
     }
 
-    fn read_from_2nd_nametable(&mut self, addr: usize) -> u8 {
+    fn read_from_2nd_nametable(&self, addr: usize) -> u8 {
         let offset = addr % 0x400;
         self.ppu_mem[0x2400+offset]
     }
