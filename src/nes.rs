@@ -35,18 +35,20 @@ impl Nes {
     // main loop
     pub fn run(&mut self) -> Result<(), &'static str> {
         let mut is_pause = false;
+        let mut is_debug = false;
         'should_run: loop {
             // handle events.
             match self.ui.handle_events(&mut self.memory, is_pause) {
                 Some(EmulatorInput::QUIT) => break 'should_run,
                 Some(EmulatorInput::PAUSE) => is_pause = !is_pause,
+                Some(EmulatorInput::DEBUG) => is_debug = !is_debug,
                 None => {},
             }
 
             // Update CPU and PPU (and later APU)
             if !is_pause {
                 let cpu_cycles = self.cpu.next(&mut self.memory)?;
-                self.ppu.next(3*cpu_cycles, &mut self.memory)?;
+                self.ppu.next(3*cpu_cycles, &mut self.memory, is_debug)?;
             }
             // render
             self.ui.display(&mut self.memory, &mut self.ppu);

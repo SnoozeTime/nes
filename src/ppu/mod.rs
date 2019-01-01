@@ -59,6 +59,7 @@ pub struct SpriteInfo {
 #[allow(non_snake_case)]
 pub struct Ppu {
 
+    debug: bool,
     // 262 line per frame.
     line: usize,
     // 341 cycle per line.
@@ -105,6 +106,7 @@ impl Ppu {
 
     pub fn new() -> Ppu {
         Ppu { 
+            debug: false,
             line: 0,
             cycle: 0,
             display_flag: false,
@@ -186,6 +188,9 @@ impl Ppu {
                 (0, 0, 0)
             }
         };
+        if self.debug {
+            println!("RENDER -> L:{} C:{} pixel: {:?}", self.line, self.cycle,bg_pixel);
+        }
 
         let sprite_pixels = {
 
@@ -263,7 +268,8 @@ impl Ppu {
         let pre_render_line = self.line == 261;
         let vbl_line = self.line < 261 && self.line > 240;
 
-        let fetch_cycles = (self.cycle > 0 && self.cycle <= 256) || (self.cycle >= 321); 
+        let fetch_cycles = (self.cycle > 0 && self.cycle <= 256) ||
+            (self.cycle >= 321 && self.cycle < 337); 
         let pixel_cycles = (self.cycle > 0 && self.cycle <= 256) && visible_line;
 
         if self.line == 241 {
@@ -431,6 +437,9 @@ impl Ppu {
     fn fetch_nt(&mut self, memory: &Memory) {
         let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
         self.nt = memory.ppu_mem.ppu_mem[addr as usize];
+        if self.debug {
+            println!("L:{} C:{} addr: {:X} NT:{}", self.line, self.cycle, addr, self.nt);
+        }
     }
 
     fn fetch_attr(&mut self, memory: &Memory) {
@@ -473,7 +482,8 @@ impl Ppu {
     // In this emulator, I chose to run the CPU first, then the PPU. The CPU
     // will return the number of cycles it had executed and the PPU will execute
     // 3 times as many cycles.
-    pub fn next(&mut self, cycles_to_exec: u64, memory: &mut Memory) -> Result<(), &'static str> {
+    pub fn next(&mut self, cycles_to_exec: u64, memory: &mut Memory, debug: bool) -> Result<(), &'static str> {
+        self.debug = debug;
 
         //    let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
         //    let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);

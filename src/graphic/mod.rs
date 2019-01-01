@@ -23,6 +23,7 @@ const HEIGHT: u32 = 240;
 pub enum EmulatorInput {
     PAUSE,
     QUIT,
+    DEBUG,
 }
 
 fn build_default_input() -> HashMap<Keycode, InputAction> {
@@ -102,6 +103,10 @@ impl Graphics {
 		Event::KeyDown {keycode: Some(Keycode::Space), .. } => {
 		    return Some(EmulatorInput::PAUSE);
 		},
+                // DEBUG mode
+                Event::KeyDown {keycode: Some(Keycode::Return), .. } => {
+                    return Some(EmulatorInput::DEBUG);
+                },
 
 		// NES INPUT
 		Event::KeyDown { keycode: Some(keycode), ..} => {
