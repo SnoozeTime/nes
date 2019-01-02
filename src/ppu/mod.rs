@@ -531,33 +531,6 @@ impl Ppu {
 mod tests {
 
     use super::*;
-
-    #[test]
-    fn increase_x_test() {
-        let mut ppu = Ppu::new();
-        ppu.increase_x();
-        assert_eq!(4, ppu.X);
-    }
-
-    #[test]
-    fn increase_y_test() {
-        let mut ppu = Ppu::new();
-        ppu.increase_y();
-        assert_eq!(0, ppu.Y);
-        assert_eq!(1, ppu.y);
-        ppu.increase_y();
-        ppu.increase_y();
-        ppu.increase_y();
-        ppu.increase_y();
-        ppu.increase_y();
-        ppu.increase_y();
-        assert_eq!(0, ppu.Y);
-        assert_eq!(7, ppu.y);
-        ppu.increase_y();
-        assert_eq!(1, ppu.Y);
-        assert_eq!(0, ppu.y);
-    }
-
     #[test]
     fn reverse_byte_test() {
 
