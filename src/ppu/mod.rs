@@ -385,15 +385,20 @@ impl Ppu {
                         let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
 
                         let x = self.secondary_oam[secondary_oam_addr+3];
-                        let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
 
                         let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
+                        let attr_byte = self.secondary_oam[secondary_oam_addr+2];
+
+                        let mut tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
+                        if (attr_byte >> 7) & 1 == 1 {
+                            tile_y = 7 - tile_y;
+                        }
+
                         let bmp_low = self.tile_low_addr(nametable,
                                                          tile_byte,
                                                          tile_y);
                         let bmp_high = bmp_low + 8;
                         // see bit 3 of PPUCTRL.
-                        let attr_byte = self.secondary_oam[secondary_oam_addr+2];
 
                         let mut tile_low = memory.ppu_mem.read_vram_at(bmp_low);
                         let mut tile_high = memory.ppu_mem.read_vram_at(bmp_high);
@@ -402,7 +407,6 @@ impl Ppu {
                             tile_low = reverse_bit(tile_low);
                             tile_high = reverse_bit(tile_high);
                         }
-
 
                         self.high_sprite_bmp_reg[i] = tile_high;
                         self.low_sprite_bmp_reg[i] = tile_low;
