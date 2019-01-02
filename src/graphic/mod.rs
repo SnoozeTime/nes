@@ -13,7 +13,7 @@ use self::sdl2::rect::Rect;
 use self::sdl2::keyboard::Keycode;
 use self::sdl2::render::{RenderTarget, Canvas, WindowCanvas};
 
-use joypad::InputAction;
+use crate::joypad::InputAction;
 
 // This is the NES default
 const WIDTH: u32 = 256;

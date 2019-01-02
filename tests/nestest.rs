@@ -26,7 +26,7 @@ fn extract_log(filename: String) -> Result<Vec<LogRecord>, Box<dyn std::error::E
     reader.lines()
         .skip(1)
         .map(|line| {
-            let unwrapped = try!(line);
+            let unwrapped = r#try!(line);
             let tokens: Vec<&str> = unwrapped.split(",").collect();
 
             // A bit ugly? :D

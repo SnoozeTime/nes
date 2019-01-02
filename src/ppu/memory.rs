@@ -1,5 +1,5 @@
 use std::fmt;
-use rom;
+use crate::rom;
 
 // Behaviour of PPU register is quite special. For example, when reading PPUSTATUS,
 // the vblank flag will be cleared. In order to avoid cluttering the logic in 

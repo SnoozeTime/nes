@@ -1,7 +1,7 @@
-use rom;
+use crate::rom;
 use std::io::Write;
-use ppu::memory::{RegisterType, PpuMemory};
-use joypad::Joypad;
+use crate::ppu::memory::{RegisterType, PpuMemory};
+use crate::joypad::Joypad;
 use std::default::Default;
 
 // 

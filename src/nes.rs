@@ -1,10 +1,10 @@
 // Hello
 //
-use cpu::cpu::Cpu;
-use graphic::{EmulatorInput, Graphics};
-use cpu::memory::Memory;
-use ppu::Ppu; 
-use rom;
+use crate::cpu::cpu::Cpu;
+use crate::graphic::{EmulatorInput, Graphics};
+use crate::cpu::memory::Memory;
+use crate::ppu::Ppu; 
+use crate::rom;
 
 pub struct Nes {
     cpu: Cpu, 

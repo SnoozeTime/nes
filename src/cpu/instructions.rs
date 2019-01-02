@@ -2,7 +2,7 @@ use super::memory::Memory;
 use super::addressing::{AddressingMode, create_addressing};
 use super::cpu::Cpu;
 use std::fmt;
-use cpu::addressing::AddressingModeType::*;
+use crate::cpu::addressing::AddressingModeType::*;
 
 macro_rules! instructions {
 
