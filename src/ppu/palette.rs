@@ -52,6 +52,46 @@ pub fn get_bg_palette(palette_number: u8,
     if let (Some(bg), Some(c1), Some(c2), Some(c3)) = (background, color1, color2, color3) {
         Some(Palette { background: *bg, color1: *c1, color2: *c2, color3: *c3 })
     } else {
+         // this is for debugging
+        match palette_number {
+            0 => {
+                   println!("palette 0: {:X} {:X} {:X}",
+                         &vram[0x3F11],
+                         &vram[0x3F12],
+                         &vram[0x3F13]);
+                   println!("{:?} {:?} {:?}", colors.get(&vram[0x3F11]),
+                colors.get(&vram[0x3F12]),
+                colors.get(&vram[0x3F13]));
+            },
+            1 => {
+                  println!("palette 1: {:X} {:X} {:X}",
+                         &vram[0x3F15],
+                         &vram[0x3F16],
+                         &vram[0x3F17]);
+                  println!("{:?} {:?} {:?}", colors.get(&vram[0x3F15]),
+                colors.get(&vram[0x3F16]),
+                colors.get(&vram[0x3F17]));
+            },
+            2 => {
+                 println!("palette 2: {:X} {:X} {:X}",
+                         &vram[0x3F19],
+                         &vram[0x3F1A],
+                         &vram[0x3F1B]);
+                 println!("{:?} {:?} {:?}", colors.get(&vram[0x3F19]),
+                colors.get(&vram[0x3F1A]),
+                colors.get(&vram[0x3F1B]));
+            },
+            3 => {
+                println!("palette 3: {:X} {:X} {:X}",
+                         &vram[0x3F1D],
+                         &vram[0x3F1E],
+                         &vram[0x3F1F]);
+                println!("{:?} {:?} {:?}", colors.get(&vram[0x3F1D]),
+                colors.get(&vram[0x3F1E]),
+                colors.get(&vram[0x3F1F]));
+            },
+            _ => panic!("impossibru"),
+        };       
         None
     }
 }

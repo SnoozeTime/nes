@@ -24,30 +24,6 @@ fn reverse_bit(mut in_byte: u8) -> u8 {
     out_byte << rest
 
 }
-#[derive(Copy, Clone)]
-pub struct TileRowInfo {
-    pub low: u8,
-    pub high: u8,
-    pub attr: u8,
-}
-
-impl std::fmt::Debug for TileRowInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:08b}", self.low)
-    }
-}
-
-impl TileRowInfo {
-    pub fn new(low: u8, high: u8, attr: u8) -> TileRowInfo {
-        TileRowInfo { low, high, attr }
-    }
-}
-
-pub struct SpriteInfo {
-    pub tile: TileRowInfo,
-    pub x: usize,
-    pub y: usize,
-}
 
 /*
  * Fun times.
@@ -93,11 +69,6 @@ pub struct Ppu {
     sprite_attributes: [u8; 8],
     is_active: [bool; 8],
 
-    // one 8x1 pixels (slice of tile). 8 slices to make a tile.
-    pub virtual_buffer: [TileRowInfo; 0x1e00], 
-    pub virtual_sprite_buffer: Vec<SpriteInfo>,
-
-
     pub pixels: [(u8, u8, u8); 0xf000],
     background_colors: HashMap<u8, Color>,
 }
@@ -126,8 +97,6 @@ impl Ppu {
             x_position_offset: [0; 8],
             is_active: [false; 8],
             sprite_attributes: [0; 8],
-            virtual_buffer: [TileRowInfo::new(0, 0, 0); 0x1e00],
-            virtual_sprite_buffer: Vec::new(),
             pixels: [(0, 0, 0); 0xf000],
             background_colors: palette::build_default_colors(),
         }
@@ -216,7 +185,7 @@ impl Ppu {
                             let palette = palette::get_sprite_palette(attr & 0b11, &memory.ppu_mem.ppu_mem, &self.background_colors)
             .expect("In draw-sprite, cannot get sprite_palette");
 
-                            let color = match v {
+                            match v {
                                 1 => pixels.push((palette.color1.r,
                                                   palette.color1.g,
                                                   palette.color1.b)),
@@ -227,7 +196,7 @@ impl Ppu {
                                                   palette.color3.g,
                                                   palette.color3.b)),
                                 _ => {},
-                            };
+                            }
 
                             self.x_position_offset[i] += 1;
                         }
@@ -264,9 +233,7 @@ impl Ppu {
         let render_sprite = ((ppu_mask >> 4) & 1) == 1;
         let rendering_enabled = render_bg || render_sprite;
         let visible_line = self.line < 240;
-        let post_render_line = self.line == 240;
         let pre_render_line = self.line == 261;
-        let vbl_line = self.line < 261 && self.line > 240;
 
         let fetch_cycles = (self.cycle > 0 && self.cycle <= 256) ||
             (self.cycle >= 321 && self.cycle < 337); 
@@ -372,7 +339,32 @@ impl Ppu {
             } else if self.cycle >= 257 && self.cycle < 320 {
                 memory.ppu_mem.oam_addr = 0; 
             } else if self.cycle == 320 {
-                //println!("At line {}, will evaluate {} sprites", self.line, self.nb_sprites);
+                self.evaluate_sprites(memory, ppu_ctrl);
+            }
+        }
+
+
+        // Vertical blank stuff.
+        if self.line == 241 && self.cycle == 1 {
+            memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
+            self.display_flag = true;
+        }
+
+        if self.line == 261 && self.cycle == 1 {
+            memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
+        }
+    }
+
+    fn fetch_nt(&mut self, memory: &Memory) {
+        let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
+        self.nt = memory.ppu_mem.read_vram_at(addr as usize);
+        if self.debug {
+            println!("L:{} C:{} addr: {:X} NT:{}", self.line, self.cycle, addr, self.nt);
+        }
+    }
+
+    fn evaluate_sprites(&mut self, memory: &Memory, ppu_ctrl: u8) {
+             //println!("At line {}, will evaluate {} sprites", self.line, self.nb_sprites);
                 //  at this point, the sprites for current line
                 //  are already rendered so we can update the registers
                 //  for next line.
@@ -380,12 +372,8 @@ impl Ppu {
                 for i in 0..8 {
                     if i <= self.nb_sprites {
                         let secondary_oam_addr = 4 * i;
-
                         let y = (self.line + 1) % 240;
-                        let tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
-
                         let x = self.secondary_oam[secondary_oam_addr+3];
-
                         let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
                         let attr_byte = self.secondary_oam[secondary_oam_addr+2];
 
@@ -423,27 +411,7 @@ impl Ppu {
                         self.sprite_attributes[i] = 0;
                     }
                 }
-            }
-        }
 
-
-        // Vertical blank stuff.
-        if self.line == 241 && self.cycle == 1 {
-            memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x80);
-            self.display_flag = true;
-        }
-
-        if self.line == 261 && self.cycle == 1 {
-            memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
-        }
-    }
-
-    fn fetch_nt(&mut self, memory: &Memory) {
-        let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
-        self.nt = memory.ppu_mem.read_vram_at(addr as usize);
-        if self.debug {
-            println!("L:{} C:{} addr: {:X} NT:{}", self.line, self.cycle, addr, self.nt);
-        }
     }
 
     fn fetch_attr(&mut self, memory: &Memory) {
@@ -491,18 +459,6 @@ impl Ppu {
 
     fn fine_y(&self, memory: &Memory) -> u8 {
         ((memory.ppu_mem.v & 0x7000) >> 12) as u8
-    }
-
-    fn coarse_y(&self, memory: &Memory) -> u8 {
-        ((memory.ppu_mem.v & 0x3E0) >> 5) as u8
-    }
-
-    fn coarse_x(&self, memory: &Memory) -> u8 {
-        (memory.ppu_mem.v & 0x1F) as u8
-    }
-
-    fn nametable(&self, memory: &Memory) -> u8 {
-        ((memory.ppu_mem.v & 0xC00) >> 10) as u8
     }
 
     fn coarse_x_increment(&self, memory: &mut Memory) {
@@ -556,18 +512,13 @@ impl Ppu {
     fn copy_vertical_t(&self, memory: &mut Memory) {
         let t = memory.ppu_mem.t;
         let v = memory.ppu_mem.v;
-        let vert_t = t & 0x73e0;
-        //        memory.ppu_mem.v = (v & !0x73e0) | vert_t;
         memory.ppu_mem.v = (v & 0x841F) | (t & 0x7BE0)
     }
 
     fn copy_horizontal_t(&self, memory: &mut Memory) {
         let t = memory.ppu_mem.t;
         let v = memory.ppu_mem.v;
-
-        let horiz_t = t & 0x1f;
         memory.ppu_mem.v = (v & 0xFBE0) | (t & 0x041F)
-            //        memory.ppu_mem.v = (v & !0x1f) | horiz_t;
     }
 
     fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {

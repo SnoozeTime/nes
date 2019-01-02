@@ -1,6 +1,5 @@
 use std::fmt;
 use rom;
-use std::fs::File;
 
 // Behaviour of PPU register is quite special. For example, when reading PPUSTATUS,
 // the vblank flag will be cleared. In order to avoid cluttering the logic in 
@@ -250,7 +249,6 @@ impl PpuMemory {
             OAMDMA => panic!("Use directly 'write_oamdma'"), 
             PPUSCROLL => self.write_scroll(value),
             PPUSTATUS => {},
-            _ => panic!("{:?} cannot be written by CPU", register_type),
         }
     }
 
