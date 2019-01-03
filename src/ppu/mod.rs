@@ -142,6 +142,7 @@ impl Ppu {
     fn render_pixel(&mut self, memory: &mut Memory, render_bg: bool, render_sprite: bool) {
 
         let idx = 256*self.line + (self.cycle - 1); 
+        let bg_pixel_v = self.fetch_bg_pixel(memory);
         let bg_pixel = {
             if render_bg {
                 let box_row = ((self.line/8)% 4) / 2;
@@ -158,7 +159,6 @@ impl Ppu {
                 let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.background_colors).expect("Cannot get palette for background");                   
 
 
-                let bg_pixel_v = self.fetch_bg_pixel();
                 let color = match bg_pixel_v {
                     1 => palette.color1,
                     2 => palette.color2,
@@ -171,6 +171,7 @@ impl Ppu {
             }
         };
 
+        let mut bg_priority = false;
         let sprite_pixels = {
 
             let mut pixels: Vec<(u8, u8, u8)> = Vec::new();
@@ -182,7 +183,7 @@ impl Ppu {
                         let bmp_low = self.low_sprite_bmp_reg[i];
                         let bmp_high = self.high_sprite_bmp_reg[i];
                         let attr = self.sprite_attributes[i];
-
+    
                         // choose the pixel
                         let offset = self.x_position_offset[i];
                         if offset >= 8 {
@@ -190,6 +191,7 @@ impl Ppu {
                             self.is_active[i] = false;
                         } else {
 
+                            
 
                             let low_bit = (bmp_low >> (7 - offset)) & 1;
                             let high_bit = (bmp_high >> (7 - offset)) & 1;
@@ -197,12 +199,18 @@ impl Ppu {
  
                             if i == 0 {
                                 // sprite 0 hit detection.
-                                if self.fetch_bg_pixel() != 0 && v != 0 {
+                                // TODO correct implementation ->
+                                // https://wiki.nesdev.com/w/index.php/PPU_OAM#Sprite_zero_hits
+                                if bg_pixel_v != 0 && v != 0 {
                                     self.sprite_0_set(memory);
                                 }
                             }
 
-                           let palette = palette::get_sprite_palette(attr & 0b11, &memory.ppu_mem.palettes, &self.background_colors)
+                            if v != 0 && pixels.len() == 0 {
+                                bg_priority = (attr >> 5) & 1 == 1
+                            }
+
+                            let palette = palette::get_sprite_palette(attr & 0b11, &memory.ppu_mem.palettes, &self.background_colors)
                                 .expect("In draw-sprite, cannot get sprite_palette");
 
                             match v {
@@ -228,16 +236,20 @@ impl Ppu {
             pixels
         };
 
-        if sprite_pixels.len() > 0 {
+        // now, pixel priority :)
+        // first sprite has priority if many of them. First sprite pixel is the first
+        // one pushed to self.pixels.
+        if sprite_pixels.len() > 0  && !bg_priority {
             self.pixels[idx] = sprite_pixels[0]; 
         } else {
             self.pixels[idx] = bg_pixel;
         }
     }
 
-    fn fetch_bg_pixel(&self) -> u8 {
-        let low_plane_bit = (self.low_bg_shift_reg >> 15) & 1;
-        let high_plane_bit = (self.high_bg_shift_reg >> 15) & 1;
+    fn fetch_bg_pixel(&self, memory: &Memory) -> u8 {
+        let x = memory.ppu_mem.x;
+        let low_plane_bit = (self.low_bg_shift_reg >> (15-x)) & 1;
+        let high_plane_bit = (self.high_bg_shift_reg >> (15-x)) & 1;
 
         (low_plane_bit | (high_plane_bit << 1)) as u8
     }
