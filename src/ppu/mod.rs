@@ -139,7 +139,7 @@ impl Ppu {
         }
     }
 
-    fn render_pixel(&mut self, memory: &Memory, render_bg: bool, render_sprite: bool) {
+    fn render_pixel(&mut self, memory: &mut Memory, render_bg: bool, render_sprite: bool) {
 
         let idx = 256*self.line + (self.cycle - 1); 
         let bg_pixel = {
@@ -156,7 +156,7 @@ impl Ppu {
                 };
 
                 let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.background_colors).expect("Cannot get palette for background");                   
-                
+
 
                 let bg_pixel_v = self.fetch_bg_pixel();
                 let color = match bg_pixel_v {
@@ -189,11 +189,21 @@ impl Ppu {
                             // nothing to display anymore.
                             self.is_active[i] = false;
                         } else {
+
+
                             let low_bit = (bmp_low >> (7 - offset)) & 1;
                             let high_bit = (bmp_high >> (7 - offset)) & 1;
                             let v = low_bit | (high_bit << 1);
-                            let palette = palette::get_sprite_palette(attr & 0b11, &memory.ppu_mem.palettes, &self.background_colors)
-            .expect("In draw-sprite, cannot get sprite_palette");
+ 
+                            if i == 0 {
+                                // sprite 0 hit detection.
+                                if self.fetch_bg_pixel() != 0 && v != 0 {
+                                    self.sprite_0_set(memory);
+                                }
+                            }
+
+                           let palette = palette::get_sprite_palette(attr & 0b11, &memory.ppu_mem.palettes, &self.background_colors)
+                                .expect("In draw-sprite, cannot get sprite_palette");
 
                             match v {
                                 1 => pixels.push((palette.color1.r,
@@ -364,8 +374,9 @@ impl Ppu {
             self.display_flag = true;
         }
 
-        if self.line == 261 && self.cycle == 1 {
+        if pre_render_line && self.cycle == 1 {
             memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
+            self.sprite_0_clear(memory);
         }
     }
 
@@ -375,52 +386,52 @@ impl Ppu {
     }
 
     fn evaluate_sprites(&mut self, memory: &Memory, ppu_ctrl: u8) {
-                //  at this point, the sprites for current line
-                //  are already rendered so we can update the registers
-                //  for next line.
-                let nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
-                for i in 0..8 {
-                    if i <= self.nb_sprites {
-                        let secondary_oam_addr = 4 * i;
-                        let y = (self.line + 1) % 240;
-                        let x = self.secondary_oam[secondary_oam_addr+3];
-                        let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
-                        let attr_byte = self.secondary_oam[secondary_oam_addr+2];
+        //  at this point, the sprites for current line
+        //  are already rendered so we can update the registers
+        //  for next line.
+        let nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
+        for i in 0..8 {
+            if i <= self.nb_sprites {
+                let secondary_oam_addr = 4 * i;
+                let y = (self.line + 1) % 240;
+                let x = self.secondary_oam[secondary_oam_addr+3];
+                let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
+                let attr_byte = self.secondary_oam[secondary_oam_addr+2];
 
-                        let mut tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
-                        if (attr_byte >> 7) & 1 == 1 {
-                            tile_y = 7 - tile_y;
-                        }
-
-                        let bmp_low = self.tile_low_addr(nametable,
-                                                         tile_byte,
-                                                         tile_y);
-                        let bmp_high = bmp_low + 8;
-                        // see bit 3 of PPUCTRL.
-
-                        let mut tile_low = memory.ppu_mem.read_vram_at(bmp_low);
-                        let mut tile_high = memory.ppu_mem.read_vram_at(bmp_high);
-                        if (attr_byte >> 6) & 1 == 1 {
-                            // flip horizontally :D
-                            tile_low = reverse_bit(tile_low);
-                            tile_high = reverse_bit(tile_high);
-                        }
-
-                        self.high_sprite_bmp_reg[i] = tile_high;
-                        self.low_sprite_bmp_reg[i] = tile_low;
-                        self.x_position_counters[i] = x;
-                        self.x_position_offset[i] = 0;
-                        self.is_active[i] = false;
-                        self.sprite_attributes[i] = attr_byte;
-                    } else {
-                        self.high_sprite_bmp_reg[i] = 0;
-                        self.low_sprite_bmp_reg[i] = 0;
-                        self.x_position_counters[i] = 0;
-                        self.x_position_offset[i] = 0;
-                        self.is_active[i] = false;
-                        self.sprite_attributes[i] = 0;
-                    }
+                let mut tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
+                if (attr_byte >> 7) & 1 == 1 {
+                    tile_y = 7 - tile_y;
                 }
+
+                let bmp_low = self.tile_low_addr(nametable,
+                                                 tile_byte,
+                                                 tile_y);
+                let bmp_high = bmp_low + 8;
+                // see bit 3 of PPUCTRL.
+
+                let mut tile_low = memory.ppu_mem.read_vram_at(bmp_low);
+                let mut tile_high = memory.ppu_mem.read_vram_at(bmp_high);
+                if (attr_byte >> 6) & 1 == 1 {
+                    // flip horizontally :D
+                    tile_low = reverse_bit(tile_low);
+                    tile_high = reverse_bit(tile_high);
+                }
+
+                self.high_sprite_bmp_reg[i] = tile_high;
+                self.low_sprite_bmp_reg[i] = tile_low;
+                self.x_position_counters[i] = x;
+                self.x_position_offset[i] = 0;
+                self.is_active[i] = false;
+                self.sprite_attributes[i] = attr_byte;
+            } else {
+                self.high_sprite_bmp_reg[i] = 0;
+                self.low_sprite_bmp_reg[i] = 0;
+                self.x_position_counters[i] = 0;
+                self.x_position_offset[i] = 0;
+                self.is_active[i] = false;
+                self.sprite_attributes[i] = 0;
+            }
+        }
 
     }
 
@@ -533,6 +544,16 @@ impl Ppu {
 
     fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {
         pattern_table + 16 * tile_nb + fine_y
+    }
+
+    fn sprite_0_set(&self, memory: &mut Memory) {
+        let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
+        memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status | 0x40);
+    }
+
+    fn sprite_0_clear(&self, memory: &mut Memory) {
+        let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
+        memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x40);
     }
 }
 
