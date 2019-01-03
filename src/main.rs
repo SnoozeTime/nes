@@ -1,33 +1,45 @@
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-
-extern crate sdl2;
-extern crate nesemu;
-use std::env;
+use clap::{Arg, SubCommand, App};
 use nesemu::nes::Nes;
 use nesemu::rom;
 
-pub fn main() {
-    env_logger::init();
-    // TODO use lib to parse args
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        panic!("Usage {} ROM|FILE <FILENAME>", args[0]);
-    }
-
-    if args[1] == "ROM" {
-        let name = args[1].clone();
-        let ines = rom::read(name).unwrap();
-
-        let mut nes = Nes::new(ines).unwrap();
-        info!("Will start {}", args[1]);
-        nes.run().unwrap();
-    } else {
-        let mut nes = Nes::load_state().unwrap();
-        nes.run().unwrap();
-
-    }
-
+fn run_rom(path: String) {
+    let ines = rom::read(path).unwrap();
+    let mut nes = Nes::new(ines).unwrap();
+    nes.run().unwrap();
 }
 
+fn load_state(path: String) {
+    let mut nes = Nes::load_state().unwrap();
+    nes.run().unwrap();
+}
+
+fn main() {
+    let matches = App::new("My Super Program")
+        .version("1.0")
+        .subcommand(SubCommand::with_name("run")
+                    .about("Run emulator with ROM file")
+                    .arg(Arg::with_name("input")
+                         .short("i")
+                         .help("Path of the ROM file")
+                         .required(true)
+                         .takes_value(true)))
+        .subcommand(SubCommand::with_name("load")
+                    .about("Load emulator state from file")
+                    .arg(Arg::with_name("input")
+                         .short("i")
+                         .help("Path of the state file")
+                         .required(true)
+                         .takes_value(true)))
+        .get_matches();
+
+    env_logger::init();
+    if let Some(matches) = matches.subcommand_matches("run") {
+        let rom_path = matches.value_of("input").unwrap();
+        run_rom(rom_path.to_string());
+    } else if let Some(matches) = matches.subcommand_matches("load") {
+        let state_path = matches.value_of("input").unwrap();
+        load_state(state_path.to_string());
+    } else {
+        panic!("Should use run or load subcommand");
+    }
+}
