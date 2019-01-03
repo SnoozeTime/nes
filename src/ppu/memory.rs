@@ -1,11 +1,13 @@
 use std::fmt;
 use crate::rom;
+use serde_derive::{Serialize, Deserialize};
+
 
 // Behaviour of PPU register is quite special. For example, when reading PPUSTATUS,
 // the vblank flag will be cleared. In order to avoid cluttering the logic in 
 // Memory.rs, I'll gather all the ppu register behaviour here.
 #[allow(non_snake_case)]
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum RegisterType {
     PPUCTRL,
     PPUMASK, 
@@ -18,8 +20,7 @@ pub enum RegisterType {
     OAMDMA,
 }
 
-
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Mirroring {
     HORIZONTAL,
     VERTICAL,
@@ -43,6 +44,7 @@ impl RegisterType {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct PpuMemory {
     // Interrupt flag
     pub nmi: bool,
@@ -93,7 +95,7 @@ pub struct PpuMemory {
     // Sprite stuff
     pub oam_addr: u8,
     // object attribute memory. contains the sprite data.
-    pub oam: [u8; 0x100],
+    pub oam: Vec<u8>, //; 0x100],
 
     // Memory layout for  PPU
     // ----------------------
@@ -106,11 +108,16 @@ pub struct PpuMemory {
     // $3000-$3EFF  $0F00   Mirrors of $2000-$2EFF
     // $3F00-$3F1F  $0020   Palette RAM indexes
     // $3F20-$3FFF  $00E0   Mirrors of $3F00-$3F1F 
-    pub ppu_mem: [u8; 0x4000],
+
+    pub pattern_tables: Vec<u8>, // 0-0x2000
+    pub nametable_1: Vec<u8>, // 0x0400
+    pub nametable_2: Vec<u8>, // 0x0400
+    pub palettes: Vec<u8>, //0x0020
 
     mirroring: Mirroring,
     pub is_rendering: bool,
 }
+
 
 impl fmt::Debug for PpuMemory {
 
@@ -149,8 +156,11 @@ impl PpuMemory {
             w: 0,
             vram_read_buffer: 0,
             oam_addr: 0,
-            oam: [0; 0x100],
-            ppu_mem: [0; 0x4000],
+            oam: vec![0; 0x100],
+            pattern_tables: vec![0; 0x2000],
+            nametable_1: vec![0; 0x400],
+            nametable_2: vec![0; 0x400],
+            palettes: vec![0; 0x20],
             mirroring: Mirroring::HORIZONTAL,
             is_rendering: false,
         }
@@ -159,37 +169,22 @@ impl PpuMemory {
     pub fn new(ines: &rom::INesFile) -> Result<PpuMemory, String> {
 
         // Now the PPU ROM and init
-        let mut ppu_mem = [0;0x4000];
 
+        let mut pattern_tables = vec![0; 0x2000];
         // Just copy the ROM to pattern tables.
         if ines.get_chr_rom_pages() > 0 {
             let vrom = ines.get_chr_rom(1)?;
             for (i, b) in vrom.iter().enumerate() {
-                ppu_mem[i] = *b;
+                pattern_tables[i] = *b;
         }
         }
 
+        let empty_mem = PpuMemory::empty();
+
         Ok(PpuMemory {
-            nmi: false,
-            ppuctrl: 0,
-            ppumask: 0,
-            ppustatus: 0,
-            oamaddr: 0,
-            oamdata: 0,
-            ppuscroll: 0,
-            ppuaddr: 0,
-            ppudata: 0,
-            oamdma: 0,
-            t: 0,
-            v: 0,
-            x: 0,
-            w: 0,
-            vram_read_buffer: 0,
-            oam_addr: 0,
-            oam: [0; 0x100],
-            ppu_mem,
+            pattern_tables,
             mirroring: ines.get_mirroring(),
-            is_rendering: false,
+            ..empty_mem
         })
     }
 
@@ -368,6 +363,9 @@ impl PpuMemory {
 
     fn write_vram_at(&mut self, addr: usize, data: u8) {
         match addr {
+            0x0000..=0x1FFF => {
+                self.pattern_tables[addr] = data;
+            },
             0x2000..=0x23FF => {
                 self.write_to_1st_nametable(addr, data);
             },
@@ -387,34 +385,37 @@ impl PpuMemory {
             0x2C00..=0x2FFF => {
                 self.write_to_2nd_nametable(addr, data);
             },
+            0x3000..=0x3EFF => {
+                // Mirrors of 0x2000, 0x2EFFF
+                let newaddr = 0x2000 | (addr & 0xFFF);
+                self.write_vram_at(newaddr, data);
+            },
             // palettes mirrors
             0x3F00..=0x3FFF => {
                 let offset = (addr & 0xFF) % 0x20;
                 self.write_palette(offset, data); 
             },
-            _ => {
-                self.ppu_mem[addr] = data;
-            }
+            _ => panic!("write_vram_at Out of bounds: {}", addr),
         }
     }
 
     fn write_palette(&mut self, offset: usize, data: u8) {
         if offset == 0x10 || offset == 0x00 {
-            self.ppu_mem[0x3F00] = data;
-            self.ppu_mem[0x3F10] = data;
+            self.palettes[0x00] = data;
+            self.palettes[0x10] = data;
         } else {
-            self.ppu_mem[0x3F00+offset] = data;
+            self.palettes[offset] = data;
         }
     }
 
     fn write_to_1st_nametable(&mut self, addr: usize, data: u8) {
         let offset = addr % 0x400;
-        self.ppu_mem[0x2000+offset] = data;
+        self.nametable_1[offset] = data;
     }
 
     fn write_to_2nd_nametable(&mut self, addr: usize, data: u8) {
         let offset = addr % 0x400;
-        self.ppu_mem[0x2400+offset] = data;
+        self.nametable_2[offset] = data;
     }
 
     fn read_data(&mut self) -> u8 {
@@ -444,6 +445,7 @@ impl PpuMemory {
     pub fn read_vram_at(&self, addr: usize) -> u8 {
 
         match addr {
+            0x0..=0x1FFF => self.pattern_tables[addr],
             0x2000..=0x23FF => self.read_from_1st_nametable(addr),
             0x2400..=0x27FF => {
                 match self.mirroring {
@@ -452,32 +454,35 @@ impl PpuMemory {
                 }
             },
             0x2800..=0x2BFF => {
-
                 match self.mirroring {
                     Mirroring::HORIZONTAL => self.read_from_2nd_nametable(addr),
                     Mirroring::VERTICAL => self.read_from_1st_nametable(addr),
                 }
             },
             0x2C00..=0x2FFF => self.read_from_2nd_nametable(addr),
-
+            0x3000..=0x3EFF => {
+                // Mirrors of 0x2000, 0x2EFFF
+                let newaddr = 0x2000 | (addr & 0xFFF);
+                self.read_vram_at(newaddr)
+            },
             // palettes 
             0x3F00..=0x3FFF => {
                 let offset = (addr & 0xFF) % 0x20;
-                self.ppu_mem[0x3F00+offset]
+                self.palettes[offset]
             }
-            _ => self.ppu_mem[addr],
+            _ => panic!("read_vram_at Out of bounds: {:X}", addr),
         }
 
     }
 
     fn read_from_1st_nametable(&self, addr: usize) -> u8 {
         let offset = addr % 0x400;
-        self.ppu_mem[0x2000+offset]
+        self.nametable_1[offset]
     }
 
     fn read_from_2nd_nametable(&self, addr: usize) -> u8 {
         let offset = addr % 0x400;
-        self.ppu_mem[0x2400+offset]
+        self.nametable_2[offset]
     }
 
     fn raise_nmi(&mut self) {
@@ -492,21 +497,21 @@ impl PpuMemory {
     // ------------------------------------------------------
     pub fn get_logical_table(&self, table_nb: u8) -> &[u8] {
         match table_nb {
-            0 => &self.ppu_mem[0x2000..0x2400],
+            0 => &self.nametable_1,
             1 => {
                 match self.mirroring {
-                    Mirroring::HORIZONTAL => &self.ppu_mem[0x2000..0x2400],
-                    Mirroring::VERTICAL => &self.ppu_mem[0x2400..0x2800],
+                    Mirroring::HORIZONTAL => &self.nametable_1,
+                    Mirroring::VERTICAL => &self.nametable_2,
                 }
             },
             2 => {
                 match self.mirroring {
-                    Mirroring::VERTICAL => &self.ppu_mem[0x2000..0x2400],
-                    Mirroring::HORIZONTAL => &self.ppu_mem[0x2400..0x2800],
+                    Mirroring::VERTICAL => &self.nametable_1,
+                    Mirroring::HORIZONTAL => &self.nametable_2,
                 }
 
             },
-            3 => &self.ppu_mem[0x2400..0x2800],
+            3 => &self.nametable_2,
             _ => panic!("Only 4 nametables"),
         }
     }

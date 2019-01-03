@@ -4,9 +4,8 @@ use super::cpu::memory::Memory;
 use self::memory::RegisterType;
 use std::collections::HashMap;
 
-extern crate sdl2;
-use self::sdl2::pixels::Color;
-
+use sdl2::pixels::Color;
+use serde_derive::{Serialize, Deserialize};
 
 fn reverse_bit(mut in_byte: u8) -> u8 {
 
@@ -70,6 +69,9 @@ pub struct Ppu {
     is_active: [bool; 8],
 
     pub pixels: [(u8, u8, u8); 0xf000],
+
+    //#[serde(skip)]
+    //#[serde(default = "palette::build_default_colors")]
     background_colors: HashMap<u8, Color>,
 }
 
@@ -143,7 +145,8 @@ impl Ppu {
                     _ => panic!("Not possible"),
                 };
 
-                let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.ppu_mem, &self.background_colors).expect("Cannot get palette for background");                   
+                let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.background_colors).expect("Cannot get palette for background");                   
+                
 
                 let color = match self.fetch_bg_pixel() {
                     1 => palette.color1,
@@ -182,7 +185,7 @@ impl Ppu {
                             let low_bit = (bmp_low >> (7 - offset)) & 1;
                             let high_bit = (bmp_high >> (7 - offset)) & 1;
                             let v = low_bit | (high_bit << 1);
-                            let palette = palette::get_sprite_palette(attr & 0b11, &memory.ppu_mem.ppu_mem, &self.background_colors)
+                            let palette = palette::get_sprite_palette(attr & 0b11, &memory.ppu_mem.palettes, &self.background_colors)
             .expect("In draw-sprite, cannot get sprite_palette");
 
                             match v {

@@ -135,7 +135,7 @@ impl Graphics {
     pub fn display(&mut self, memory: &Memory, ppu: &mut Ppu) {
 
 	if ppu.should_display() {
-	    self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.ppu_mem, &self.colors));
+	    self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.palettes, &self.colors));
 	    self.canvas.clear();
             for row in 0..240i32 {
                 for col in 0..256i32 {
@@ -158,7 +158,7 @@ impl Graphics {
     
     // For debug !
     pub fn draw_debug(&mut self, memory: &Memory){
-	self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.ppu_mem, &self.colors));
+	self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.palettes, &self.colors));
         self.canvas.clear();
 	// begin at
 	// X = WIDTH*zoom_level + 10
@@ -166,7 +166,7 @@ impl Graphics {
 	// First draw 2 nametables in memory, then we take care of mirroring
 	let pattern_table_addr = 0x1000 *
 	    ((memory.ppu_mem.peek(RegisterType::PPUCTRL) >> 4) & 1) as usize;
-	let pattern_table = &memory.ppu_mem.ppu_mem[pattern_table_addr..pattern_table_addr+0x1000]; 
+	let pattern_table = &memory.ppu_mem.pattern_tables[pattern_table_addr..pattern_table_addr+0x1000]; 
 
 	let x1 = WIDTH*self.zoom_level + 10;
 	let x2 = WIDTH*self.zoom_level + 20 + WIDTH;
@@ -174,14 +174,14 @@ impl Graphics {
         let nametable2 = &memory.ppu_mem.get_logical_table(1);
         let nametable3 = &memory.ppu_mem.get_logical_table(2);
         let nametable4 = &memory.ppu_mem.get_logical_table(3);
-	self.draw_nametable(nametable1, pattern_table, &memory.ppu_mem.ppu_mem, x1 as i32, 10);
-	self.draw_nametable(nametable2, pattern_table, &memory.ppu_mem.ppu_mem, x2 as i32, 10);
-	self.draw_nametable(nametable3, pattern_table, &memory.ppu_mem.ppu_mem, x1 as i32, 20+HEIGHT as i32);
-	self.draw_nametable(nametable4, pattern_table, &memory.ppu_mem.ppu_mem, x2 as i32, 20+HEIGHT as i32);
+	self.draw_nametable(nametable1, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 10);
+	self.draw_nametable(nametable2, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 10);
+	self.draw_nametable(nametable3, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 20+HEIGHT as i32);
+	self.draw_nametable(nametable4, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 20+HEIGHT as i32);
         self.canvas.present();
     }
 
-    fn draw_nametable(&mut self, nametable: &[u8], pattern_table: &[u8], ppu_mem: &[u8], x: i32, y: i32) {
+    fn draw_nametable(&mut self, nametable: &[u8], pattern_table: &[u8], palettes: &[u8], x: i32, y: i32) {
 	for row in 0..30i32 {
 	    let rowattr = row / 4;
 	    for col in 0..32i32 {
@@ -206,7 +206,7 @@ impl Graphics {
 		    _ => panic!("Not possible"),
 		};
 
-		let palette = palette::get_bg_palette(attribute, ppu_mem, &self.colors)
+		let palette = palette::get_bg_palette(attribute, palettes, &self.colors)
                     .expect("Cannot get palette from attribute");
 
 		// Now draw

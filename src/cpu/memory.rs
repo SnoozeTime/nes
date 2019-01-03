@@ -52,16 +52,6 @@ impl Default for Memory {
 
 impl Memory {
 
-    pub fn dump(&self) {
-        let mut file = std::fs::File::create("dump").expect("cannot open");
-
-        write!(file, "v: {:X}\n", self.ppu_mem.v);
-        write!(file, "VRAM:\n");
-        for (i, b) in self.ppu_mem.ppu_mem.iter().enumerate() {
-            write!(file, "{:X}: {:X}\n", i, b);
-        }
-    }
-
     pub fn new(ines: &rom::INesFile) -> Result<Memory, String> {
         let mut mem = [0; 0x10000];
 

@@ -11,7 +11,7 @@ pub struct Palette {
 }
 
 pub fn get_bg_color(vram: &[u8], colors:&HashMap<u8, Color>) -> Color {
-    *colors.get(&vram[0x3F00]).expect("Issue while fetching background color")
+    *colors.get(&vram[0x00]).expect("Issue while fetching background color")
 }
 
 // palette number between 0 and 4 (exclusive)
@@ -23,28 +23,28 @@ pub fn get_bg_palette(palette_number: u8,
     // only 4 palettes for background.
     assert!(palette_number < 4);
 
-    let background = colors.get(&vram[0x3F00]);
+    let background = colors.get(&vram[0x00]);
 
     let (color1, color2, color3) = match palette_number {
         0 => {
-            (colors.get(&vram[0x3F01]),
-            colors.get(&vram[0x3F02]),
-            colors.get(&vram[0x3F03]))
+            (colors.get(&vram[0x01]),
+            colors.get(&vram[0x2]),
+            colors.get(&vram[0x03]))
         },
         1 => {
-            (colors.get(&vram[0x3F05]),
-            colors.get(&vram[0x3F06]),
-            colors.get(&vram[0x3F07]))
+            (colors.get(&vram[0x05]),
+            colors.get(&vram[0x06]),
+            colors.get(&vram[0x07]))
         },
         2 => {
-            (colors.get(&vram[0x3F09]),
-            colors.get(&vram[0x3F0A]),
-            colors.get(&vram[0x3F0B]))
+            (colors.get(&vram[0x09]),
+            colors.get(&vram[0x0A]),
+            colors.get(&vram[0x0B]))
         },
         3 => {
-            (colors.get(&vram[0x3F0D]),
-            colors.get(&vram[0x3F0E]),
-            colors.get(&vram[0x3F0F]))
+            (colors.get(&vram[0x0D]),
+            colors.get(&vram[0x0E]),
+            colors.get(&vram[0x0F]))
         },
         _ => panic!("impossibru"),
     };
@@ -52,46 +52,6 @@ pub fn get_bg_palette(palette_number: u8,
     if let (Some(bg), Some(c1), Some(c2), Some(c3)) = (background, color1, color2, color3) {
         Some(Palette { background: *bg, color1: *c1, color2: *c2, color3: *c3 })
     } else {
-         // this is for debugging
-        match palette_number {
-            0 => {
-                   println!("palette 0: {:X} {:X} {:X}",
-                         &vram[0x3F11],
-                         &vram[0x3F12],
-                         &vram[0x3F13]);
-                   println!("{:?} {:?} {:?}", colors.get(&vram[0x3F11]),
-                colors.get(&vram[0x3F12]),
-                colors.get(&vram[0x3F13]));
-            },
-            1 => {
-                  println!("palette 1: {:X} {:X} {:X}",
-                         &vram[0x3F15],
-                         &vram[0x3F16],
-                         &vram[0x3F17]);
-                  println!("{:?} {:?} {:?}", colors.get(&vram[0x3F15]),
-                colors.get(&vram[0x3F16]),
-                colors.get(&vram[0x3F17]));
-            },
-            2 => {
-                 println!("palette 2: {:X} {:X} {:X}",
-                         &vram[0x3F19],
-                         &vram[0x3F1A],
-                         &vram[0x3F1B]);
-                 println!("{:?} {:?} {:?}", colors.get(&vram[0x3F19]),
-                colors.get(&vram[0x3F1A]),
-                colors.get(&vram[0x3F1B]));
-            },
-            3 => {
-                println!("palette 3: {:X} {:X} {:X}",
-                         &vram[0x3F1D],
-                         &vram[0x3F1E],
-                         &vram[0x3F1F]);
-                println!("{:?} {:?} {:?}", colors.get(&vram[0x3F1D]),
-                colors.get(&vram[0x3F1E]),
-                colors.get(&vram[0x3F1F]));
-            },
-            _ => panic!("impossibru"),
-        };       
         None
     }
 }
@@ -99,28 +59,28 @@ pub fn get_bg_palette(palette_number: u8,
 pub fn get_sprite_palette(palette_number: u8,
                           vram: &[u8],
                           colors: &HashMap<u8, Color>) -> Option<Palette> {
-    let background = colors.get(&vram[0x3F00]);
+    let background = colors.get(&vram[0x00]);
 
     let (color1, color2, color3) = match palette_number {
         0 => {
-            (colors.get(&vram[0x3F11]),
-            colors.get(&vram[0x3F12]),
-            colors.get(&vram[0x3F13]))
+            (colors.get(&vram[0x11]),
+            colors.get(&vram[0x12]),
+            colors.get(&vram[0x13]))
         },
         1 => {
-            (colors.get(&vram[0x3F15]),
-            colors.get(&vram[0x3F16]),
-            colors.get(&vram[0x3F17]))
+            (colors.get(&vram[0x15]),
+            colors.get(&vram[0x16]),
+            colors.get(&vram[0x17]))
         },
         2 => {
-            (colors.get(&vram[0x3F19]),
-            colors.get(&vram[0x3F1A]),
-            colors.get(&vram[0x3F1B]))
+            (colors.get(&vram[0x19]),
+            colors.get(&vram[0x1A]),
+            colors.get(&vram[0x1B]))
         },
         3 => {
-            (colors.get(&vram[0x3F1D]),
-            colors.get(&vram[0x3F1E]),
-            colors.get(&vram[0x3F1F]))
+            (colors.get(&vram[0x1D]),
+            colors.get(&vram[0x1E]),
+            colors.get(&vram[0x1F]))
         },
         _ => panic!("impossibru"),
     };
@@ -132,39 +92,39 @@ pub fn get_sprite_palette(palette_number: u8,
         match palette_number {
             0 => {
                    println!("palette 0: {:X} {:X} {:X}",
-                         &vram[0x3F11],
-                         &vram[0x3F12],
-                         &vram[0x3F13]);
-                   println!("{:?} {:?} {:?}", colors.get(&vram[0x3F11]),
-                colors.get(&vram[0x3F12]),
-                colors.get(&vram[0x3F13]));
+                         &vram[0x11],
+                         &vram[0x12],
+                         &vram[0x13]);
+                   println!("{:?} {:?} {:?}", colors.get(&vram[0x11]),
+                colors.get(&vram[0x12]),
+                colors.get(&vram[0x13]));
             },
             1 => {
                   println!("palette 1: {:X} {:X} {:X}",
-                         &vram[0x3F15],
-                         &vram[0x3F16],
-                         &vram[0x3F17]);
-                  println!("{:?} {:?} {:?}", colors.get(&vram[0x3F15]),
-                colors.get(&vram[0x3F16]),
-                colors.get(&vram[0x3F17]));
+                         &vram[0x15],
+                         &vram[0x16],
+                         &vram[0x17]);
+                  println!("{:?} {:?} {:?}", colors.get(&vram[0x15]),
+                colors.get(&vram[0x16]),
+                colors.get(&vram[0x17]));
             },
             2 => {
                  println!("palette 2: {:X} {:X} {:X}",
-                         &vram[0x3F19],
-                         &vram[0x3F1A],
-                         &vram[0x3F1B]);
-                 println!("{:?} {:?} {:?}", colors.get(&vram[0x3F19]),
-                colors.get(&vram[0x3F1A]),
-                colors.get(&vram[0x3F1B]));
+                         &vram[0x19],
+                         &vram[0x1A],
+                         &vram[0x1B]);
+                 println!("{:?} {:?} {:?}", colors.get(&vram[0x19]),
+                colors.get(&vram[0x1A]),
+                colors.get(&vram[0x1B]));
             },
             3 => {
                 println!("palette 3: {:X} {:X} {:X}",
-                         &vram[0x3F1D],
-                         &vram[0x3F1E],
-                         &vram[0x3F1F]);
-                println!("{:?} {:?} {:?}", colors.get(&vram[0x3F1D]),
-                colors.get(&vram[0x3F1E]),
-                colors.get(&vram[0x3F1F]));
+                         &vram[0x1D],
+                         &vram[0x1E],
+                         &vram[0x1F]);
+                println!("{:?} {:?} {:?}", colors.get(&vram[0x1D]),
+                colors.get(&vram[0x1E]),
+                colors.get(&vram[0x1F]));
             },
             _ => panic!("impossibru"),
         };
