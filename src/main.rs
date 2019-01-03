@@ -9,7 +9,7 @@ fn run_rom(path: String) {
 }
 
 fn load_state(path: String) {
-    let mut nes = Nes::load_state().unwrap();
+    let mut nes = Nes::load_state(path).unwrap();
     nes.run().unwrap();
 }
 

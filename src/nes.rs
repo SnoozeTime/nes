@@ -8,7 +8,7 @@ use crate::ppu::Ppu;
 use crate::rom;
 
 use std::error::Error;
-use std::fs::File;
+use std::fs::{OpenOptions, File};
 use std::io::{Read, Write};
 use serde_derive::{Serialize, Deserialize};
 
@@ -46,8 +46,8 @@ impl Nes {
     }
 
     // Load from json file.
-    pub fn load_state() -> Result<Nes, Box<dyn Error>> {
-        let mut file = File::open("saved_state.json")?;
+    pub fn load_state(path: String) -> Result<Nes, Box<dyn Error>> {
+        let mut file = File::open(path)?;
         let mut json_str = String::new();
         file.read_to_string(&mut json_str)?;
         let n: Nes = serde_json::from_str(&json_str)?;
@@ -65,8 +65,9 @@ impl Nes {
                 Some(EmulatorInput::PAUSE) => is_pause = !is_pause,
                 Some(EmulatorInput::DEBUG) => is_debug = !is_debug,
                 Some(EmulatorInput::SAVE) => {
-                    if let Err(err) = self.save_state() {
-                        println!("Error while saving state: {}", err);
+                    match self.save_state() {
+                        Err(err) => println!("Error while saving state: {}", err),
+                        Ok(_) => println!("Successfully saved to saves/saved_state.json"),
                     }
                 },
                 None => {},
@@ -98,7 +99,12 @@ impl Nes {
     }
 
     fn save_state(&self) -> Result<(), String> {
-        let mut file = File::create("saved_state.json").map_err(|err| err.to_string())?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open("saves/saved_state.json")
+            .map_err(|err| err.to_string())?;
         let state = serde_json::to_string(&self).map_err(|err| err.to_string())?;
         write!(file, "{}", state).map_err(|err| err.to_string())?;
 
