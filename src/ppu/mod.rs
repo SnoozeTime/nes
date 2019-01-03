@@ -46,10 +46,10 @@ pub struct Ppu {
     // For background rendering.
     // reset at each frame...
     nt: u8, // nametable byte
-    next_at: u8, //attribute for next tile
     at: u8, // attribute table byte
     low_bg_byte: u8,
     high_bg_byte: u8,
+    attr_shift_reg: u16,
 
     // 2 16-bits shift registers to display background.
     // Every 8 cycles, the bitmap data for the next sprite is loaded in the upper 8 bits
@@ -93,11 +93,11 @@ impl Ppu {
             display_flag: false,
             nt: 0,
             at: 0,
-            next_at: 0,
             low_bg_byte: 0,
             high_bg_byte: 0,
             high_bg_shift_reg: 0,
             low_bg_shift_reg: 0,
+            attr_shift_reg: 0,
             odd_frame: false,
             secondary_oam: vec![0; 32],
             nb_sprites: 0,
@@ -144,35 +144,32 @@ impl Ppu {
         let idx = 256*self.line + (self.cycle - 1); 
         let bg_pixel = {
             if render_bg {
-
                 let box_row = ((self.line/8)% 4) / 2;
                 let box_col = ((self.cycle/8)%4) / 2;
+                let at = self.fetch_bg_attr();
                 let attribute = match (box_row, box_col) {
-                    (0, 0) => self.at & 0b11,
-                    (0, 1) => (self.at & 0b1100) >> 2 ,
-                    (1, 0) => (self.at & 0b110000) >> 4,
-                    (1, 1) => (self.at & 0b11000000) >> 6,
+                    (0, 0) => at & 0b11,
+                    (0, 1) => (at & 0b1100) >> 2 ,
+                    (1, 0) => (at & 0b110000) >> 4,
+                    (1, 1) => (at & 0b11000000) >> 6,
                     _ => panic!("Not possible"),
                 };
 
                 let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.background_colors).expect("Cannot get palette for background");                   
                 
 
-                let color = match self.fetch_bg_pixel() {
+                let bg_pixel_v = self.fetch_bg_pixel();
+                let color = match bg_pixel_v {
                     1 => palette.color1,
                     2 => palette.color2,
                     3 => palette.color3,
                     _ => palette.background,
                 };
-
                 (color.r, color.g, color.b)
             } else {
                 (0, 0, 0)
             }
         };
-        if self.debug {
-            println!("RENDER -> L:{} C:{} pixel: {:?}", self.line, self.cycle,bg_pixel);
-        }
 
         let sprite_pixels = {
 
@@ -233,6 +230,10 @@ impl Ppu {
         let high_plane_bit = (self.high_bg_shift_reg >> 15) & 1;
 
         (low_plane_bit | (high_plane_bit << 1)) as u8
+    }
+
+    fn fetch_bg_attr(&self) -> u8 {
+        (self.attr_shift_reg & 0xFF) as u8
     }
 
     fn exec_cycle(&mut self, memory: &mut Memory) {
@@ -371,13 +372,9 @@ impl Ppu {
     fn fetch_nt(&mut self, memory: &Memory) {
         let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
         self.nt = memory.ppu_mem.read_vram_at(addr as usize);
-        if self.debug {
-            println!("L:{} C:{} addr: {:X} NT:{}", self.line, self.cycle, addr, self.nt);
-        }
     }
 
     fn evaluate_sprites(&mut self, memory: &Memory, ppu_ctrl: u8) {
-             //println!("At line {}, will evaluate {} sprites", self.line, self.nb_sprites);
                 //  at this point, the sprites for current line
                 //  are already rendered so we can update the registers
                 //  for next line.
@@ -431,7 +428,7 @@ impl Ppu {
         // attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
         let v = memory.ppu_mem.v;
         let addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-        self.next_at = memory.ppu_mem.read_vram_at(addr as usize);
+        self.at = memory.ppu_mem.read_vram_at(addr as usize);
     }
 
     fn fetch_bmp_low(&mut self, memory: &Memory, ppu_ctrl: u8) {
@@ -455,9 +452,10 @@ impl Ppu {
     }
 
     fn load_bitmap(&mut self) {
-        self.at = self.next_at;
         self.high_bg_shift_reg = (self.high_bg_shift_reg & 0xFF00) | (self.high_bg_byte as u16);
         self.low_bg_shift_reg = (self.low_bg_shift_reg & 0xFF00) | (self.low_bg_byte as u16);
+
+        self.attr_shift_reg = ((self.at as u16) << 8) | ((self.attr_shift_reg & 0xFF00) >> 8);
     }
 
     pub fn next(&mut self, cycles_to_exec: u64, memory: &mut Memory, debug: bool) -> Result<(), &'static str> {
@@ -507,7 +505,6 @@ impl Ppu {
                 y = 0;
                 // switch vertical nametable
                 v ^= 0x800;
-                //      println!("bim at line {} and cycle {}", self.line, self.cycle);
             } else if y == 31 {
                 // y can be set out of bound to read attributes. in that case, wrap to 0
                 // without changing the nametable.
