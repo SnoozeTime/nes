@@ -1,16 +1,30 @@
 // Hello
 //
+//
 use crate::cpu::cpu::Cpu;
 use crate::graphic::{EmulatorInput, Graphics};
 use crate::cpu::memory::Memory;
 use crate::ppu::Ppu; 
 use crate::rom;
 
+use std::error::Error;
+use std::fs::File;
+use std::io::{Read, Write};
+use serde_derive::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct Nes {
     cpu: Cpu, 
     ppu: Ppu,
     memory: Memory,
+
+    #[serde(skip)]
+    #[serde(default = "new_graphics")]
     ui: Graphics,
+}
+
+fn new_graphics() -> Graphics {
+    Graphics::new(3).expect("Could not create window")
 }
 
 impl Nes {
@@ -31,6 +45,14 @@ impl Nes {
         Ok(Nes { cpu, ppu, memory, ui })
     }
 
+    // Load from json file.
+    pub fn load_state() -> Result<Nes, Box<dyn Error>> {
+        let mut file = File::open("saved_state.json")?;
+        let mut json_str = String::new();
+        file.read_to_string(&mut json_str)?;
+        let n: Nes = serde_json::from_str(&json_str)?;
+        Ok(n)
+    }
 
     // main loop
     pub fn run(&mut self) -> Result<(), &'static str> {
@@ -42,6 +64,11 @@ impl Nes {
                 Some(EmulatorInput::QUIT) => break 'should_run,
                 Some(EmulatorInput::PAUSE) => is_pause = !is_pause,
                 Some(EmulatorInput::DEBUG) => is_debug = !is_debug,
+                Some(EmulatorInput::SAVE) => {
+                    if let Err(err) = self.save_state() {
+                        println!("Error while saving state: {}", err);
+                    }
+                },
                 None => {},
             }
 
@@ -69,4 +96,13 @@ impl Nes {
             self.cpu.decompile(&mut self.memory);
         }
     }
+
+    fn save_state(&self) -> Result<(), String> {
+        let mut file = File::create("saved_state.json").map_err(|err| err.to_string())?;
+        let state = serde_json::to_string(&self).map_err(|err| err.to_string())?;
+        write!(file, "{}", state).map_err(|err| err.to_string())?;
+
+        Ok(())
+    }
+
 }

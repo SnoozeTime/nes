@@ -24,6 +24,7 @@ pub enum EmulatorInput {
     PAUSE,
     QUIT,
     DEBUG,
+    SAVE,
 }
 
 fn build_default_input() -> HashMap<Keycode, InputAction> {
@@ -107,7 +108,9 @@ impl Graphics {
                 Event::KeyDown {keycode: Some(Keycode::Return), .. } => {
                     return Some(EmulatorInput::DEBUG);
                 },
-
+                Event::KeyDown {keycode: Some(Keycode::F2), .. } => {
+                    return Some(EmulatorInput::SAVE);
+                },
 		// NES INPUT
 		Event::KeyDown { keycode: Some(keycode), ..} => {
 		    if let Some(action) = self.input_map.get(&keycode) {

@@ -1,8 +1,8 @@
 use crate::rom;
-use std::io::Write;
 use crate::ppu::memory::{RegisterType, PpuMemory};
 use crate::joypad::Joypad;
 use std::default::Default;
+use serde_derive::{Serialize, Deserialize};
 
 // 
 // All memory for the NES will be here. It includes CPU ram but also
@@ -12,6 +12,7 @@ use std::default::Default;
 // CPU and PPU ($2000-$2007). Also, write to 2006 and 2007 will write to
 // the VRAM. Read from 2007 will read from VRAM.
 //
+#[derive(Serialize, Deserialize)]
 pub struct Memory {
 
 
@@ -27,7 +28,7 @@ pub struct Memory {
     // $4000-$4017  $0018   NES APU and I/O registers
     // $4018-$401F  $0008   APU and I/O functionality that is normally disabled. See CPU Test Mode.
     // $4020-$FFFF  $BFE0   Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note) 
-    pub mem: [u8; 0x10000],    
+    pub mem: Vec<u8>, // 0x10000,    
 
     // Memory of PPU
     // -------------
@@ -42,7 +43,7 @@ impl Default for Memory {
 
     fn default() -> Memory {
         Memory {
-            mem: [0; 0x10000],
+            mem: vec![0; 0x10000],
             ppu_mem: PpuMemory::empty(),
             joypad: Joypad::new(),
         }
@@ -53,7 +54,7 @@ impl Default for Memory {
 impl Memory {
 
     pub fn new(ines: &rom::INesFile) -> Result<Memory, String> {
-        let mut mem = [0; 0x10000];
+        let mut mem = vec![0; 0x10000];
 
         // if only one page, mirror it.
         let page_nb = ines.get_prg_rom_pages();

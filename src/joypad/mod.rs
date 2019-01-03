@@ -1,4 +1,6 @@
+use serde_derive::{Serialize, Deserialize};
 
+#[derive(Serialize, Deserialize)]
 pub enum InputAction {
     A,
     B,
@@ -28,6 +30,7 @@ pub enum InputAction {
 // 7 = LEFT
 // 8 = RIGHT
 //
+#[derive(Serialize, Deserialize)]
 pub struct Joypad {
 
     current_index: u8, // between 0 and 7 usually.

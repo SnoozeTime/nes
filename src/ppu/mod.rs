@@ -32,6 +32,7 @@ fn reverse_bit(mut in_byte: u8) -> u8 {
  *
  */
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize)]
 pub struct Ppu {
 
     debug: bool,
@@ -57,22 +58,29 @@ pub struct Ppu {
 
     odd_frame: bool,
     // For sprites
-    secondary_oam: [u8; 32],
+    secondary_oam: Vec<u8>, //; 32],
     nb_sprites: usize,
 
     // 8 sprites per line!
-    high_sprite_bmp_reg: [u8; 8],
-    low_sprite_bmp_reg: [u8; 8],
-    x_position_counters: [u8; 8],
-    x_position_offset: [u8; 8],
-    sprite_attributes: [u8; 8],
-    is_active: [bool; 8],
+    high_sprite_bmp_reg: Vec<u8>, //; 8],
+    low_sprite_bmp_reg: Vec<u8>, //; 8],
+    x_position_counters: Vec<u8>, //; 8],
+    x_position_offset: Vec<u8>, //; 8],
+    sprite_attributes: Vec<u8>, //; 8],
+    is_active: Vec<bool>, //; 8],
 
+
+    #[serde(skip)]
+    #[serde(default = "empty_screen")]
     pub pixels: [(u8, u8, u8); 0xf000],
 
-    //#[serde(skip)]
-    //#[serde(default = "palette::build_default_colors")]
+    #[serde(skip)]
+    #[serde(default = "palette::build_default_colors")]
     background_colors: HashMap<u8, Color>,
+}
+
+fn empty_screen() -> [(u8, u8, u8); 0xF000] {
+    [(0,0,0); 0xF000]
 }
 
 impl Ppu {
@@ -91,14 +99,16 @@ impl Ppu {
             high_bg_shift_reg: 0,
             low_bg_shift_reg: 0,
             odd_frame: false,
-            secondary_oam: [0; 32],
+            secondary_oam: vec![0; 32],
             nb_sprites: 0,
-            high_sprite_bmp_reg: [0; 8],
-            low_sprite_bmp_reg: [0; 8],
-            x_position_counters: [0; 8],
-            x_position_offset: [0; 8],
-            is_active: [false; 8],
-            sprite_attributes: [0; 8],
+            high_sprite_bmp_reg: vec![0; 8],
+            low_sprite_bmp_reg: vec![0; 8],
+            x_position_counters: vec![0; 8],
+            x_position_offset: vec![0; 8],
+            is_active: vec![false; 8],
+            sprite_attributes: vec![0; 8],
+
+
             pixels: [(0, 0, 0); 0xf000],
             background_colors: palette::build_default_colors(),
         }
@@ -309,7 +319,7 @@ impl Ppu {
         if (visible_line || pre_render_line) && rendering_enabled {
             if self.cycle == 1 {    
                 // Clear secondary OAM
-                self.secondary_oam = [0; 32]; 
+                self.secondary_oam = vec![0; 32]; 
                 self.nb_sprites = 0;
             } else if self.cycle == 65 {
                 // populate secondary OAM

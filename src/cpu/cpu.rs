@@ -1,8 +1,10 @@
 use super::instructions::Instruction;
 use super::memory::Memory;
 use super::addressing::*;
+use serde_derive::{Serialize, Deserialize};
 
 #[allow(non_snake_case)] // PC, SP ... are names in the specs.
+#[derive(Serialize, Deserialize)]
 pub struct Cpu {
 
     // Program counter. Hold the address of the next instruction to be executed
