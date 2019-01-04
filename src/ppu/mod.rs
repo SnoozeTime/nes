@@ -55,6 +55,8 @@ pub struct Ppu {
     // Every 8 cycles, the bitmap data for the next sprite is loaded in the upper 8 bits
     high_bg_shift_reg: u16,
     low_bg_shift_reg: u16,
+    x_bg_attr_shift: u16,
+    y_bg_attr_shift: u16,
 
     odd_frame: bool,
     // For sprites
@@ -96,6 +98,8 @@ impl Ppu {
             low_bg_byte: 0,
             high_bg_byte: 0,
             high_bg_shift_reg: 0,
+            x_bg_attr_shift: 0,
+            y_bg_attr_shift: 0,
             low_bg_shift_reg: 0,
             attr_shift_reg: 0,
             odd_frame: false,
@@ -142,20 +146,12 @@ impl Ppu {
     fn render_pixel(&mut self, memory: &mut Memory, render_bg: bool, render_sprite: bool) {
 
         let idx = 256*self.line + (self.cycle - 1); 
-        let bg_pixel_v = self.fetch_bg_pixel(memory);
+        let bg_pixel_v = self.fetch_bg_pixel(&memory);
         let bg_pixel = {
             if render_bg {
                 let box_row = ((self.line/8)% 4) / 2;
                 let box_col = ((self.cycle/8)%4) / 2;
-                let at = self.fetch_bg_attr();
-                let attribute = match (box_row, box_col) {
-                    (0, 0) => at & 0b11,
-                    (0, 1) => (at & 0b1100) >> 2 ,
-                    (1, 0) => (at & 0b110000) >> 4,
-                    (1, 1) => (at & 0b11000000) >> 6,
-                    _ => panic!("Not possible"),
-                };
-
+                let attribute = self.fetch_bg_attr(&memory);
                 let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.background_colors).expect("Cannot get palette for background");                   
 
 
@@ -254,8 +250,12 @@ impl Ppu {
         (low_plane_bit | (high_plane_bit << 1)) as u8
     }
 
-    fn fetch_bg_attr(&self) -> u8 {
-        (self.attr_shift_reg & 0xFF) as u8
+    fn fetch_bg_attr(&self, memory: &Memory) -> u8 {
+        let x = memory.ppu_mem.x;
+        let low_plane_bit = (self.x_bg_attr_shift >> (15-x)) & 1;
+        let high_plane_bit = (self.y_bg_attr_shift >> (15-x)) & 1;
+
+        (low_plane_bit | (high_plane_bit << 1)) as u8
     }
 
     fn exec_cycle(&mut self, memory: &mut Memory) {
@@ -298,6 +298,8 @@ impl Ppu {
         if (visible_line || pre_render_line) && fetch_cycles && rendering_enabled {
             self.high_bg_shift_reg <<= 1;
             self.low_bg_shift_reg <<= 1;
+            self.x_bg_attr_shift <<= 1;
+            self.y_bg_attr_shift <<= 1;
 
             match self.cycle % 8 {
                 2 => self.fetch_nt(memory),
@@ -307,7 +309,7 @@ impl Ppu {
                     self.fetch_bmp_high(memory, ppu_ctrl);
 
                     // fetch high bmp and add to internal shift registers
-                    self.load_bitmap();           
+                    self.load_bitmap(memory);           
 
                     // Increase horizontal v (coarse X)
                     self.coarse_x_increment(memory);
@@ -392,6 +394,13 @@ impl Ppu {
         }
     }
 
+    fn fetch_quadrant(&self, memory: &Memory) -> u8 {
+        let v = memory.ppu_mem.v;
+
+        ((v >> 1) & 1 | ((v >> 6) & 1) << 1) as u8
+    }
+
+
     fn fetch_nt(&mut self, memory: &Memory) {
         let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
         self.nt = memory.ppu_mem.read_vram_at(addr as usize);
@@ -474,11 +483,15 @@ impl Ppu {
         self.high_bg_byte = memory.ppu_mem.read_vram_at(bmp_high);
     }
 
-    fn load_bitmap(&mut self) {
+    fn load_bitmap(&mut self, memory: &Memory) {
         self.high_bg_shift_reg = (self.high_bg_shift_reg & 0xFF00) | (self.high_bg_byte as u16);
         self.low_bg_shift_reg = (self.low_bg_shift_reg & 0xFF00) | (self.low_bg_byte as u16);
 
-        self.attr_shift_reg = ((self.at as u16) << 8) | ((self.attr_shift_reg & 0xFF00) >> 8);
+        let quadrant = self.fetch_quadrant(memory);
+        let attribute = (self.at >> (2*quadrant)) & 0b11;
+           
+        self.x_bg_attr_shift = (self.x_bg_attr_shift & 0xFF00) | (0xFF * (attribute as u16 & 1));
+        self.y_bg_attr_shift = (self.y_bg_attr_shift & 0xFF00) | (0xFF * ((attribute as u16 >> 1) & 1));
     }
 
     pub fn next(&mut self, cycles_to_exec: u64, memory: &mut Memory, debug: bool) -> Result<(), &'static str> {
