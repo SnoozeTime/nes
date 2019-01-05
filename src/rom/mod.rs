@@ -96,6 +96,12 @@ pub struct INesFile {
 
 impl INesFile {
     
+    pub fn get_mapper_id(&self) -> u16 {
+        let lower_nib = u16::from((self.flags_6 >> 7) & 1); 
+        let upper_nib = u16::from((self.flags_7 >> 7) & 1);
+
+        lower_nib | (upper_nib << 1)
+    }
 
     pub fn get_prg_rom_pages(&self) -> usize {
         self.prg_rom_pages

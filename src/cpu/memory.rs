@@ -3,7 +3,7 @@ use crate::ppu::memory::{RegisterType, PpuMemory};
 use crate::joypad::Joypad;
 use std::default::Default;
 use serde_derive::{Serialize, Deserialize};
-
+use crate::mapper;
 // 
 // All memory for the NES will be here. It includes CPU ram but also
 // PPU ram and all the mapped rom stuff.
@@ -28,7 +28,7 @@ pub struct Memory {
     // $4000-$4017  $0018   NES APU and I/O registers
     // $4018-$401F  $0008   APU and I/O functionality that is normally disabled. See CPU Test Mode.
     // $4020-$FFFF  $BFE0   Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note) 
-    pub mem: Vec<u8>, // 0x10000,    
+    mem: Vec<u8>, // 0x10000,    
 
     // Memory of PPU
     // -------------
@@ -37,6 +37,14 @@ pub struct Memory {
     // Joypad control
     // --------------
     pub joypad: Joypad,
+
+    #[serde(skip)]
+    #[serde(default = "new_empty_mapper")]
+    pub mapper: Box<dyn mapper::Mapper>,
+}
+
+fn new_empty_mapper() -> Box<dyn mapper::Mapper> {
+    Box::new(mapper::nrom::Nrom::new())
 }
 
 impl Default for Memory {
@@ -46,6 +54,7 @@ impl Default for Memory {
             mem: vec![0; 0x10000],
             ppu_mem: PpuMemory::empty(),
             joypad: Joypad::new(),
+            mapper: new_empty_mapper(),
         }
     }
 
@@ -56,6 +65,7 @@ impl Memory {
     pub fn new(ines: &rom::INesFile) -> Result<Memory, String> {
         let mut mem = vec![0; 0x10000];
 
+        let mapper = mapper::create_mapper(ines)?;
         // if only one page, mirror it.
         let page_nb = ines.get_prg_rom_pages();
 
@@ -78,7 +88,7 @@ impl Memory {
 
         // Now the PPU ROM and init
         let ppu_mem = PpuMemory::new(ines)?;
-        Ok(Memory { mem, ppu_mem, ..Default::default()})
+        Ok(Memory { mem, ppu_mem, mapper, ..Default::default()})
     }
 
     pub fn set(&mut self, address: usize, value: u8) {
@@ -103,6 +113,9 @@ impl Memory {
             },
             0x4016 => {
                 self.joypad.write(value);
+            },
+            0x8000..=0xFFFF => {
+                self.mapper.write_prg(address, value);
             },
             _ => self.mem[address] = value,
         }
@@ -129,6 +142,7 @@ impl Memory {
             },
             0x4014 => self.ppu_mem.read(RegisterType::OAMDMA),
             0x4016 => self.joypad.read(),
+            0x8000..=0xFFFF => self.mapper.read_prg(address),
             _ => self.mem[address],
         }
     }
