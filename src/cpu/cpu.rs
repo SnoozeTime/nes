@@ -81,14 +81,14 @@ impl Cpu {
     }
 
     fn push(&mut self, memory: &mut Memory, value: u8) {
-        let addr = 0x0100 + (self.SP as u16);
+        let addr = 0x0100 + u16::from(self.SP);
         memory.set(addr as usize, value);
         self.SP -= 1;
     }
 
     fn pull(&mut self, memory: &mut Memory) -> u8 {
         self.SP += 1;
-        let addr = 0x0100 + (self.SP as u16);
+        let addr = 0x0100 + u16::from(self.SP);
         memory.get(addr as usize)
     }
 
@@ -125,7 +125,7 @@ impl Cpu {
         self.D = (b >> 3) & 0x1 as u8;
         self.I = (b >> 2) & 0x1 as u8;
         self.Z = (b >> 1) & 0x1 as u8;
-        self.C = (b >> 0) & 0x1 as u8;
+        self.C = b & 0x1 as u8;
     }
 
     // return number of extra cycles (7 if interrupt happens)
@@ -152,8 +152,8 @@ impl Cpu {
             self.I = 1;
 
             // Set new PC from handler
-            let lsb = memory.get(0xFFFA as usize) as u16;
-            let msb = memory.get(0xFFFB as usize) as u16;
+            let lsb = u16::from(memory.get(0xFFFA as usize));
+            let msb = u16::from(memory.get(0xFFFB as usize));
             self.PC = lsb + (msb << 8);
             return 7;
         }
@@ -225,7 +225,7 @@ impl Cpu {
                 self.A = result;
             },
             Instruction::ASL(_, addressing, _length) => {
-                let shifted: u16 = (addressing.fetch(memory) as u16) << 1;
+                let shifted = u16::from(addressing.fetch(memory)) << 1;
                 let result = (shifted & 0xFF) as u8;
                 self.C = (shifted >> 8) as u8;
 
@@ -246,7 +246,7 @@ impl Cpu {
                 self.set_result_flags(result);
             },
             Instruction::ROL(_, addressing, _) => {
-                let shifted: u16 = (addressing.fetch(memory) as u16) << 1;
+                let shifted = u16::from(addressing.fetch(memory)) << 1;
                 let result = (shifted & 0xFF) as u8 | (self.C & 1);
                 self.C = (shifted >> 8) as u8;
 
@@ -283,7 +283,7 @@ impl Cpu {
             Instruction::RTS(_, _, _) => {
                 let lsb = self.pull(memory);
                 let msb = self.pull(memory);
-                self.PC = lsb as u16 + ((msb as u16) << 8) + 1;
+                self.PC = u16::from(lsb) + (u16::from(msb) << 8) + 1;
             },
 
             // ----------------------------------------
@@ -297,9 +297,9 @@ impl Cpu {
                     // Carry clear let's take the branch.
                     if (offset & 0x80) == 0x80 {
                         // negative.
-                        self.PC -= 0x100 - offset as u16;
+                        self.PC -= 0x100 - u16::from(offset);
                     } else {
-                        self.PC += offset as u16;
+                        self.PC += u16::from(offset);
                     }
                     // we do one byte offset (0xFF max) so if the upper
                     // bytes are not the same it means we crossed a page.
@@ -316,9 +316,9 @@ impl Cpu {
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
-                        self.PC -= 0x100 - offset as u16;
+                        self.PC -= 0x100 - u16::from(offset);
                     } else {
-                        self.PC += offset as u16;
+                        self.PC += u16::from(offset);
                     }
                     if (original_pc >> 8) != (self.PC >> 8) {
                         cycles += 1;
@@ -335,9 +335,9 @@ impl Cpu {
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
-                        self.PC -= 0x100 - offset as u16;
+                        self.PC -= 0x100 - u16::from(offset);
                     } else {
-                        self.PC += offset as u16;
+                        self.PC += u16::from(offset);
                     }
                     if (original_pc >> 8) != (self.PC >> 8) {
                         cycles += 1;
@@ -410,9 +410,9 @@ impl Cpu {
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
-                        self.PC -= 0x100 - offset as u16;
+                        self.PC -= 0x100 - u16::from(offset);
                     } else {
-                        self.PC += offset as u16;
+                        self.PC += u16::from(offset);
                     }
                     if (original_pc >> 8) != (self.PC >> 8) {
                         cycles += 1;
@@ -421,15 +421,15 @@ impl Cpu {
                 }
             },
             Instruction::BNE(_, addressing, _lenght) => {
-                let offset = addressing.fetch(memory);
+                let offset = u16::from(addressing.fetch(memory));
                 if self.Z == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
-                        self.PC -= 0x100 - offset as u16;
+                        self.PC -= 0x100 - offset;
                     } else {
-                        self.PC += offset as u16;
+                        self.PC += offset;
                     }
                     if (original_pc >> 8) != (self.PC >> 8) {
                         cycles += 1;
@@ -439,15 +439,15 @@ impl Cpu {
                 }
             },
             Instruction::BPL(_, addressing, _lenght) => {
-                let offset = addressing.fetch(memory);
+                let offset = u16::from(addressing.fetch(memory));
                 if self.N == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
-                        self.PC -= 0x100 - offset as u16;
+                        self.PC -= 0x100 - offset;
                     } else {
-                        self.PC += offset as u16;
+                        self.PC += offset;
                     }
                     if (original_pc >> 8) != (self.PC >> 8) {
                         cycles += 1;
@@ -457,15 +457,15 @@ impl Cpu {
                 }
             },
             Instruction::BVC(_, addressing, _lenght) => {
-                let offset = addressing.fetch(memory);
+                let offset = u16::from(addressing.fetch(memory));
                 if self.V == 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
-                        self.PC -= 0x100 - offset as u16;
+                        self.PC -= 0x100 - offset;
                     } else {
-                        self.PC += offset as u16;
+                        self.PC += offset;
                     }
                     if (original_pc >> 8) != (self.PC >> 8) {
                         cycles += 1;
@@ -475,15 +475,15 @@ impl Cpu {
                 }
             },
             Instruction::BVS(_, addressing, _lenght) => {
-                let offset = addressing.fetch(memory);
+                let offset = u16::from(addressing.fetch(memory));
                 if self.V != 0 { 
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
                         // negative.
-                        self.PC -= 0x100 - offset as u16;
+                        self.PC -= 0x100 - offset;
                     } else {
-                        self.PC += offset as u16;
+                        self.PC += offset;
                     }
                     if (original_pc >> 8) != (self.PC >> 8) {
                         cycles += 1;
@@ -606,16 +606,16 @@ impl Cpu {
                 let flags = self.flags_to_u8();
                 self.push(memory, flags);
 
-                let lsb = memory.get(0xFFFE-1 as usize) as u16;
-                let msb = memory.get(0xFFFF-1 as usize) as u16;
+                let lsb = u16::from(memory.get(0xFFFE-1 as usize));
+                let msb = u16::from(memory.get(0xFFFF-1 as usize));
                 self.PC = lsb + (msb << 8);
             },
             Instruction::RTI(_,_,_) => {
                 let flags = self.pull(memory);
                 self.u8_to_flags(flags);
-                let lsb = self.pull(memory);
-                let msb = self.pull(memory);
-                self.PC = lsb as u16 + ((msb as u16) << 8);// + 1;
+                let lsb = u16::from(self.pull(memory));
+                let msb = u16::from(self.pull(memory));
+                self.PC = lsb + (msb << 8);
             },
             Instruction::NOP(_,_,_) 
                 | Instruction::DOP(_,_,_) 
@@ -708,7 +708,7 @@ impl Cpu {
                 },
                 Instruction::RLA(_, addressing, _) => {
 
-                    let shifted: u16 = (addressing.fetch(memory) as u16) << 1;
+                    let shifted = u16::from(addressing.fetch(memory)) << 1;
                     let result = (shifted & 0xFF) as u8 | (self.C & 1);
                     self.C = (shifted >> 8) as u8;
                     addressing.set(memory, result);
@@ -730,7 +730,7 @@ impl Cpu {
                 },
                 Instruction::SLO(_, addressing, _) => {
                     // shift left one bit in memory
-                    let shifted: u16 = (addressing.fetch(memory) as u16) << 1;
+                    let shifted = u16::from(addressing.fetch(memory)) << 1;
                     let result = (shifted & 0xFF) as u8;
                     self.C = (shifted >> 8) as u8;
                     addressing.set(memory, result);
@@ -782,8 +782,8 @@ impl Cpu {
 
     fn adc(&mut self, rhs: u8) {
         // max value is 0x1FF. There is carry if > 0xFF.
-        let sum: u16 = (self.A as u16)
-            + (rhs as u16) + (self.C as u16);
+        let sum = u16::from(self.A)
+            + u16::from(rhs) + u16::from(self.C);
         let result = (sum & 0xFF) as u8; 
         self.C = (sum >> 8) as u8;
 
@@ -812,7 +812,7 @@ mod tests {
     use std::default::Default;
 
     fn new_memory(rom: Vec<u8>) -> Memory {
-        let mut mem: [u8; 0x10000] = [0; 0x10000];
+        let mut mem = vec![0; 0x10000];
         // $8000-$FFFF = Usual ROM, commonly with Mapper Registers (see MMC1 and UxROM for example)
         for (i, b) in rom.iter().enumerate() {
             mem[0x8000+i] = *b;
