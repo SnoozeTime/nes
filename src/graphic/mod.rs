@@ -167,9 +167,8 @@ impl Graphics {
 	// X = WIDTH*zoom_level + 10
 	// Y = 10
 	// First draw 2 nametables in memory, then we take care of mirroring
-	let pattern_table_addr = 0x1000 *
-	    ((memory.ppu_mem.peek(RegisterType::PPUCTRL) >> 4) & 1) as usize;
-	let pattern_table = &memory.ppu_mem.pattern_tables[pattern_table_addr..pattern_table_addr+0x1000]; 
+        let pattern_table_nb = usize::from((memory.ppu_mem.peek(RegisterType::PPUCTRL) >> 4) & 1);
+	let pattern_table = &memory.get_pattern_table(pattern_table_nb);
 
 	let x1 = WIDTH*self.zoom_level + 10;
 	let x2 = WIDTH*self.zoom_level + 20 + WIDTH;

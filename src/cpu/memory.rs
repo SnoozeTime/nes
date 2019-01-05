@@ -99,14 +99,14 @@ impl Memory {
             0x2000..=0x2007 => {
                 let register_type = RegisterType::lookup(address)
                     .expect("Issue with RegisterType::lookup");
-                self.ppu_mem.write(register_type, value);
+                self.ppu_mem.write(register_type, value, &mut self.mapper);
             },
             0x2008..=0x3FFF => {
                 // mirrors of ppu registers.
                 let offset = address & 0x7;
                 let register_type = RegisterType::lookup(0x2000+offset)
                     .expect("Issue with RegisterType::lookup");
-                self.ppu_mem.write(register_type, value);
+                self.ppu_mem.write(register_type, value, &mut self.mapper);
             },
             0x4014 => {
                 self.ppu_mem.write_oamdma(&self.mem, value);    
@@ -131,20 +131,28 @@ impl Memory {
             0x2000..=0x2007 => {
                 let register_type = RegisterType::lookup(address)
                     .expect("Issue with RegisterType::lookup");
-                self.ppu_mem.read(register_type)
+                self.ppu_mem.read(register_type, &self.mapper)
             },
             0x2008..=0x3FFF => {
                 // mirrors of ppu registers.
                 let offset = address & 0x7;
                 let register_type = RegisterType::lookup(0x2000+offset)
                     .expect("Issue with RegisterType::lookup");
-                self.ppu_mem.read(register_type)
+                self.ppu_mem.read(register_type, &self.mapper)
             },
-            0x4014 => self.ppu_mem.read(RegisterType::OAMDMA),
+            0x4014 => self.ppu_mem.read(RegisterType::OAMDMA, &self.mapper),
             0x4016 => self.joypad.read(),
             0x8000..=0xFFFF => self.mapper.read_prg(address),
             _ => self.mem[address],
         }
+    }
+
+    pub fn read_vram_at(&self, addr: usize) -> u8 {
+        self.ppu_mem.read_vram_at(addr, &self.mapper)
+    }
+
+    pub fn get_pattern_table(&self, nb: usize) -> &[u8] {
+        &self.mapper.get_chr()[nb*0x1000..(nb+1)*0x1000] 
     }
 
     pub fn nmi(&self) -> bool {
@@ -160,6 +168,8 @@ impl Memory {
             self.mem[address]
         }
     }
+    
+
 
 }
 

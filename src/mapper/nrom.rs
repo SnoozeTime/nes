@@ -113,6 +113,9 @@ impl Mapper for Nrom {
         self.chr_rom[addr] = value;
     }
 
+    fn get_chr(&self) -> &[u8] {
+        &self.chr_rom
+    }
 }
 
 

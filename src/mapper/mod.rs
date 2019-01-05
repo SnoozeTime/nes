@@ -7,6 +7,8 @@ pub mod nrom;
 use crate::rom;
 
 
+pub type MapperPtr = Box<dyn Mapper>;
+
 pub trait Mapper: erased_serde::Serialize {
     // Read ROM from cardridge
     // writing is needed for some mappers that have registers.
@@ -16,11 +18,13 @@ pub trait Mapper: erased_serde::Serialize {
     // Read/Write pattern tables. Sometimes, it is RAM instead of ROM
     fn read_chr(&self, addr: usize) -> u8;
     fn write_chr(&mut self, addr: usize, value: u8);
+    fn get_chr(&self) -> &[u8];
+    
 }
 
 serialize_trait_object!(Mapper);
 
-pub fn create_mapper(rom: &rom::INesFile) -> Result<Box<dyn Mapper>, String> {
+pub fn create_mapper(rom: &rom::INesFile) -> Result<MapperPtr, String> {
 
     let mapper_id = rom.get_mapper_id();
 

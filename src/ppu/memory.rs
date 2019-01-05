@@ -1,6 +1,8 @@
 use std::fmt;
 use crate::rom;
 use serde_derive::{Serialize, Deserialize};
+use crate::mapper::MapperPtr;
+
 
 
 // Behaviour of PPU register is quite special. For example, when reading PPUSTATUS,
@@ -109,7 +111,6 @@ pub struct PpuMemory {
     // $3F00-$3F1F  $0020   Palette RAM indexes
     // $3F20-$3FFF  $00E0   Mirrors of $3F00-$3F1F 
 
-    pub pattern_tables: Vec<u8>, // 0-0x2000
     pub nametable_1: Vec<u8>, // 0x0400
     pub nametable_2: Vec<u8>, // 0x0400
     pub palettes: Vec<u8>, //0x0020
@@ -157,7 +158,6 @@ impl PpuMemory {
             vram_read_buffer: 0,
             oam_addr: 0,
             oam: vec![0; 0x100],
-            pattern_tables: vec![0; 0x2000],
             nametable_1: vec![0; 0x400],
             nametable_2: vec![0; 0x400],
             palettes: vec![0; 0x20],
@@ -166,23 +166,11 @@ impl PpuMemory {
         }
     }
 
-    pub fn new(ines: &rom::INesFile) -> Result<PpuMemory, String> {
-
+    pub fn new(ines: &rom::INesFile) ->Result<PpuMemory, String> {
         // Now the PPU ROM and init
-
-        let mut pattern_tables = vec![0; 0x2000];
-        // Just copy the ROM to pattern tables.
-        if ines.get_chr_rom_pages() > 0 {
-            let vrom = ines.get_chr_rom(1)?;
-            for (i, b) in vrom.iter().enumerate() {
-                pattern_tables[i] = *b;
-        }
-        }
-
         let empty_mem = PpuMemory::empty();
 
         Ok(PpuMemory {
-            pattern_tables,
             mirroring: ines.get_mirroring(),
             ..empty_mem
         })
@@ -233,12 +221,12 @@ impl PpuMemory {
 
     /// Write will set new value to register. This can have side effect on
     /// other registers.
-    pub fn write(&mut self, register_type: RegisterType, value: u8) {
+    pub fn write(&mut self, register_type: RegisterType, value: u8, mapper: &mut MapperPtr) {
         match register_type {
             PPUCTRL => self.write_ctrl(value),
             PPUMASK => self.write_mask(value),
             PPUADDR => self.write_addr(value),
-            PPUDATA => self.write_data(value),
+            PPUDATA => self.write_data(value, mapper),
             OAMADDR => self.write_oamaddr(value),
             OAMDATA => self.write_oamdata(value),
             OAMDMA => panic!("Use directly 'write_oamdma'"), 
@@ -248,7 +236,7 @@ impl PpuMemory {
     }
 
     /// Read with side-effect
-    pub fn read(&mut self, register_type: RegisterType) -> u8 {
+    pub fn read(&mut self, register_type: RegisterType, mapper: &MapperPtr) -> u8 {
         match register_type {
             // Those cannot be read by the CPU
             PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR | OAMDMA => {
@@ -257,7 +245,7 @@ impl PpuMemory {
                 0
             },
             PPUSTATUS => self.read_status(),
-            PPUDATA => self.read_data(),
+            PPUDATA => self.read_data(mapper),
             _ => 8,
         }
     }
@@ -350,10 +338,10 @@ impl PpuMemory {
         }
     }
 
-    fn write_data(&mut self, data: u8) {
+    fn write_data(&mut self, data: u8, mapper: &mut MapperPtr) {
         let addr_latch = self.v;
 
-        self.write_vram_at((addr_latch as usize) % 0x4000, data);
+        self.write_vram_at((addr_latch as usize) % 0x4000, data, mapper);
         if self.ppuctrl & 4 == 4 {
             self.v = addr_latch + 32;
         } else {
@@ -361,10 +349,10 @@ impl PpuMemory {
         }
     }
 
-    fn write_vram_at(&mut self, addr: usize, data: u8) {
+    fn write_vram_at(&mut self, addr: usize, data: u8, mapper: &mut MapperPtr) {
         match addr {
             0x0000..=0x1FFF => {
-                self.pattern_tables[addr] = data;
+               mapper.write_chr(addr, data); 
             },
             0x2000..=0x23FF => {
                 self.write_to_1st_nametable(addr, data);
@@ -388,7 +376,7 @@ impl PpuMemory {
             0x3000..=0x3EFF => {
                 // Mirrors of 0x2000, 0x2EFFF
                 let newaddr = 0x2000 | (addr & 0xFFF);
-                self.write_vram_at(newaddr, data);
+                self.write_vram_at(newaddr, data, mapper);
             },
             // palettes mirrors
             0x3F00..=0x3FFF => {
@@ -418,17 +406,17 @@ impl PpuMemory {
         self.nametable_2[offset] = data;
     }
 
-    fn read_data(&mut self) -> u8 {
+    fn read_data(&mut self, mapper: &MapperPtr) -> u8 {
         let addr_latch = self.v;
 
         let v = match addr_latch % 0x4000 {
             0x3F00..=0x4000 => {
-                self.vram_read_buffer = self.read_vram_at((addr_latch as usize) % 0x4000);
+                self.vram_read_buffer = self.read_vram_at((addr_latch as usize) % 0x4000, mapper);
                 self.vram_read_buffer
             },
             _ => {
                 let old_buffer = self.vram_read_buffer;
-                self.vram_read_buffer = self.read_vram_at((addr_latch as usize) % 0x4000);
+                self.vram_read_buffer = self.read_vram_at((addr_latch as usize) % 0x4000, mapper);
                 old_buffer
             }
         };
@@ -442,10 +430,10 @@ impl PpuMemory {
         v
     }
 
-    pub fn read_vram_at(&self, addr: usize) -> u8 {
+    pub fn read_vram_at(&self, addr: usize, mapper: &MapperPtr) -> u8 {
 
         match addr {
-            0x0..=0x1FFF => self.pattern_tables[addr],
+            0x0..=0x1FFF => mapper.read_chr(addr), 
             0x2000..=0x23FF => self.read_from_1st_nametable(addr),
             0x2400..=0x27FF => {
                 match self.mirroring {
@@ -463,7 +451,7 @@ impl PpuMemory {
             0x3000..=0x3EFF => {
                 // Mirrors of 0x2000, 0x2EFFF
                 let newaddr = 0x2000 | (addr & 0xFFF);
-                self.read_vram_at(newaddr)
+                self.read_vram_at(newaddr, mapper)
             },
             // palettes 
             0x3F00..=0x3FFF => {

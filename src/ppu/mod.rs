@@ -408,7 +408,7 @@ impl Ppu {
 
     fn fetch_nt(&mut self, memory: &Memory) {
         let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
-        self.nt = memory.ppu_mem.read_vram_at(addr as usize);
+        self.nt = memory.read_vram_at(addr as usize);
     }
 
     fn evaluate_sprites(&mut self, memory: &Memory, ppu_ctrl: u8) {
@@ -435,8 +435,8 @@ impl Ppu {
                 let bmp_high = bmp_low + 8;
                 // see bit 3 of PPUCTRL.
 
-                let mut tile_low = memory.ppu_mem.read_vram_at(bmp_low);
-                let mut tile_high = memory.ppu_mem.read_vram_at(bmp_high);
+                let mut tile_low = memory.read_vram_at(bmp_low);
+                let mut tile_high = memory.read_vram_at(bmp_high);
                 if (attr_byte >> 6) & 1 == 1 {
                     // flip horizontally :D
                     tile_low = reverse_bit(tile_low);
@@ -465,7 +465,7 @@ impl Ppu {
         // attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
         let v = memory.ppu_mem.v;
         let addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-        self.at = memory.ppu_mem.read_vram_at(addr as usize);
+        self.at = memory.read_vram_at(addr as usize);
     }
 
     fn fetch_bmp_low(&mut self, memory: &Memory, ppu_ctrl: u8) {
@@ -474,7 +474,7 @@ impl Ppu {
         let bmp_low = self.tile_low_addr(pattern_table_addr,
                                          self.nt as usize,
                                          self.fine_y(memory) as usize);
-        self.low_bg_byte = memory.ppu_mem.read_vram_at(bmp_low);
+        self.low_bg_byte = memory.read_vram_at(bmp_low);
     }
 
     fn fetch_bmp_high(&mut self, memory: &Memory, ppu_ctrl: u8) {
@@ -485,7 +485,7 @@ impl Ppu {
                                       self.nt as usize,
                                       self.fine_y(memory) as usize);
         let bmp_high = addr + 8;
-        self.high_bg_byte = memory.ppu_mem.read_vram_at(bmp_high);
+        self.high_bg_byte = memory.read_vram_at(bmp_high);
     }
 
     fn load_bitmap(&mut self, memory: &Memory) {
