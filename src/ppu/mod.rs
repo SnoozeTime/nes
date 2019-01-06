@@ -35,6 +35,7 @@ fn reverse_bit(mut in_byte: u8) -> u8 {
 #[derive(Serialize, Deserialize)]
 pub struct Ppu {
 
+    nmi_timer: u8,
     debug: bool,
     // 262 line per frame.
     line: usize,
@@ -88,6 +89,7 @@ impl Ppu {
 
     pub fn new() -> Ppu {
         Ppu { 
+            nmi_timer: 0,
             debug: false,
             line: 0,
             cycle: 0,
@@ -125,14 +127,14 @@ impl Ppu {
         }
     }
 
-    fn tick(&mut self) {
+    fn tick(&mut self, is_rendering: bool) {
         self.cycle += 1;
 
         if self.cycle == 341 {
 
             self.line = (self.line + 1) % 262;
             self.odd_frame = !self.odd_frame;
-            if self.odd_frame && self.line == 0 {
+            if self.odd_frame && self.line == 0 && is_rendering {
                 self.cycle = 1;
             } else {
                 self.cycle = 0;
@@ -262,15 +264,15 @@ impl Ppu {
     }
 
     fn exec_cycle(&mut self, memory: &mut Memory) {
-
-        self.tick();
-
         let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
         let ppu_status = memory.ppu_mem.peek(RegisterType::PPUSTATUS);
         let ppu_ctrl = memory.ppu_mem.peek(RegisterType::PPUCTRL);
         let render_bg = ((ppu_mask >> 3) & 1) == 1;
         let render_sprite = ((ppu_mask >> 4) & 1) == 1;
         let rendering_enabled = render_bg || render_sprite;
+
+        self.tick(rendering_enabled);
+        
         let visible_line = self.line < 240;
         let pre_render_line = self.line == 261;
 
@@ -298,41 +300,44 @@ impl Ppu {
         }
 
         // fetch the pixel info
-        if (visible_line || pre_render_line) && fetch_cycles && rendering_enabled {
-            self.high_bg_shift_reg <<= 1;
-            self.low_bg_shift_reg <<= 1;
-            self.x_bg_attr_shift <<= 1;
-            self.y_bg_attr_shift <<= 1;
+        if rendering_enabled {
+            if (visible_line || pre_render_line) && fetch_cycles {
+                self.high_bg_shift_reg <<= 1;
+                self.low_bg_shift_reg <<= 1;
+                self.x_bg_attr_shift <<= 1;
+                self.y_bg_attr_shift <<= 1;
 
-            match self.cycle % 8 {
-                2 => self.fetch_nt(memory),
-                4 => self.fetch_attr(memory),
-                6 => self.fetch_bmp_low(memory, ppu_ctrl),
-                0 => {
-                    self.fetch_bmp_high(memory, ppu_ctrl);
+                match self.cycle % 8 {
+                    2 => self.fetch_nt(memory),
+                    4 => self.fetch_attr(memory),
+                    6 => self.fetch_bmp_low(memory, ppu_ctrl),
+                    0 => {
+                        self.fetch_bmp_high(memory, ppu_ctrl);
 
-                    // fetch high bmp and add to internal shift registers
-                    self.load_bitmap(memory);           
+                        // fetch high bmp and add to internal shift registers
+                        self.load_bitmap(memory);           
 
-                    // Increase horizontal v (coarse X)
-                    self.coarse_x_increment(memory);
-                },
-                _ => {},
+                        // Increase horizontal v (coarse X)
+                        self.coarse_x_increment(memory);
+                    },
+                    _ => {},
+                }
+
+                if self.cycle == 256 {
+                    //  increase vertical v (fine y)
+                    self.y_increment(memory);
+                }
             }
 
-            if self.cycle == 256 {
-                //  increase vertical v (fine y)
-                self.y_increment(memory);
+            if self.cycle == 257 {
+                self.copy_horizontal_t(memory);
             }
-        }
+            // Only during the pre-render line, during a few cycles 
+            // the vertical t is copied multiple time to vertical v
+            if pre_render_line && self.cycle >= 280 && self.cycle <= 304 {
+                self.copy_vertical_t(memory);
+            }
 
-        if rendering_enabled && self.cycle == 257 {
-            self.copy_horizontal_t(memory);
-        }
-        // Only during the pre-render line, during a few cycles 
-        // the vertical t is copied multiple time to vertical v
-        if pre_render_line && rendering_enabled && self.cycle >= 280 && self.cycle <= 304 {
-            self.copy_vertical_t(memory);
         }
 
         // -----------------------------------------------------------
@@ -448,7 +453,7 @@ impl Ppu {
                     tile_addr += 1;
                     tile_y = tile_y % 8;
                 }
-                
+
                 if (attr_byte >> 7) & 1 == 1 {
                     // reverse y...
                     //

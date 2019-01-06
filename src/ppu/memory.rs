@@ -245,9 +245,12 @@ impl PpuMemory {
     }
 
     fn write_ctrl(&mut self, ctrl: u8) {
+        let nmi_enabled = self.ppuctrl & 0x80 == 0x80;
         self.ppuctrl = ctrl;
         self.t = (self.t & !0xc00) | ((ctrl & 0b11) as u16) << 10;
-        self.raise_nmi();
+        if !nmi_enabled {
+            self.raise_nmi();
+        }
     }
 
     fn write_mask(&mut self, mask: u8) {
