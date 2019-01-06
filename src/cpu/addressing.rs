@@ -640,7 +640,7 @@ mod tests {
     #[test]
     fn test_zero_page() {
         let mut memory: Memory = Default::default();
-        memory.mem[0x02] = 3;
+        memory.set(0x02, 3);
         let addressing = ZeroPageAddressing::new(0x02);
         assert_eq!(3, addressing.fetch(&mut memory));
     }
@@ -648,7 +648,7 @@ mod tests {
     #[test]
     fn test_indexed_zero_page_no_wrapping() {
         let mut memory: Memory = Default::default();
-        memory.mem[0x02] = 3;
+        memory.set(0x02, 3);
         let addressing = IndexedZeroPageAddressing::new(0x01, 0x01);
         assert_eq!(3, addressing.fetch(&mut memory));
     }
@@ -656,68 +656,10 @@ mod tests {
     #[test]
     fn test_indexed_zero_page_with_wrapping() {
         let mut memory: Memory = Default::default();
-        memory.mem[0x02] = 3;
+        memory.set(0x02, 3);
         let addressing = IndexedZeroPageAddressing::new(0xFF, 0x03);
         assert_eq!(3, addressing.fetch(&mut memory));
     }
-
-    #[test]
-    fn test_absolute() {
-        let mut memory: Memory = Default::default();
-        memory.mem[0x21F5] = 3;
-        let addressing = AbsoluteAddressing::new(0xF5, 0x21);
-        assert_eq!(3, addressing.fetch(&mut memory));
-    }
-
-    #[test]
-    fn test_indexed_absolute() {
-        let mut memory: Memory = Default::default();
-        memory.mem[0x21F5] = 3;
-        let addressing = IndexedAbsoluteAddressing::new(0xF2, 0x21, 0x03);
-        assert_eq!(3, addressing.fetch(&mut memory));
-    }
-
-    #[test]
-    fn test_indirect() {
-        let mut memory: Memory = Default::default();
-        memory.mem[0x21F5] = 3;
-        memory.mem[0x2213] = 0xF5;
-        memory.mem[0x2214] = 0x21;
-        let addressing = IndirectAddressing::new(0x13, 0x22);
-        assert_eq!(0x21F5, addressing.fetch16(&mut memory));
-    }
-
-    #[test]
-    fn test_pre_indexed_indirect() {
-        let mut memory: Memory = Default::default();
-        memory.mem[0x21F5] = 3;
-        memory.mem[0x0013] = 0xF5;
-        memory.mem[0x0014] = 0x21;
-        let addressing = PreIndexedIndirectAddressing::new(0x11, 0x02);
-        assert_eq!(3, addressing.fetch(&mut memory));
-    }
-
-
-    #[test]
-    fn test_post_indexed_indirect() {
-        let mut memory: Memory = Default::default();
-        memory.mem[0x21F5] = 3;
-        memory.mem[0x0013] = 0xF3;
-        memory.mem[0x0014] = 0x21;
-        let addressing = PostIndexedIndirectAddressing::new(0x13, 0x02);
-        assert_eq!(3, addressing.fetch(&mut memory));
-    }
-
-    #[test]
-    fn test_post_indirect_addressing() {
-
-        // 0xd940  LDA     Post-index Indirect adressing at: 0x97+0x34     cycles: 5
-        let mut memory: Memory = Default::default();
-        memory.mem[0x0013] = 0x97;
-        memory.mem[0x0014] = 0x34;
-        memory.mem[0x3497] = 0x3;
-        let addressing = PostIndexedIndirectAddressing::new(0x13, 0x00);
-        assert_eq!(3, addressing.fetch(&mut memory));
-    } 
+   
 }
 

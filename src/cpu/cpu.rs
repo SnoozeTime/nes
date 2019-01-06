@@ -809,16 +809,17 @@ mod tests {
 
     // get names from outer scope.
     use super::*;
-    use std::default::Default;
+    use crate::rom::INesFile;
 
     fn new_memory(rom: Vec<u8>) -> Memory {
-        let mut mem = vec![0; 0x10000];
-        // $8000-$FFFF = Usual ROM, commonly with Mapper Registers (see MMC1 and UxROM for example)
+
+        let mut prg_rom = vec![0; 0x4000];
         for (i, b) in rom.iter().enumerate() {
-            mem[0x8000+i] = *b;
+            prg_rom[i] = *b;
         }
 
-        Memory { mem, ..Default::default()}
+        let ines = INesFile::new(prg_rom, 1, vec![0; 0x2000], 1, 0, 0, 0, 0, 0);
+        Memory::new(&ines).unwrap()
     }
 
 

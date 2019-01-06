@@ -95,7 +95,30 @@ pub struct INesFile {
 }
 
 impl INesFile {
-    
+
+    pub fn new(prg_rom: Vec<u8>,
+               prg_rom_pages: usize,
+               chr_rom: Vec<u8>,
+               chr_rom_size: usize,
+               prg_ram_size: usize,
+               flags_6: u8,
+               flags_7: u8,
+               flags_9: u8,
+               flags_10: u8) -> INesFile {
+
+        INesFile {
+            prg_rom,
+            prg_rom_pages,
+            chr_rom,
+            chr_rom_size,
+            prg_ram_size,
+            flags_6,
+            flags_7,
+            flags_9,
+            flags_10,
+        }
+    }
+
     pub fn get_mapper_id(&self) -> u16 {
         let lower_nib = u16::from((self.flags_6 >> 7) & 1); 
         let upper_nib = u16::from((self.flags_7 >> 7) & 1);

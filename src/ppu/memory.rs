@@ -505,18 +505,3 @@ impl PpuMemory {
     }
 }
 
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_set_vram_addr() {
-
-        let mut memory = PpuMemory::empty();
-        memory.write(RegisterType::PPUADDR, 0x20);
-        memory.write(RegisterType::PPUADDR, 0x09);
-
-        assert_eq!(0x2009, memory.v);
-    }
-}

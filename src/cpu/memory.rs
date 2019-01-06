@@ -28,7 +28,7 @@ pub struct Memory {
     // $4000-$4017  $0018   NES APU and I/O registers
     // $4018-$401F  $0008   APU and I/O functionality that is normally disabled. See CPU Test Mode.
     // $4020-$FFFF  $BFE0   Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note) 
-    mem: Vec<u8>, // 0x10000,    
+    pub mem: Vec<u8>, // 0x10000,    
 
     // Memory of PPU
     // -------------

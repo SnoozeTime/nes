@@ -19,7 +19,6 @@ pub trait Mapper: erased_serde::Serialize {
     fn read_chr(&self, addr: usize) -> u8;
     fn write_chr(&mut self, addr: usize, value: u8);
     fn get_chr(&self) -> &[u8];
-    
 }
 
 serialize_trait_object!(Mapper);
