@@ -3,9 +3,19 @@
 // CHR-ROM: mapped to pattern tables of PPU
 //
 //
+use serde_derive::{Serialize, Deserialize};
 pub mod nrom;
+pub mod mmc1;
+
 use crate::rom;
 
+
+#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
+pub enum Mirroring {
+    HORIZONTAL,
+    VERTICAL,
+    ONE_SCREEN,
+}
 
 pub type MapperPtr = Box<dyn Mapper>;
 
@@ -19,6 +29,9 @@ pub trait Mapper: erased_serde::Serialize {
     fn read_chr(&self, addr: usize) -> u8;
     fn write_chr(&mut self, addr: usize, value: u8);
     fn get_chr(&self) -> &[u8];
+
+
+    fn get_mirroring(&self) -> Mirroring;
 }
 
 serialize_trait_object!(Mapper);

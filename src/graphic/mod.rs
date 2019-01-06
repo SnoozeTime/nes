@@ -172,10 +172,10 @@ impl Graphics {
 
 	let x1 = WIDTH*self.zoom_level + 10;
 	let x2 = WIDTH*self.zoom_level + 20 + WIDTH;
-        let nametable1 = &memory.ppu_mem.get_logical_table(0);
-        let nametable2 = &memory.ppu_mem.get_logical_table(1);
-        let nametable3 = &memory.ppu_mem.get_logical_table(2);
-        let nametable4 = &memory.ppu_mem.get_logical_table(3);
+        let nametable1 = &memory.get_logical_table(0);
+        let nametable2 = &memory.get_logical_table(1);
+        let nametable3 = &memory.get_logical_table(2);
+        let nametable4 = &memory.get_logical_table(3);
 	self.draw_nametable(nametable1, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 10);
 	self.draw_nametable(nametable2, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 10);
 	self.draw_nametable(nametable3, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 20+HEIGHT as i32);

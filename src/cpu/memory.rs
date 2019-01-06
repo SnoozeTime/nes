@@ -155,6 +155,10 @@ impl Memory {
         &self.mapper.get_chr()[nb*0x1000..(nb+1)*0x1000] 
     }
 
+    pub fn get_logical_table(&self, nb: u8) -> &[u8] {
+        &self.ppu_mem.get_logical_table(nb, &self.mapper)
+    }
+
     pub fn nmi(&self) -> bool {
         self.ppu_mem.get_nmi_occured()
     }

@@ -1,5 +1,5 @@
 use serde_derive::{Serialize, Deserialize};
-use super::Mapper;
+use super::{Mirroring, Mapper};
 use crate::rom;
 
 // NROM is mapper 0. Banks are not switcheable.
@@ -16,6 +16,8 @@ pub struct Nrom {
 
     // PPU pattern tables
     chr_rom: Vec<u8>,
+
+    mirroring: Mirroring,
 }
 
 impl Nrom {
@@ -26,6 +28,7 @@ impl Nrom {
             prg_rom_first: vec![0; 0x4000],
             prg_rom_last: vec![0; 0x4000],
             chr_rom: vec![0; 0x2000],
+            mirroring: Mirroring::HORIZONTAL,
         }
     }
 
@@ -74,6 +77,7 @@ impl Nrom {
             prg_rom_first,
             prg_rom_last,
             chr_rom,
+            mirroring: ines.get_mirroring(),
         })
     }
 }
@@ -115,6 +119,10 @@ impl Mapper for Nrom {
 
     fn get_chr(&self) -> &[u8] {
         &self.chr_rom
+    }
+
+    fn get_mirroring(&self) -> Mirroring {
+        self.mirroring
     }
 }
 

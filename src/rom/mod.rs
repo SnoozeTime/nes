@@ -2,7 +2,7 @@
 //
 use std::fs::File;
 use std::io::prelude::*;
-use super::ppu::memory::Mirroring;
+use crate::mapper::Mirroring;
 
 fn load(filename: String) -> Result<Vec<u8>, String> {
     File::open(filename)
