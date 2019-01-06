@@ -37,11 +37,13 @@ pub fn read(filename: String) -> Result<INesFile, String> {
     let flags_9 = bytes[9];
     let flags_10 = bytes[10];
     
-    for b in &bytes[11..16] {
-        if *b != 0x0 {
-            return Err(String::from("Expected 5 bytes of 0x0 padding at the end of header"));
-        }
-    }
+    // some rippers put their name here...
+//    for b in &bytes[11..16] {
+//
+//        if *b != 0x0 {
+//            return Err(String::from("Expected 5 bytes of 0x0 padding at the end of header"));
+//        }
+//    }
 
     // Trainer if present (check flag 6).
     let mut offset = 16;

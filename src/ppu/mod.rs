@@ -355,14 +355,18 @@ impl Ppu {
                 // populate secondary OAM
                 // Find the sprites that are in range for the next Y.
                 let mut addr = memory.ppu_mem.oam_addr as usize;
+                let y_lower_bound = if is_16x8_sprites(ppu_ctrl) {
+                    16
+                } else {
+                    8
+                };
 
                 let mut secondary_oam_addr = 0;
                 while addr < 0x100 {
 
                     let sprite_y = memory.ppu_mem.oam[addr] as usize;
-                    // TODO implement for 16 pixels tall.
                     let next_line = (self.line+1)%240;
-                    if next_line >= sprite_y && next_line < sprite_y + 8 {
+                    if next_line >= sprite_y && next_line < sprite_y + y_lower_bound {
                         self.secondary_oam[secondary_oam_addr] = memory.ppu_mem.oam[addr];
                         self.secondary_oam[secondary_oam_addr+1] = memory.ppu_mem.oam[addr+1];
                         self.secondary_oam[secondary_oam_addr+2] = memory.ppu_mem.oam[addr+2];
@@ -415,22 +419,44 @@ impl Ppu {
         //  at this point, the sprites for current line
         //  are already rendered so we can update the registers
         //  for next line.
-        let nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
+        let eightb_nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
+        let is_16b = is_16x8_sprites(ppu_ctrl);
         for i in 0..8 {
             if i <= self.nb_sprites {
                 let secondary_oam_addr = 4 * i;
                 let y = (self.line + 1) % 240;
                 let x = self.secondary_oam[secondary_oam_addr+3];
+
                 let tile_byte = self.secondary_oam[secondary_oam_addr+1] as usize;
+
+                let nametable = if is_16b {
+                    ((tile_byte & 1) * 0x1000) as usize
+                } else {
+                    eightb_nametable
+                };
+
+                let mut tile_addr = if is_16b {
+                    tile_byte & !1
+                } else {
+                    tile_byte
+                };
+
                 let attr_byte = self.secondary_oam[secondary_oam_addr+2];
 
                 let mut tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
+                if tile_y > 7 {
+                    tile_addr += 1;
+                    tile_y = tile_y % 8;
+                }
+                
                 if (attr_byte >> 7) & 1 == 1 {
+                    // reverse y...
+                    //
                     tile_y = 7 - tile_y;
                 }
 
                 let bmp_low = self.tile_low_addr(nametable,
-                                                 tile_byte,
+                                                 tile_addr,
                                                  tile_y);
                 let bmp_high = bmp_low + 8;
                 // see bit 3 of PPUCTRL.
@@ -587,6 +613,9 @@ impl Ppu {
     }
 }
 
+fn is_16x8_sprites(ppu_ctrl: u8) -> bool {
+    (ppu_ctrl >> 5) & 1 == 1 
+}
 
 #[cfg(test)]
 mod tests {

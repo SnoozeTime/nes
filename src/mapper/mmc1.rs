@@ -80,6 +80,7 @@ impl Mapper for Mmc1 {
     fn write_prg(&mut self, addr: usize, value: u8) {
 
         if value & 0x80 == 0x80 {
+            self.reg0 |= 0x0C;
             self.reset_loading_reg();
             return;
         }
@@ -90,6 +91,7 @@ impl Mapper for Mmc1 {
             self.loading_reg = v | (self.loading_reg >> 1);
 
             let value_to_load = (self.loading_reg & 0b11111000) >> 3;
+
             match addr {
                 0x8000..=0x9FFF => {
                     self.reg0 = value_to_load;
@@ -237,7 +239,7 @@ impl Mmc1 {
             prg_low_area_idx,
             prg_high_area_idx,
             loading_reg: 0x80,
-            reg0: 0,
+            reg0: 0x0C,
             reg1: 0,
             reg2: 0,
             reg3: 0,
@@ -255,7 +257,7 @@ impl Mmc1 {
     // will switch the bank at location $0000
     fn switch_chr_bank0(&mut self) {
         if self.is_chr_8kb() {
-            let idx = self.reg1 << 1;
+            let idx = self.reg1 >> 1;
             self.chr_low_area_idx = idx as usize;
             self.chr_high_area_idx = (idx + 1) as usize;
         } else {
