@@ -6,6 +6,7 @@
 use serde_derive::{Serialize, Deserialize};
 pub mod nrom;
 pub mod mmc1;
+pub mod uxrom;
 
 use crate::rom;
 
@@ -49,6 +50,10 @@ pub fn create_mapper(rom: &rom::INesFile) -> Result<MapperPtr, String> {
         1 => {
             let mmc1 = mmc1::Mmc1::from(&rom)?;
             Ok(Box::new(mmc1))
+        },
+        2 => {
+            let uxrom = uxrom::Uxrom::from(&rom)?;
+            Ok(Box::new(uxrom))
         },
         _ => Err(String::from("Not implemented yet"))
     }
