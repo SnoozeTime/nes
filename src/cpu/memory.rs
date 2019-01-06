@@ -36,7 +36,8 @@ pub struct Memory {
 
     // Joypad control
     // --------------
-    pub joypad: Joypad,
+    pub joypad_p1: Joypad,
+    pub joypad_p2: Joypad,
 
     #[serde(skip)]
     #[serde(default = "new_empty_mapper")]
@@ -53,7 +54,8 @@ impl Default for Memory {
         Memory {
             mem: vec![0; 0x10000],
             ppu_mem: PpuMemory::new(),
-            joypad: Joypad::new(),
+            joypad_p1: Joypad::new(),
+            joypad_p2: Joypad::new(),
             mapper: new_empty_mapper(),
         }
     }
@@ -112,8 +114,12 @@ impl Memory {
                 self.ppu_mem.write_oamdma(&self.mem, value);    
             },
             0x4016 => {
-                self.joypad.write(value);
+                self.joypad_p1.write(value);
+                self.joypad_p2.write(value);
             },
+            //0x4017 => {
+            //    self.joypad_p2.write(value);
+            //},
             0x8000..=0xFFFF => {
                 self.mapper.write_prg(address, value);
             },
@@ -141,7 +147,8 @@ impl Memory {
                 self.ppu_mem.read(register_type, &self.mapper)
             },
             0x4014 => self.ppu_mem.read(RegisterType::OAMDMA, &self.mapper),
-            0x4016 => self.joypad.read(),
+            0x4016 => self.joypad_p1.read(),
+            0x4017 => self.joypad_p2.read(),
             0x8000..=0xFFFF => self.mapper.read_prg(address),
             _ => self.mem[address],
         }

@@ -27,19 +27,37 @@ pub enum EmulatorInput {
     SAVE,
 }
 
-fn build_default_input() -> HashMap<Keycode, InputAction> {
+fn build_default_input_p1() -> HashMap<Keycode, InputAction> {
 
     let mut m = HashMap::new();
+    // first player
     m.insert(Keycode::W, InputAction::UP);
     m.insert(Keycode::S, InputAction::DOWN);
     m.insert(Keycode::A, InputAction::LEFT);
     m.insert(Keycode::D, InputAction::RIGHT);
-    m.insert(Keycode::B, InputAction::START);
-    m.insert(Keycode::V, InputAction::SELECT);
-    m.insert(Keycode::K, InputAction::A);
-    m.insert(Keycode::L, InputAction::B);
+    m.insert(Keycode::Z, InputAction::START);
+    m.insert(Keycode::X, InputAction::SELECT);
+    m.insert(Keycode::F, InputAction::A);
+    m.insert(Keycode::G, InputAction::B);
+  
     m
 }
+
+fn build_default_input_p2() -> HashMap<Keycode, InputAction> {
+
+    let mut m = HashMap::new();
+    m.insert(Keycode::I, InputAction::UP);
+    m.insert(Keycode::K, InputAction::DOWN);
+    m.insert(Keycode::J, InputAction::LEFT);
+    m.insert(Keycode::L, InputAction::RIGHT);
+    m.insert(Keycode::N, InputAction::START);
+    m.insert(Keycode::M, InputAction::SELECT);
+    m.insert(Keycode::O, InputAction::A);
+    m.insert(Keycode::P, InputAction::B);
+   
+    m
+}
+
 
 pub struct Graphics {
     zoom_level: u32,
@@ -49,7 +67,8 @@ pub struct Graphics {
     event_pump: EventPump,
     colors: HashMap<u8, Color>,
 
-    input_map: HashMap<Keycode, InputAction>,
+    input_map_p1: HashMap<Keycode, InputAction>,
+    input_map_p2: HashMap<Keycode, InputAction>,
 }
 
 
@@ -85,7 +104,8 @@ impl Graphics {
 	    canvas,
 	    event_pump,
 	    colors: palette::build_default_colors(),
-	    input_map: build_default_input(),
+	    input_map_p1: build_default_input_p1(),
+	    input_map_p2: build_default_input_p2(),
 	})
     }
 
@@ -113,18 +133,32 @@ impl Graphics {
                 },
 		// NES INPUT
 		Event::KeyDown { keycode: Some(keycode), ..} => {
-		    if let Some(action) = self.input_map.get(&keycode) {
+		    if let Some(action) = self.input_map_p1.get(&keycode) {
 			if !is_paused {
-			    mem.joypad.button_down(action);
+			    mem.joypad_p1.button_down(action);
 			}
 		    }
+
+		    if let Some(action) = self.input_map_p2.get(&keycode) {
+			if !is_paused {
+			    mem.joypad_p2.button_down(action);
+			}
+		    }
+
 		},
 		Event::KeyUp { keycode: Some(keycode), ..} => {
-		    if let Some(action) = self.input_map.get(&keycode) {
+		    if let Some(action) = self.input_map_p1.get(&keycode) {
 			if !is_paused {
-			    mem.joypad.button_up(action);
+			    mem.joypad_p1.button_up(action);
 			}
 		    }
+                    
+                    if let Some(action) = self.input_map_p2.get(&keycode) {
+			if !is_paused {
+			    mem.joypad_p2.button_up(action);
+			}
+		    }
+
 		},
 
 		_ => {
