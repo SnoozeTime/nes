@@ -119,11 +119,11 @@ impl INesFile {
         }
     }
 
-    pub fn get_mapper_id(&self) -> u16 {
-        let lower_nib = u16::from((self.flags_6 >> 7) & 1); 
-        let upper_nib = u16::from((self.flags_7 >> 7) & 1);
+    pub fn get_mapper_id(&self) -> u8 {
+        let lower_nib = self.flags_6 >> 4; 
+        let upper_nib = self.flags_7 & 0xF0;
 
-        lower_nib | (upper_nib << 1)
+        lower_nib | upper_nib 
     }
 
     pub fn get_prg_rom_pages(&self) -> usize {

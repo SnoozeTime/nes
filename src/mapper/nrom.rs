@@ -117,8 +117,12 @@ impl Mapper for Nrom {
         self.chr_rom[addr] = value;
     }
 
-    fn get_chr(&self) -> &[u8] {
-        &self.chr_rom
+    fn get_chr(&self, idx: usize) -> &[u8] {
+        if idx == 0 {
+            &self.chr_rom[0..0x1000]
+        } else {
+            &self.chr_rom[0x1000..0x2000]
+        }
     }
 
     fn get_mirroring(&self) -> Mirroring {

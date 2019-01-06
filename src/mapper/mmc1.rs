@@ -1,6 +1,6 @@
 use serde_derive::{Serialize, Deserialize};
 use super::{Mirroring, Mapper};
-use crate::rom;
+use crate::rom::{INesFile};
 
 // MMC1 is mapper 1. Banks are switcheable. Writing to addresses
 // $8000-$FFFF will actually change the cardridge registers.
@@ -67,10 +67,10 @@ impl Mapper for Mmc1 {
     fn read_prg(&self, addr: usize) -> u8 {
         match addr {
             0x8000..=0xBFFF => {
-                self.prg_rom_banks[self.prg_low_area_idx][addr]
+                self.prg_rom_banks[self.prg_low_area_idx][addr % 0x4000]
             },
             0xC000..=0xFFFF => {
-                self.prg_rom_banks[self.prg_high_area_idx][addr]
+                self.prg_rom_banks[self.prg_high_area_idx][addr % 0x4000]
             },
             _ => 0,
         }
@@ -79,7 +79,10 @@ impl Mapper for Mmc1 {
     // Writing to PRG will actually write to the registers.
     fn write_prg(&mut self, addr: usize, value: u8) {
 
-        // TODO reset.
+        if value & 0x80 == 0x80 {
+            self.reset_loading_reg();
+            return;
+        }
 
         if self.is_loading_reg_full() {
 
@@ -90,15 +93,21 @@ impl Mapper for Mmc1 {
             match addr {
                 0x8000..=0x9FFF => {
                     self.reg0 = value_to_load;
+                    // TODO update for dynamic switching...
                 },
                 0xA000..=0xBFFF => {
+                    // chr bank 0
                     self.reg1 = value_to_load;
+                    self.switch_chr_bank0();
                 },
                 0xC000..=0xDFFF => {
+                    // chr bank 1
                     self.reg2 = value_to_load;
+                    self.switch_chr_bank1();
                 },
                 0xE000..=0xFFFF => {
                     self.reg3 = value_to_load;
+                    self.switch_prg_bank();
                 },
                 _ => {}
             }
@@ -115,10 +124,10 @@ impl Mapper for Mmc1 {
     fn read_chr(&self, addr: usize) -> u8 {
         match addr {
             0x0000..=0x0FFF => {
-                self.chr_rom_banks[self.chr_low_area_idx][addr]
+                self.chr_rom_banks[self.chr_low_area_idx][addr % 0x1000]
             },
             0x1000..=0x1FFF => {
-                self.chr_rom_banks[self.chr_high_area_idx][addr]
+                self.chr_rom_banks[self.chr_high_area_idx][addr % 0x1000]
             },
             _ => 0,
         }
@@ -127,17 +136,21 @@ impl Mapper for Mmc1 {
     fn write_chr(&mut self, addr: usize, value: u8) {
         match addr {
             0x0000..=0x0FFF => {
-                self.chr_rom_banks[self.chr_low_area_idx][addr] = value;
+                self.chr_rom_banks[self.chr_low_area_idx][addr % 0x1000] = value;
             },
             0x1000..=0x1FFF => {
-                self.chr_rom_banks[self.chr_high_area_idx][addr] = value;
+                self.chr_rom_banks[self.chr_high_area_idx][addr % 0x1000] = value;
             },
             _ => {},
         }
     }
 
-    fn get_chr(&self) -> &[u8] {
-        &self.chr_rom_banks[0]
+    fn get_chr(&self, idx: usize) -> &[u8] {
+        if idx == 0 {
+            &self.chr_rom_banks[self.chr_low_area_idx]
+        } else {
+            &self.chr_rom_banks[self.chr_high_area_idx]
+        }
     }
     
     fn get_mirroring(&self) -> Mirroring {
@@ -174,12 +187,115 @@ impl Mmc1 {
         }
     }
 
+    pub fn from(ines: &INesFile) -> Result<Mmc1, String> {
+    
+        let mut pages = Vec::new();
+        for nb in 0..ines.get_prg_rom_pages() {
+            let mut prg_page = vec![0; 0x4000];
+            let rom_page = ines.get_prg_rom(nb+1)?;
+            for (i, b) in rom_page.iter().enumerate() {
+                prg_page[i] = *b;
+            }
+            pages.push(prg_page);
+        }
+
+        let mut pattern_table_pages = Vec::new();
+        for nb in 0..ines.get_chr_rom_pages() {
+            let mut lower_pattern_table_page = vec![0; 0x1000];
+            let mut upper_pattern_table_page = vec![0; 0x1000];
+
+            let chr_page = ines.get_chr_rom(nb+1)?;
+            for (i, b) in chr_page[0..0x1000].iter().enumerate() {
+                lower_pattern_table_page[i] = *b;
+            }
+            
+            for (i, b) in chr_page[0x1000..0x2000].iter().enumerate() {
+                upper_pattern_table_page[i] = *b;
+            }
+
+            pattern_table_pages.push(lower_pattern_table_page);
+            pattern_table_pages.push(upper_pattern_table_page);
+        }
+         
+        // If empty, we need to populate two vectors. It means that we are using
+        // RAM instead of rom.
+        if pattern_table_pages.len() == 0 {
+            pattern_table_pages.push(vec![0; 0x1000]);
+            pattern_table_pages.push(vec![0; 0x1000]);
+        }
+
+        let chr_low_area_idx = 0;
+        let chr_high_area_idx = pattern_table_pages.len() - 1;
+        let prg_low_area_idx = 0;
+        let prg_high_area_idx = pages.len() - 1;
+
+        Ok(Mmc1 {
+            chr_rom_banks: pattern_table_pages,
+            prg_rom_banks: pages,
+            chr_low_area_idx,
+            chr_high_area_idx,
+            prg_low_area_idx,
+            prg_high_area_idx,
+            loading_reg: 0x80,
+            reg0: 0,
+            reg1: 0,
+            reg2: 0,
+            reg3: 0,
+        }) 
+    }
+
     fn is_loading_reg_full(&self) -> bool {
         self.loading_reg & 0x8 == 0x8
     }
 
     fn reset_loading_reg(&mut self) {
         self.loading_reg = 0x80;
+    }
+
+    // will switch the bank at location $0000
+    fn switch_chr_bank0(&mut self) {
+        if self.is_chr_8kb() {
+            let idx = self.reg1 << 1;
+            self.chr_low_area_idx = idx as usize;
+            self.chr_high_area_idx = (idx + 1) as usize;
+        } else {
+            self.chr_low_area_idx = self.reg1 as usize;
+        }
+    }
+
+    // Will switch the bank at location $1000
+    fn switch_chr_bank1(&mut self) {
+        // ignored in 8kb mode.
+        if !self.is_chr_8kb() {
+           self.chr_high_area_idx = self.reg2 as usize; 
+        }
+    }
+
+    fn switch_prg_bank(&mut self) {
+        if self.is_prg_32kb() {
+            let idx = (self.reg3 >> 1) * 2;
+            self.prg_low_area_idx = idx as usize;
+            self.prg_high_area_idx = (idx + 1) as usize;
+        } else {
+            // what bank is switcheable is based on the reg0.
+            if self.is_low_area_switcheable() {
+                self.prg_low_area_idx = self.reg3 as usize;
+            } else {
+                self.prg_high_area_idx = self.reg3 as usize;
+            }
+        }
+    }
+
+    fn is_chr_8kb(&self) -> bool {
+        (self.reg0 >> 4) & 1 == 0
+    }
+
+    fn is_prg_32kb(&self) -> bool {
+        (self.reg0 >> 3) & 1 == 0
+    }
+
+    fn is_low_area_switcheable(&self) -> bool {
+        (self.reg0 >> 2) & 1 == 1
     }
 }
 

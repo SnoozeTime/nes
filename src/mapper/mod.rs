@@ -9,7 +9,7 @@ pub mod mmc1;
 
 use crate::rom;
 
-
+#[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum Mirroring {
     HORIZONTAL,
@@ -28,7 +28,7 @@ pub trait Mapper: erased_serde::Serialize {
     // Read/Write pattern tables. Sometimes, it is RAM instead of ROM
     fn read_chr(&self, addr: usize) -> u8;
     fn write_chr(&mut self, addr: usize, value: u8);
-    fn get_chr(&self) -> &[u8];
+    fn get_chr(&self, idx: usize) -> &[u8];
 
 
     fn get_mirroring(&self) -> Mirroring;
@@ -40,10 +40,15 @@ pub fn create_mapper(rom: &rom::INesFile) -> Result<MapperPtr, String> {
 
     let mapper_id = rom.get_mapper_id();
 
+    println!("MAPPER ID: {}", mapper_id);
     match mapper_id {
         0 => {
             let nrom = nrom::Nrom::from(&rom)?;
             Ok(Box::new(nrom))
+        },
+        1 => {
+            let mmc1 = mmc1::Mmc1::from(&rom)?;
+            Ok(Box::new(mmc1))
         },
         _ => Err(String::from("Not implemented yet"))
     }

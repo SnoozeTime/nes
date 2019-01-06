@@ -52,7 +52,7 @@ impl Default for Memory {
     fn default() -> Memory {
         Memory {
             mem: vec![0; 0x10000],
-            ppu_mem: PpuMemory::empty(),
+            ppu_mem: PpuMemory::new(),
             joypad: Joypad::new(),
             mapper: new_empty_mapper(),
         }
@@ -87,7 +87,7 @@ impl Memory {
         }
 
         // Now the PPU ROM and init
-        let ppu_mem = PpuMemory::new(ines)?;
+        let ppu_mem = PpuMemory::new();
         Ok(Memory { mem, ppu_mem, mapper, ..Default::default()})
     }
 
@@ -152,7 +152,7 @@ impl Memory {
     }
 
     pub fn get_pattern_table(&self, nb: usize) -> &[u8] {
-        &self.mapper.get_chr()[nb*0x1000..(nb+1)*0x1000] 
+        &self.mapper.get_chr(nb)
     }
 
     pub fn get_logical_table(&self, nb: u8) -> &[u8] {

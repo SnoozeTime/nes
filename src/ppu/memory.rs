@@ -1,5 +1,4 @@
 use std::fmt;
-use crate::rom;
 use serde_derive::{Serialize, Deserialize};
 use crate::mapper::{Mirroring, MapperPtr};
 
@@ -132,7 +131,7 @@ impl fmt::Debug for PpuMemory {
 use self::RegisterType::*;
 impl PpuMemory {
 
-    pub fn empty() -> PpuMemory {
+    pub fn new() -> PpuMemory {
         PpuMemory {
             nmi: false,
             ppuctrl: 0,
@@ -156,15 +155,6 @@ impl PpuMemory {
             palettes: vec![0; 0x20],
             is_rendering: false,
         }
-    }
-
-    pub fn new(ines: &rom::INesFile) ->Result<PpuMemory, String> {
-        // Now the PPU ROM and init
-        let empty_mem = PpuMemory::empty();
-
-        Ok(PpuMemory {
-            ..empty_mem
-        })
     }
 
     pub fn get_nmi_occured(&self) -> bool {
