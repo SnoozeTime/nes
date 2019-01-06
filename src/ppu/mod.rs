@@ -449,15 +449,21 @@ impl Ppu {
                 let attr_byte = self.secondary_oam[secondary_oam_addr+2];
 
                 let mut tile_y = y - self.secondary_oam[secondary_oam_addr] as usize;
+                let mut bottom_tile = false;
                 if tile_y > 7 {
-                    tile_addr += 1;
                     tile_y = tile_y % 8;
+                    bottom_tile = true;
                 }
 
                 if (attr_byte >> 7) & 1 == 1 {
                     // reverse y...
                     //
                     tile_y = 7 - tile_y;
+                    bottom_tile = !bottom_tile;
+                }
+
+                if bottom_tile && is_16b {
+                    tile_addr += 1;
                 }
 
                 let bmp_low = self.tile_low_addr(nametable,
