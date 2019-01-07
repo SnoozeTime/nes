@@ -168,6 +168,14 @@ impl Memory {
         self.ppu_mem.get_nmi_occured()
     }
 
+    pub fn irq(&self) -> bool {
+        if let mapper::MapperType::Mmc3(ref x) = self.mapper {
+            return x.irq;
+        }
+
+        false
+    }
+
     // Will read without modifying the value. For example, a read to $2002 is supposed
     // to change a flag. Peek will not. This is used for debugging
     pub fn peek(&self, address: usize) -> u8 {
@@ -175,6 +183,13 @@ impl Memory {
             self.mem[address & 0x7FF]
         } else {
             self.mem[address]
+        }
+    }
+    
+
+    pub fn count_12(&mut self) {
+        if let mapper::MapperType::Mmc3(ref mut x) = self.mapper {
+            x.count_12();
         }
     }
     

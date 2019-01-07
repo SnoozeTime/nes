@@ -272,7 +272,7 @@ impl Ppu {
         let rendering_enabled = render_bg || render_sprite;
 
         self.tick(rendering_enabled);
-        
+
         let visible_line = self.line < 240;
         let pre_render_line = self.line == 261;
 
@@ -339,63 +339,66 @@ impl Ppu {
                 self.copy_vertical_t(memory);
             }
 
-        }
+            // -----------------------------------------------------------
+            // Sprites. During rendering cycles, we just fill 
+            // the secondary OAM with the sprites of the next line while
+            // the sprites of the current line are printed to the screen
+            // ------------------------------------------------------------
+            // during 1-64, the secondary OAM is cleared and the primary
+            // OAM is scanned. Every sprite that will be in the line will
+            // be added to the secondary OAM
 
-        // -----------------------------------------------------------
-        // Sprites. During rendering cycles, we just fill 
-        // the secondary OAM with the sprites of the next line while
-        // the sprites of the current line are printed to the screen
-        // ------------------------------------------------------------
-        // during 1-64, the secondary OAM is cleared and the primary
-        // OAM is scanned. Every sprite that will be in the line will
-        // be added to the secondary OAM
-
-        if (visible_line || pre_render_line) && rendering_enabled {
-            if self.cycle == 1 {    
-                // Clear secondary OAM
-                for b in &mut self.secondary_oam {
-                    *b = 0;
-                }
-                self.nb_sprites = 0;
-            } else if self.cycle == 65 {
-                // populate secondary OAM
-                // Find the sprites that are in range for the next Y.
-                let mut addr = memory.ppu_mem.oam_addr as usize;
-                let y_lower_bound = if is_16x8_sprites(ppu_ctrl) {
-                    16
-                } else {
-                    8
-                };
-
-                let mut secondary_oam_addr = 0;
-                while addr < 0x100 {
-
-                    let sprite_y = memory.ppu_mem.oam[addr] as usize;
-                    let next_line = (self.line+1)%240;
-                    if next_line >= sprite_y && next_line < sprite_y + y_lower_bound {
-                        self.secondary_oam[secondary_oam_addr] = memory.ppu_mem.oam[addr];
-                        self.secondary_oam[secondary_oam_addr+1] = memory.ppu_mem.oam[addr+1];
-                        self.secondary_oam[secondary_oam_addr+2] = memory.ppu_mem.oam[addr+2];
-                        self.secondary_oam[secondary_oam_addr+3] = memory.ppu_mem.oam[addr+3];
-                        secondary_oam_addr += 4;
-                        self.nb_sprites += 1;
+            if visible_line || pre_render_line {
+                if self.cycle == 1 {    
+                    // Clear secondary OAM
+                    for b in &mut self.secondary_oam {
+                        *b = 0;
                     }
+                    self.nb_sprites = 0;
+                } else if self.cycle == 65 {
+                    // populate secondary OAM
+                    // Find the sprites that are in range for the next Y.
+                    let mut addr = memory.ppu_mem.oam_addr as usize;
+                    let y_lower_bound = if is_16x8_sprites(ppu_ctrl) {
+                        16
+                    } else {
+                        8
+                    };
 
-                    // 4 bytes per sprites.
-                    addr += 4;
+                    let mut secondary_oam_addr = 0;
+                    while addr < 0x100 {
 
-                    // if we already have 8 sprites, stop here.
-                    if secondary_oam_addr == 32 {
-                        break;
+                        let sprite_y = memory.ppu_mem.oam[addr] as usize;
+                        let next_line = (self.line+1)%240;
+                        if next_line >= sprite_y && next_line < sprite_y + y_lower_bound {
+                            self.secondary_oam[secondary_oam_addr] = memory.ppu_mem.oam[addr];
+                            self.secondary_oam[secondary_oam_addr+1] = memory.ppu_mem.oam[addr+1];
+                            self.secondary_oam[secondary_oam_addr+2] = memory.ppu_mem.oam[addr+2];
+                            self.secondary_oam[secondary_oam_addr+3] = memory.ppu_mem.oam[addr+3];
+                            secondary_oam_addr += 4;
+                            self.nb_sprites += 1;
+                        }
+
+                        // 4 bytes per sprites.
+                        addr += 4;
+
+                        // if we already have 8 sprites, stop here.
+                        if secondary_oam_addr == 32 {
+                            break;
+                        }
                     }
+                } else if self.cycle >= 257 && self.cycle < 320 {
+                    memory.ppu_mem.oam_addr = 0; 
+                } else if self.cycle == 320 {
+                    self.evaluate_sprites(memory, ppu_ctrl);
                 }
-            } else if self.cycle >= 257 && self.cycle < 320 {
-                memory.ppu_mem.oam_addr = 0; 
-            } else if self.cycle == 320 {
-                self.evaluate_sprites(memory, ppu_ctrl);
             }
-        }
 
+
+            // TODO better way is to put this in  write_vram_at code.
+            // This is for MMC3 mapper
+            self.count_a12(memory, ppu_ctrl);
+        }
 
         // Vertical blank stuff.
         if self.line == 241 && self.cycle == 1 {
@@ -407,6 +410,23 @@ impl Ppu {
             memory.ppu_mem.update(RegisterType::PPUSTATUS, ppu_status & !0x80);
             self.sprite_0_clear(memory);
         }
+    }
+
+    fn count_a12(&self, memory: &mut Memory, ppu_ctrl: u8) {
+
+        //if is_16x8_sprites(ppu_ctrl) {
+
+        //} else {
+        if (ppu_ctrl >> 3) & 1 == 1 {
+            if self.cycle == 260 {
+                memory.count_12();
+            }
+        } else {
+            if self.cycle == 324 {
+                memory.count_12();
+            }
+        }
+        //}
     }
 
     fn fetch_quadrant(&self, memory: &Memory) -> u8 {

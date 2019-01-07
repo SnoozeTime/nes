@@ -156,6 +156,23 @@ impl Cpu {
             let msb = u16::from(memory.get(0xFFFB as usize));
             self.PC = lsb + (msb << 8);
             return 7;
+        } else if memory.irq() && self.I == 0 {
+ 
+            // push pc and flags to the stack.
+            let pc = self.PC;
+            self.push(memory, ((pc & 0xFF00) >> 8) as u8);
+            self.push(memory, (pc & 0xFF) as u8);
+            let flags = self.flags_to_u8();
+            self.push(memory, flags);
+
+            // Set I flag.
+            self.I = 1;
+
+            // Set new PC from handler
+            let lsb = u16::from(memory.get(0xFFFE as usize));
+            let msb = u16::from(memory.get(0xFFFF as usize));
+            self.PC = lsb + (msb << 8);
+            return 7;
         }
 
         0

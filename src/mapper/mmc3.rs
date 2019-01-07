@@ -53,6 +53,12 @@ pub struct Mmc3 {
     reg_ram: u8,
 
     // relevant for interrupts
+    
+    // IRQ happened.
+    pub irq: bool,
+
+    irq_counter: u8,
+    reload_flag: bool,
     reg_irq_latch: u8,
     irq_enabled: bool,
 }
@@ -220,6 +226,9 @@ impl Mmc3 {
             reg_bank_data: 0,
             reg_mirroring: 0,
             reg_ram: 0,
+            irq: false,
+            irq_counter: 0,
+            reload_flag: false,
             reg_irq_latch: 0,
             irq_enabled: false,
         })
@@ -320,14 +329,28 @@ impl Mmc3 {
     }
 
     fn reload_irq_counter(&mut self) {
-
+        self.reload_flag = true;
     }
 
     fn enable_irq(&mut self) {
-
+        self.irq_enabled = true;
     }
 
     fn disable_irq(&mut self) {
+        self.irq_enabled = false;
+        self.irq = false;
+    }
 
+    pub fn count_12(&mut self) {
+
+        if self.reload_flag || self.irq_counter == 0 {
+            self.irq_counter = self.reg_irq_latch;
+            self.reload_flag = false;
+        } else {
+            self.irq_counter -= 1;
+            if self.irq_counter == 0 && self.irq_enabled {
+                self.irq = true;         
+            }
+        }
     }
 }
