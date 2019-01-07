@@ -1,6 +1,6 @@
 use std::fmt;
 use serde_derive::{Serialize, Deserialize};
-use crate::mapper::{Mirroring, MapperPtr};
+use crate::mapper::{Mirroring, MapperType};
 
 
 
@@ -202,7 +202,7 @@ impl PpuMemory {
 
     /// Write will set new value to register. This can have side effect on
     /// other registers.
-    pub fn write(&mut self, register_type: RegisterType, value: u8, mapper: &mut MapperPtr) {
+    pub fn write(&mut self, register_type: RegisterType, value: u8, mapper: &mut MapperType) {
         match register_type {
             PPUCTRL => self.write_ctrl(value),
             PPUMASK => self.write_mask(value),
@@ -217,7 +217,7 @@ impl PpuMemory {
     }
 
     /// Read with side-effect
-    pub fn read(&mut self, register_type: RegisterType, mapper: &MapperPtr) -> u8 {
+    pub fn read(&mut self, register_type: RegisterType, mapper: &MapperType) -> u8 {
         match register_type {
             // Those cannot be read by the CPU
             PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR | OAMDMA => {
@@ -322,7 +322,7 @@ impl PpuMemory {
         }
     }
 
-    fn write_data(&mut self, data: u8, mapper: &mut MapperPtr) {
+    fn write_data(&mut self, data: u8, mapper: &mut MapperType) {
         let addr_latch = self.v;
 
         self.write_vram_at((addr_latch as usize) % 0x4000, data, mapper);
@@ -333,7 +333,7 @@ impl PpuMemory {
         }
     }
 
-    fn write_vram_at(&mut self, addr: usize, data: u8, mapper: &mut MapperPtr) {
+    fn write_vram_at(&mut self, addr: usize, data: u8, mapper: &mut MapperType) {
         match addr {
             0x0000..=0x1FFF => {
                 mapper.write_chr(addr, data); 
@@ -395,7 +395,7 @@ impl PpuMemory {
         self.nametable_2[offset] = data;
     }
 
-    fn read_data(&mut self, mapper: &MapperPtr) -> u8 {
+    fn read_data(&mut self, mapper: &MapperType) -> u8 {
         let addr_latch = self.v;
 
         let v = match addr_latch % 0x4000 {
@@ -419,7 +419,7 @@ impl PpuMemory {
         v
     }
 
-    pub fn read_vram_at(&self, addr: usize, mapper: &MapperPtr) -> u8 {
+    pub fn read_vram_at(&self, addr: usize, mapper: &MapperType) -> u8 {
 
         match addr {
             0x0..=0x1FFF => mapper.read_chr(addr), 
@@ -480,7 +480,7 @@ impl PpuMemory {
     // Virtual nametable. There is space for only 2 nametables
     // in NES vram, but with mirroring the logical tables are 4.
     // ------------------------------------------------------
-    pub fn get_logical_table(&self, table_nb: u8, mapper: &MapperPtr) -> &[u8] {
+    pub fn get_logical_table(&self, table_nb: u8, mapper: &MapperType) -> &[u8] {
         match table_nb {
             0 => &self.nametable_1,
             1 => {

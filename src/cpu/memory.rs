@@ -39,13 +39,11 @@ pub struct Memory {
     pub joypad_p1: Joypad,
     pub joypad_p2: Joypad,
 
-    #[serde(skip)]
-    #[serde(default = "new_empty_mapper")]
-    pub mapper: Box<dyn mapper::Mapper>,
+    pub mapper: mapper::MapperType,
 }
 
-fn new_empty_mapper() -> Box<dyn mapper::Mapper> {
-    Box::new(mapper::nrom::Nrom::new())
+fn new_empty_mapper() -> mapper::MapperType {
+    mapper::MapperType::Nrom(mapper::nrom::Nrom::new())
 }
 
 impl Default for Memory {
