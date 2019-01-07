@@ -1,5 +1,5 @@
 use serde_derive::{Serialize, Deserialize};
-use super::{Mirroring, Mapper};
+use super::Mirroring;
 use crate::rom::{INesFile};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,9 +18,9 @@ pub struct Uxrom {
     mirroring: Mirroring,
 }
 
-impl Mapper for Uxrom {
+impl Uxrom {
 
-    fn read_prg(&self, addr: usize) -> u8 {
+    pub fn read_prg(&self, addr: usize) -> u8 {
         match addr {
             0x8000..=0xBFFF => {
                 self.prg_rom_banks[self.prg_bank_idx][addr % 0x4000]
@@ -33,12 +33,12 @@ impl Mapper for Uxrom {
     }
 
     // Writing to PRG will actually write to the registers.
-    fn write_prg(&mut self, _addr: usize, value: u8) {
+    pub fn write_prg(&mut self, _addr: usize, value: u8) {
         self.prg_bank_idx = (value & 0xF) as usize;
     }
 
     // Read/Write pattern tables. Sometimes, it is RAM instead of ROM
-    fn read_chr(&self, addr: usize) -> u8 {
+    pub fn read_chr(&self, addr: usize) -> u8 {
         match addr {
             0x0000..=0x0FFF => {
                 self.chr_rom_banks[0][addr % 0x1000]
@@ -50,7 +50,7 @@ impl Mapper for Uxrom {
         }
     }
 
-    fn write_chr(&mut self, addr: usize, value: u8) {
+    pub fn write_chr(&mut self, addr: usize, value: u8) {
         match addr {
             0x0000..=0x0FFF => {
                 self.chr_rom_banks[0][addr % 0x1000] = value;
@@ -62,7 +62,7 @@ impl Mapper for Uxrom {
         }
     }
 
-    fn get_chr(&self, idx: usize) -> &[u8] {
+    pub fn get_chr(&self, idx: usize) -> &[u8] {
         if idx == 0 {
             &self.chr_rom_banks[0]
         } else {
@@ -70,14 +70,10 @@ impl Mapper for Uxrom {
         }
     }
     
-    fn get_mirroring(&self) -> Mirroring {
+    pub fn get_mirroring(&self) -> Mirroring {
         self.mirroring
     }
 
-}
-
-
-impl Uxrom {
 
     pub fn new() -> Uxrom {
         Uxrom {

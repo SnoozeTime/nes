@@ -1,5 +1,5 @@
 use serde_derive::{Serialize, Deserialize};
-use super::{Mirroring, Mapper};
+use super::Mirroring;
 use crate::rom;
 
 // NROM is mapper 0. Banks are not switcheable.
@@ -80,11 +80,8 @@ impl Nrom {
             mirroring: ines.get_mirroring(),
         })
     }
-}
 
-impl Mapper for Nrom {
-
-    fn read_prg(&self, addr: usize) -> u8 {
+    pub fn read_prg(&self, addr: usize) -> u8 {
         match addr {
             0x8000..=0xBFFF => {
                 self.prg_rom_first[addr % 0x4000]
@@ -96,7 +93,7 @@ impl Mapper for Nrom {
         }
     }
 
-    fn write_prg(&mut self, addr: usize, value: u8) {
+    pub fn write_prg(&mut self, addr: usize, value: u8) {
         match addr {
             0x8000..=0xBFFF => {
                 self.prg_rom_first[addr % 0x4000] = value;
@@ -109,15 +106,15 @@ impl Mapper for Nrom {
     }
 
     // Read/Write pattern tables. Sometimes, it is RAM instead of ROM
-    fn read_chr(&self, addr: usize) -> u8 {
+    pub fn read_chr(&self, addr: usize) -> u8 {
         self.chr_rom[addr]
     }
 
-    fn write_chr(&mut self, addr: usize, value: u8) {
+    pub fn write_chr(&mut self, addr: usize, value: u8) {
         self.chr_rom[addr] = value;
     }
 
-    fn get_chr(&self, idx: usize) -> &[u8] {
+    pub fn get_chr(&self, idx: usize) -> &[u8] {
         if idx == 0 {
             &self.chr_rom[0..0x1000]
         } else {
@@ -125,7 +122,7 @@ impl Mapper for Nrom {
         }
     }
 
-    fn get_mirroring(&self) -> Mirroring {
+    pub fn get_mirroring(&self) -> Mirroring {
         self.mirroring
     }
 }

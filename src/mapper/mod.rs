@@ -106,18 +106,4 @@ mapper_types!(
     Mmc1: (1, mmc1::Mmc1),
     Uxrom: (2, uxrom::Uxrom)
 );
-    pub trait Mapper {
-        // Read ROM from cardridge
-        // writing is needed for some mappers that have registers.
-        fn read_prg(&self, addr: usize) -> u8;
-        fn write_prg(&mut self, addr: usize, value: u8);
-
-        // Read/Write pattern tables. Sometimes, it is RAM instead of ROM
-        fn read_chr(&self, addr: usize) -> u8;
-        fn write_chr(&mut self, addr: usize, value: u8);
-        fn get_chr(&self, idx: usize) -> &[u8];
-
-
-        fn get_mirroring(&self) -> Mirroring;
-    }
 

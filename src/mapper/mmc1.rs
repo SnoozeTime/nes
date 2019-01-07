@@ -1,5 +1,5 @@
 use serde_derive::{Serialize, Deserialize};
-use super::{Mirroring, Mapper};
+use super::Mirroring;
 use crate::rom::{INesFile};
 
 // MMC1 is mapper 1. Banks are switcheable. Writing to addresses
@@ -62,9 +62,9 @@ pub struct Mmc1 {
     reg3: u8,
 }
 
-impl Mapper for Mmc1 {
+impl Mmc1 {
 
-    fn read_prg(&self, addr: usize) -> u8 {
+    pub fn read_prg(&self, addr: usize) -> u8 {
         match addr {
             0x8000..=0xBFFF => {
                 self.prg_rom_banks[self.prg_low_area_idx][addr % 0x4000]
@@ -77,7 +77,7 @@ impl Mapper for Mmc1 {
     }
 
     // Writing to PRG will actually write to the registers.
-    fn write_prg(&mut self, addr: usize, value: u8) {
+    pub fn write_prg(&mut self, addr: usize, value: u8) {
 
         if value & 0x80 == 0x80 {
             self.reg0 |= 0x0C;
@@ -123,7 +123,7 @@ impl Mapper for Mmc1 {
     }
 
     // Read/Write pattern tables. Sometimes, it is RAM instead of ROM
-    fn read_chr(&self, addr: usize) -> u8 {
+    pub fn read_chr(&self, addr: usize) -> u8 {
         match addr {
             0x0000..=0x0FFF => {
                 self.chr_rom_banks[self.chr_low_area_idx][addr % 0x1000]
@@ -135,7 +135,7 @@ impl Mapper for Mmc1 {
         }
     }
 
-    fn write_chr(&mut self, addr: usize, value: u8) {
+    pub fn write_chr(&mut self, addr: usize, value: u8) {
         match addr {
             0x0000..=0x0FFF => {
                 self.chr_rom_banks[self.chr_low_area_idx][addr % 0x1000] = value;
@@ -147,7 +147,7 @@ impl Mapper for Mmc1 {
         }
     }
 
-    fn get_chr(&self, idx: usize) -> &[u8] {
+    pub fn get_chr(&self, idx: usize) -> &[u8] {
         if idx == 0 {
             &self.chr_rom_banks[self.chr_low_area_idx]
         } else {
@@ -155,7 +155,7 @@ impl Mapper for Mmc1 {
         }
     }
     
-    fn get_mirroring(&self) -> Mirroring {
+    pub fn get_mirroring(&self) -> Mirroring {
         // bit 0: Toggle mirroring. 0 = vertical, 1 = horizontal
         // bit 1: Toggle between H/V and "one screen mirroring". 0 = one screen
         if self.reg0 & 0b10 == 0 {
@@ -168,10 +168,6 @@ impl Mapper for Mmc1 {
             }
         }
     }
-
-}
-
-impl Mmc1 {
 
     pub fn new() -> Mmc1 {
         Mmc1 {
