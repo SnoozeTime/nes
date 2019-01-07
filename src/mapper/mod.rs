@@ -7,6 +7,7 @@ use serde_derive::{Serialize, Deserialize};
 pub mod nrom;
 pub mod mmc1;
 pub mod uxrom;
+pub mod mmc3;
 
 use crate::rom;
 
@@ -104,6 +105,7 @@ macro_rules! mapper_types {
 mapper_types!(
     Nrom: (0, nrom::Nrom),
     Mmc1: (1, mmc1::Mmc1),
-    Uxrom: (2, uxrom::Uxrom)
+    Uxrom: (2, uxrom::Uxrom),
+    Mmc3: (4, mmc3::Mmc3)
 );
 
