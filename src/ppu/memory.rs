@@ -72,7 +72,7 @@ pub struct PpuMemory {
     pub t: u16,
 
     // VRAM address
-    pub v: u16,
+    v: u16,
 
     // Fine x scroll. 3 bits
     pub x: u8,
@@ -163,6 +163,14 @@ impl PpuMemory {
 
     pub fn consume_nmi(&mut self) {
         self.nmi = false;
+    }
+
+    pub fn v(&self) -> u16 {
+        self.v
+    }
+
+    pub fn set_v(&mut self, v: u16) {
+        self.v = v;
     }
 
     /// Peek will return the register value without impacting anything.

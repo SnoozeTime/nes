@@ -329,9 +329,10 @@ impl Ppu {
                 }
             }
 
-            if self.cycle == 257 {
+            if (visible_line || pre_render_line) && self.cycle == 257 {
                 self.copy_horizontal_t(memory);
             }
+
             // Only during the pre-render line, during a few cycles 
             // the vertical t is copied multiple time to vertical v
             if pre_render_line && self.cycle >= 280 && self.cycle <= 304 {
@@ -409,14 +410,14 @@ impl Ppu {
     }
 
     fn fetch_quadrant(&self, memory: &Memory) -> u8 {
-        let v = memory.ppu_mem.v;
+        let v = memory.ppu_mem.v();
 
         ((v >> 1) & 1 | ((v >> 6) & 1) << 1) as u8
     }
 
 
     fn fetch_nt(&mut self, memory: &Memory) {
-        let addr = 0x2000 | (memory.ppu_mem.v & 0x0FFF);
+        let addr = 0x2000 | (memory.ppu_mem.v() & 0x0FFF);
         self.nt = memory.read_vram_at(addr as usize);
     }
 
@@ -500,7 +501,7 @@ impl Ppu {
 
     fn fetch_attr(&mut self, memory: &Memory) {
         // attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-        let v = memory.ppu_mem.v;
+        let v = memory.ppu_mem.v();
         let addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
         self.at = memory.read_vram_at(addr as usize);
     }
@@ -547,11 +548,11 @@ impl Ppu {
     }
 
     fn fine_y(&self, memory: &Memory) -> u8 {
-        ((memory.ppu_mem.v & 0x7000) >> 12) as u8
+        ((memory.ppu_mem.v() & 0x7000) >> 12) as u8
     }
 
     fn coarse_x_increment(&self, memory: &mut Memory) {
-        let mut v = memory.ppu_mem.v;
+        let mut v = memory.ppu_mem.v();
         if (v & 0x1F) == 31 {
             // at the limit of the screen. We need to switch
             // nametable in that case.
@@ -563,13 +564,13 @@ impl Ppu {
             v += 1;
         }
 
-        memory.ppu_mem.v = v;
+        memory.ppu_mem.set_v(v);
     }
 
     fn y_increment(&self, memory: &mut Memory) {
 
         // yyy NN YYYYY XXXXX
-        let mut v = memory.ppu_mem.v;
+        let mut v = memory.ppu_mem.v();
         if (v & 0x7000) != 0x7000 {
             // fine y is < 7.
             v += 0x1000;
@@ -594,19 +595,19 @@ impl Ppu {
             v = (v & !0x3e0) | (y << 5);
         }
 
-        memory.ppu_mem.v = v;
+        memory.ppu_mem.set_v(v);
     }
 
     fn copy_vertical_t(&self, memory: &mut Memory) {
         let t = memory.ppu_mem.t;
-        let v = memory.ppu_mem.v;
-        memory.ppu_mem.v = (v & 0x841F) | (t & 0x7BE0)
+        let v = memory.ppu_mem.v();
+        memory.ppu_mem.set_v((v & 0x841F) | (t & 0x7BE0));
     }
 
     fn copy_horizontal_t(&self, memory: &mut Memory) {
         let t = memory.ppu_mem.t;
-        let v = memory.ppu_mem.v;
-        memory.ppu_mem.v = (v & 0xFBE0) | (t & 0x041F)
+        let v = memory.ppu_mem.v();
+        memory.ppu_mem.set_v((v & 0xFBE0) | (t & 0x041F));
     }
 
     fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {
