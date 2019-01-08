@@ -16,6 +16,13 @@ fn load(filename: String) -> Result<Vec<u8>, String> {
 }
 
 pub fn read(filename: String) -> Result<INesFile, String> {
+    
+    let rom_path = std::path::Path::new(&filename);
+    let rom_name = if let Some(x) = rom_path.file_stem() {
+        x.to_os_string().into_string().unwrap_or(String::from("unknown"))
+    } else {
+        String::from("unknown")   
+    };
     let bytes = load(filename)?;
 
     // Check the header is big enough. Expecting 16 bytes.
@@ -79,6 +86,7 @@ pub fn read(filename: String) -> Result<INesFile, String> {
         flags_7,
         flags_9,
         flags_10,
+        rom_name,
     })
 }
 
@@ -94,6 +102,7 @@ pub struct INesFile {
     prg_ram_size: usize, // in 8kb units (value 0 infers 8KB for compatibility)
     flags_9: u8,
     flags_10: u8, // unofficial
+    rom_name: String,
 }
 
 impl INesFile {
@@ -106,7 +115,8 @@ impl INesFile {
                flags_6: u8,
                flags_7: u8,
                flags_9: u8,
-               flags_10: u8) -> INesFile {
+               flags_10: u8,
+               rom_name: String) -> INesFile {
 
         INesFile {
             prg_rom,
@@ -118,7 +128,12 @@ impl INesFile {
             flags_7,
             flags_9,
             flags_10,
+            rom_name,
         }
+    }
+
+    pub fn rom_name(&self) -> &str {
+        &self.rom_name
     }
 
     pub fn get_mapper_id(&self) -> u8 {

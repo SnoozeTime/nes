@@ -58,7 +58,6 @@ pub struct Mmc3 {
     pub irq: bool,
 
     irq_counter: u8,
-    reload_flag: bool,
     reg_irq_latch: u8,
     irq_enabled: bool,
 }
@@ -228,7 +227,6 @@ impl Mmc3 {
             reg_ram: 0,
             irq: false,
             irq_counter: 0,
-            reload_flag: false,
             reg_irq_latch: 0,
             irq_enabled: false,
         })
@@ -329,7 +327,7 @@ impl Mmc3 {
     }
 
     fn reload_irq_counter(&mut self) {
-        self.reload_flag = true;
+        self.irq_counter = 0;
     }
 
     fn enable_irq(&mut self) {
@@ -343,14 +341,14 @@ impl Mmc3 {
 
     pub fn count_12(&mut self) {
 
-        if self.reload_flag || self.irq_counter == 0 {
+        if self.irq_counter == 0 {
             self.irq_counter = self.reg_irq_latch;
-            self.reload_flag = false;
         } else {
             self.irq_counter -= 1;
-            if self.irq_counter == 0 && self.irq_enabled {
-                self.irq = true;         
-            }
+        }
+        
+        if self.irq_counter == 0 && self.irq_enabled {
+            self.irq = true;         
         }
     }
 }

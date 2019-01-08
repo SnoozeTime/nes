@@ -23,6 +23,7 @@ pub struct Nes {
     #[serde(skip)]
     #[serde(default = "new_graphics")]
     ui: Graphics,
+    rom_name: String, 
 }
 
 fn new_graphics() -> Graphics {
@@ -44,7 +45,8 @@ impl Nes {
 
 
         let ui = Graphics::new(3)?;
-        Ok(Nes { cpu, ppu, memory, ui })
+        let rom_name = String::from(ines.rom_name());
+        Ok(Nes { cpu, ppu, memory, ui, rom_name})
     }
 
     // Load from json file.
@@ -91,7 +93,7 @@ impl Nes {
                     Some(EmulatorInput::SAVE) => {
                         match self.save_state() {
                             Err(err) => println!("Error while saving state: {}", err),
-                            Ok(_) => println!("Successfully saved to saves/saved_state.json"),
+                            Ok(_) => println!("Successfully saved to {}", self.get_save_name()),
                         }
                     },
                     None => {},
@@ -159,12 +161,16 @@ impl Nes {
         }
     }
 
+    fn get_save_name(&self) -> String {
+        format!("saves/saved_{}.json", self.rom_name)
+    }
+
     fn save_state(&self) -> Result<(), String> {
         let mut file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
-            .open("saves/saved_state.json")
+            .open(self.get_save_name())
             .map_err(|err| err.to_string())?;
         let state = serde_json::to_string(&self).map_err(|err| err.to_string())?;
         write!(file, "{}", state).map_err(|err| err.to_string())?;

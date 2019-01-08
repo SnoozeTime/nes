@@ -402,7 +402,9 @@ impl Ppu {
 
             // TODO better way is to put this in  write_vram_at code.
             // This is for MMC3 mapper
+            if visible_line || pre_render_line {
             self.count_a12(memory, ppu_ctrl);
+            }
         }
 
         // Vertical blank stuff.
@@ -422,15 +424,14 @@ impl Ppu {
         //if is_16x8_sprites(ppu_ctrl) {
 
         //} else {
-        if (ppu_ctrl >> 3) & 1 == 1 {
             if self.cycle == 260 {
                 memory.count_12();
-            }
-        } else {
-            if self.cycle == 324 {
-                memory.count_12();
-            }
-        }
+        } 
+       // else {
+       //     if self.cycle == 324 {
+       //         memory.count_12();
+       //     }
+       // }
         //}
     }
 
