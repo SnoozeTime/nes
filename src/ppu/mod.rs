@@ -144,9 +144,13 @@ impl Ppu {
 
     fn render_pixel(&mut self, memory: &mut Memory, render_bg: bool, render_sprite: bool) {
 
+        let ppu_mask = memory.ppu_mem.peek(RegisterType::PPUMASK);
         let idx = 256*self.line + (self.cycle - 1); 
         let bg_pixel_v = self.fetch_bg_pixel(&memory);
         let bg_pixel = {
+            if ((ppu_mask >> 1) & 1 == 0) && self.cycle <= 8 {
+                (0, 0, 0)
+            } else {
             if render_bg {
                 let attribute = self.fetch_bg_attr(&memory);
                 let palette = palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.colors).expect("Cannot get palette for background");                   
@@ -161,6 +165,7 @@ impl Ppu {
             } else {
                 (0, 0, 0)
             }
+            }
         };
 
         let sprite_pixel_data = self.fetch_sprite_pixel(memory, bg_pixel_v != 0); 
@@ -169,9 +174,9 @@ impl Ppu {
         // first sprite has priority if many of them. First sprite pixel is the first
         // one pushed to self.pixels.
         //
-
+        let hide_sprite = ((ppu_mask >> 2) & 1 == 1) && (self.cycle <= 8);
         // First of all, do we render sprites?
-        if sprite_pixel_data == None || !render_sprite {
+        if hide_sprite || sprite_pixel_data == None || !render_sprite {
             self.pixels[idx] = bg_pixel;
         } else if let Some(sprite_pixel) = sprite_pixel_data {
 
