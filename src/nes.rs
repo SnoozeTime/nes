@@ -79,11 +79,18 @@ impl Nes {
         let mut accumulator = Duration::new(0, 0);
 
         'should_run: loop {
-            accumulator += Instant::now() - previous_clock;
-            previous_clock = Instant::now();
+            // Update CPU and PPU (and later APU)
+            // if !is_pause {
+            let now_cpu = Instant::now();
+            let cpu_cycles = self.cpu.next(&mut self.memory)?;
+            cpu_samples.push(now_cpu.elapsed().subsec_micros());
 
+            let now_ppu =Instant::now();
+            self.ppu.next(3*cpu_cycles, &mut self.memory, is_debug)?;
+            ppu_samples.push(now_ppu.elapsed().subsec_micros());
+            //}
             // handle events.
-            if accumulator > fixed_time_stamp {
+            while accumulator > fixed_time_stamp {
                 accumulator -= fixed_time_stamp;
                 let now_input = Instant::now();
                 match self.ui.handle_events(&mut self.memory, is_pause) {
@@ -99,29 +106,22 @@ impl Nes {
                     None => {},
                 }
                 input_samples.push(now_input.elapsed().subsec_micros());
+                // render
+                let now_graph = Instant::now();
+                self.ui.display(&mut self.memory, &mut self.ppu);
+                graph_samples.push(now_graph.elapsed().subsec_micros());
             }
 
-            // Update CPU and PPU (and later APU)
-            if !is_pause {
-                let now_cpu = Instant::now();
-                let cpu_cycles = self.cpu.next(&mut self.memory)?;
-                cpu_samples.push(now_cpu.elapsed().subsec_micros());
+            accumulator += Instant::now() - previous_clock;
+            previous_clock = Instant::now();
 
-                let now_ppu =Instant::now();
-                self.ppu.next(3*cpu_cycles, &mut self.memory, is_debug)?;
-                ppu_samples.push(now_ppu.elapsed().subsec_micros());
-            }
-            // render
-            let now_graph = Instant::now();
-            self.ui.display(&mut self.memory, &mut self.ppu);
-            graph_samples.push(now_graph.elapsed().subsec_micros());
 
             // If pause, let's wait a bit to avoid taking all the CPU
-            if is_pause {
-                self.ui.draw_debug(&self.memory);
-                let ten_millis = std::time::Duration::from_millis(10);
-                std::thread::sleep(ten_millis);
-            }
+            // if is_pause {
+            //     self.ui.draw_debug(&self.memory);
+            //     let ten_millis = std::time::Duration::from_millis(10);
+            //     std::thread::sleep(ten_millis);
+            // }
         }
 
         let mut avg_input = 0;

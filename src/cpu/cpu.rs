@@ -835,7 +835,7 @@ mod tests {
             prg_rom[i] = *b;
         }
 
-        let ines = INesFile::new(prg_rom, 1, vec![0; 0x2000], 1, 0, 0, 0, 0, 0);
+        let ines = INesFile::new(prg_rom, 1, vec![0; 0x2000], 1, 0, 0, 0, 0, 0, "test".to_owned());
         Memory::new(&ines).unwrap()
     }
 
