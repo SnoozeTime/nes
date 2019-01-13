@@ -55,10 +55,49 @@ impl Pulse {
 
 }
 
+struct Triangle {
+    linear_counter_control: bool,
+    linear_counter_load: u8,
+    length_counter_load: u8,
+    timer: u16,
+}
+
+impl Triangle {
+
+    fn new() -> Triangle {
+
+        Triangle {
+            linear_counter_control: false,
+            linear_counter_load: 0,
+            length_counter_load: 0,
+            timer: 0,
+        }
+    }
+
+    fn apply_reg1(&mut self, value: u8) {
+        self.linear_counter_control = value & 0x80 == 0x80;
+        self.linear_counter_load = value &!0x80;
+    }
+
+    fn apply_reg2(&mut self, _value: u8) {
+        // ignored
+    }
+
+    fn apply_reg3(&mut self, value: u8) {
+        self.timer = self.timer & 0xFF00 | value as u16;
+    }
+
+    fn apply_reg4(&mut self, value: u8) {
+        self.timer = (value as u16 & 0x7) << 8 | (self.timer & 0xFF);
+        self.length_counter_load = (value & !0x7) >> 3;
+    }
+}
+
 struct ApuMemory {
     // channels
    pulse_1: Pulse, 
    pulse_2: Pulse, 
+   triangle: Triangle,
 }
 
 impl ApuMemory {
@@ -67,6 +106,7 @@ impl ApuMemory {
         ApuMemory {
             pulse_1: Pulse::new(),
             pulse_2: Pulse::new(),
+            triangle: Triangle::new(),
         }
     }
 
@@ -85,6 +125,18 @@ impl ApuMemory {
             0x4005 => self.pulse_2.apply_reg2(value),
             0x4006 => self.pulse_2.apply_reg3(value),
             0x4007 => self.pulse_2.apply_reg4(value),
+
+            // triangle wave
+            0x4008 => self.triangle.apply_reg1(value),
+            0x4009 => self.triangle.apply_reg2(value),
+            0x400A => self.triangle.apply_reg3(value),
+            0x400B => self.triangle.apply_reg4(value),
+
+            // noise 
+//            0x400C => self.triangle_2.apply_reg1(value),
+//            0x400D => self.triangle_2.apply_reg2(value),
+//            0x400E => self.triangle_2.apply_reg3(value),
+//            0x400F => self.triangle_2.apply_reg4(value),
         
             _ => {},
         }
@@ -135,5 +187,16 @@ mod test {
         assert_eq!(0b11111, apu.pulse_2.length_counter_load);
     }
 
+    #[test]
+    fn write_to_triangle() {
+        let mut apu = ApuMemory::new();
+        apu.write(0x4008, 0b10010011);
+        assert_eq!(true, apu.triangle.linear_counter_control);
+        assert_eq!(19, apu.triangle.linear_counter_load);
+        apu.write(0x400A, 0b11001010);
+        apu.write(0x400B, 0b11111101);
+        assert_eq!(1482, apu.triangle.timer);
+        assert_eq!(0b11111, apu.triangle.length_counter_load);
 
+    }
 }
