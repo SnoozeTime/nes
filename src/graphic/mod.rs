@@ -80,7 +80,7 @@ impl Graphics {
 	let video_subsystem = sdl_context.video()
 	    .map_err(|err| err.to_string())?;
 
-	let width = WIDTH*zoom_level*2;
+	let width = WIDTH*zoom_level;//*2;
 	let window = video_subsystem
 	    .window("NES emulator", width, HEIGHT*zoom_level)
 	    .position_centered()
@@ -194,62 +194,62 @@ impl Graphics {
     }
     
     // For debug !
-    pub fn draw_debug(&mut self, memory: &Memory){
-	self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.palettes, &self.colors));
-        self.canvas.clear();
-	// begin at
-	// X = WIDTH*zoom_level + 10
-	// Y = 10
-	// First draw 2 nametables in memory, then we take care of mirroring
-        let pattern_table_nb = usize::from((memory.ppu_mem.peek(RegisterType::PPUCTRL) >> 4) & 1);
-	let pattern_table = &memory.get_pattern_table(pattern_table_nb);
-
-	let x1 = WIDTH*self.zoom_level + 10;
-	let x2 = WIDTH*self.zoom_level + 20 + WIDTH;
-        let nametable1 = &memory.get_logical_table(0);
-        let nametable2 = &memory.get_logical_table(1);
-        let nametable3 = &memory.get_logical_table(2);
-        let nametable4 = &memory.get_logical_table(3);
-	self.draw_nametable(nametable1, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 10);
-	self.draw_nametable(nametable2, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 10);
-	self.draw_nametable(nametable3, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 20+HEIGHT as i32);
-	self.draw_nametable(nametable4, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 20+HEIGHT as i32);
-        self.canvas.present();
-    }
-
-    fn draw_nametable(&mut self, nametable: &[u8], pattern_table: &[u8], palettes: &[u8], x: i32, y: i32) {
-	for row in 0..30i32 {
-	    let rowattr = row / 4;
-	    for col in 0..32i32 {
-		let index = 32*(row as usize) + (col as usize);
-		let tile = Tile::new(pattern_table, nametable[index] as usize);
-
-		let xtile = col*8;
-		let ytile = row*8;
-
-		// fetch attributes for this tile.
-		let colattr = col / 4;
-		let attr_idx = 0x3c0 + 8*rowattr+colattr;
-		let attr_byte = nametable[attr_idx as usize];
-
-		let box_row = (row%4) / 2;
-		let box_col = (col%4) / 2;
-		let attribute = match (box_row, box_col) {
-		    (0, 0) => attr_byte & 0b11,
-		    (0, 1) => (attr_byte & 0b1100) >> 2 ,
-		    (1, 0) => (attr_byte & 0b110000) >> 4,
-		    (1, 1) => (attr_byte & 0b11000000) >> 6,
-		    _ => panic!("Not possible"),
-		};
-
-		let palette = palette::get_bg_palette(attribute, palettes, &self.colors)
-                    .expect("Cannot get palette from attribute");
-
-		// Now draw
-		tile.draw(&mut self.canvas, x+xtile, y+ytile, &palette);
-	    }
-	}
-    }
+//    pub fn draw_debug(&mut self, memory: &Memory){
+//	self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.palettes, &self.colors));
+//        self.canvas.clear();
+//	// begin at
+//	// X = WIDTH*zoom_level + 10
+//	// Y = 10
+//	// First draw 2 nametables in memory, then we take care of mirroring
+//        let pattern_table_nb = usize::from((memory.ppu_mem.peek(RegisterType::PPUCTRL) >> 4) & 1);
+//	let pattern_table = &memory.get_pattern_table(pattern_table_nb);
+//
+//	let x1 = WIDTH*self.zoom_level + 10;
+//	let x2 = WIDTH*self.zoom_level + 20 + WIDTH;
+//        let nametable1 = &memory.get_logical_table(0);
+//        let nametable2 = &memory.get_logical_table(1);
+//        let nametable3 = &memory.get_logical_table(2);
+//        let nametable4 = &memory.get_logical_table(3);
+//	self.draw_nametable(nametable1, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 10);
+//	self.draw_nametable(nametable2, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 10);
+//	self.draw_nametable(nametable3, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 20+HEIGHT as i32);
+//	self.draw_nametable(nametable4, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 20+HEIGHT as i32);
+//        self.canvas.present();
+//    }
+//
+//    fn draw_nametable(&mut self, nametable: &[u8], pattern_table: &[u8], palettes: &[u8], x: i32, y: i32) {
+//	for row in 0..30i32 {
+//	    let rowattr = row / 4;
+//	    for col in 0..32i32 {
+//		let index = 32*(row as usize) + (col as usize);
+//		let tile = Tile::new(pattern_table, nametable[index] as usize);
+//
+//		let xtile = col*8;
+//		let ytile = row*8;
+//
+//		// fetch attributes for this tile.
+//		let colattr = col / 4;
+//		let attr_idx = 0x3c0 + 8*rowattr+colattr;
+//		let attr_byte = nametable[attr_idx as usize];
+//
+//		let box_row = (row%4) / 2;
+//		let box_col = (col%4) / 2;
+//		let attribute = match (box_row, box_col) {
+//		    (0, 0) => attr_byte & 0b11,
+//		    (0, 1) => (attr_byte & 0b1100) >> 2 ,
+//		    (1, 0) => (attr_byte & 0b110000) >> 4,
+//		    (1, 1) => (attr_byte & 0b11000000) >> 6,
+//		    _ => panic!("Not possible"),
+//		};
+//
+//		let palette = palette::get_bg_palette(attribute, palettes, &self.colors)
+//                    .expect("Cannot get palette from attribute");
+//
+//		// Now draw
+//		tile.draw(&mut self.canvas, x+xtile, y+ytile, &palette);
+//	    }
+//	}
+//    }
 }
 
 
