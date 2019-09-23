@@ -1,5 +1,4 @@
-extern crate sdl2;
-use self::sdl2::pixels::Color;
+use crate::graphic::Color;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -10,128 +9,155 @@ pub struct Palette {
     pub color3: Color,
 }
 
-pub fn get_bg_color(vram: &[u8], colors:&HashMap<u8, Color>) -> Color {
-    *colors.get(&vram[0x00]).expect("Issue while fetching background color")
+pub fn get_bg_color(vram: &[u8], colors: &HashMap<u8, Color>) -> Color {
+    *colors
+        .get(&vram[0x00])
+        .expect("Issue while fetching background color")
 }
 
 // palette number between 0 and 4 (exclusive)
 // vram
 // colors: Color map.
-pub fn get_bg_palette(palette_number: u8,
-                      vram: &[u8],
-                      colors: &HashMap<u8, Color>) -> Option<Palette> {
+pub fn get_bg_palette(
+    palette_number: u8,
+    vram: &[u8],
+    colors: &HashMap<u8, Color>,
+) -> Option<Palette> {
     // only 4 palettes for background.
     assert!(palette_number < 4);
 
     let background = colors.get(&vram[0x00]);
 
     let (color1, color2, color3) = match palette_number {
-        0 => {
-            (colors.get(&vram[0x01]),
+        0 => (
+            colors.get(&vram[0x01]),
             colors.get(&vram[0x2]),
-            colors.get(&vram[0x03]))
-        },
-        1 => {
-            (colors.get(&vram[0x05]),
+            colors.get(&vram[0x03]),
+        ),
+        1 => (
+            colors.get(&vram[0x05]),
             colors.get(&vram[0x06]),
-            colors.get(&vram[0x07]))
-        },
-        2 => {
-            (colors.get(&vram[0x09]),
+            colors.get(&vram[0x07]),
+        ),
+        2 => (
+            colors.get(&vram[0x09]),
             colors.get(&vram[0x0A]),
-            colors.get(&vram[0x0B]))
-        },
-        3 => {
-            (colors.get(&vram[0x0D]),
+            colors.get(&vram[0x0B]),
+        ),
+        3 => (
+            colors.get(&vram[0x0D]),
             colors.get(&vram[0x0E]),
-            colors.get(&vram[0x0F]))
-        },
+            colors.get(&vram[0x0F]),
+        ),
         _ => panic!("impossibru"),
     };
 
     if let (Some(bg), Some(c1), Some(c2), Some(c3)) = (background, color1, color2, color3) {
-        Some(Palette { background: *bg, color1: *c1, color2: *c2, color3: *c3 })
+        Some(Palette {
+            background: *bg,
+            color1: *c1,
+            color2: *c2,
+            color3: *c3,
+        })
     } else {
         None
     }
 }
 
-pub fn get_sprite_palette(palette_number: u8,
-                          vram: &[u8],
-                          colors: &HashMap<u8, Color>) -> Option<Palette> {
+pub fn get_sprite_palette(
+    palette_number: u8,
+    vram: &[u8],
+    colors: &HashMap<u8, Color>,
+) -> Option<Palette> {
     let background = colors.get(&vram[0x00]);
 
     let (color1, color2, color3) = match palette_number {
-        0 => {
-            (colors.get(&vram[0x11]),
+        0 => (
+            colors.get(&vram[0x11]),
             colors.get(&vram[0x12]),
-            colors.get(&vram[0x13]))
-        },
-        1 => {
-            (colors.get(&vram[0x15]),
+            colors.get(&vram[0x13]),
+        ),
+        1 => (
+            colors.get(&vram[0x15]),
             colors.get(&vram[0x16]),
-            colors.get(&vram[0x17]))
-        },
-        2 => {
-            (colors.get(&vram[0x19]),
+            colors.get(&vram[0x17]),
+        ),
+        2 => (
+            colors.get(&vram[0x19]),
             colors.get(&vram[0x1A]),
-            colors.get(&vram[0x1B]))
-        },
-        3 => {
-            (colors.get(&vram[0x1D]),
+            colors.get(&vram[0x1B]),
+        ),
+        3 => (
+            colors.get(&vram[0x1D]),
             colors.get(&vram[0x1E]),
-            colors.get(&vram[0x1F]))
-        },
+            colors.get(&vram[0x1F]),
+        ),
         _ => panic!("impossibru"),
     };
 
     if let (Some(bg), Some(c1), Some(c2), Some(c3)) = (background, color1, color2, color3) {
-        Some(Palette { background: *bg, color1: *c1, color2: *c2, color3: *c3 })
+        Some(Palette {
+            background: *bg,
+            color1: *c1,
+            color2: *c2,
+            color3: *c3,
+        })
     } else {
         // this is for debugging
         match palette_number {
             0 => {
-                   println!("palette 0: {:X} {:X} {:X}",
-                         &vram[0x11],
-                         &vram[0x12],
-                         &vram[0x13]);
-                   println!("{:?} {:?} {:?}", colors.get(&vram[0x11]),
-                colors.get(&vram[0x12]),
-                colors.get(&vram[0x13]));
-            },
+                println!(
+                    "palette 0: {:X} {:X} {:X}",
+                    &vram[0x11], &vram[0x12], &vram[0x13]
+                );
+                println!(
+                    "{:?} {:?} {:?}",
+                    colors.get(&vram[0x11]),
+                    colors.get(&vram[0x12]),
+                    colors.get(&vram[0x13])
+                );
+            }
             1 => {
-                  println!("palette 1: {:X} {:X} {:X}",
-                         &vram[0x15],
-                         &vram[0x16],
-                         &vram[0x17]);
-                  println!("{:?} {:?} {:?}", colors.get(&vram[0x15]),
-                colors.get(&vram[0x16]),
-                colors.get(&vram[0x17]));
-            },
+                println!(
+                    "palette 1: {:X} {:X} {:X}",
+                    &vram[0x15], &vram[0x16], &vram[0x17]
+                );
+                println!(
+                    "{:?} {:?} {:?}",
+                    colors.get(&vram[0x15]),
+                    colors.get(&vram[0x16]),
+                    colors.get(&vram[0x17])
+                );
+            }
             2 => {
-                 println!("palette 2: {:X} {:X} {:X}",
-                         &vram[0x19],
-                         &vram[0x1A],
-                         &vram[0x1B]);
-                 println!("{:?} {:?} {:?}", colors.get(&vram[0x19]),
-                colors.get(&vram[0x1A]),
-                colors.get(&vram[0x1B]));
-            },
+                println!(
+                    "palette 2: {:X} {:X} {:X}",
+                    &vram[0x19], &vram[0x1A], &vram[0x1B]
+                );
+                println!(
+                    "{:?} {:?} {:?}",
+                    colors.get(&vram[0x19]),
+                    colors.get(&vram[0x1A]),
+                    colors.get(&vram[0x1B])
+                );
+            }
             3 => {
-                println!("palette 3: {:X} {:X} {:X}",
-                         &vram[0x1D],
-                         &vram[0x1E],
-                         &vram[0x1F]);
-                println!("{:?} {:?} {:?}", colors.get(&vram[0x1D]),
-                colors.get(&vram[0x1E]),
-                colors.get(&vram[0x1F]));
-            },
+                println!(
+                    "palette 3: {:X} {:X} {:X}",
+                    &vram[0x1D], &vram[0x1E], &vram[0x1F]
+                );
+                println!(
+                    "{:?} {:?} {:?}",
+                    colors.get(&vram[0x1D]),
+                    colors.get(&vram[0x1E]),
+                    colors.get(&vram[0x1F])
+                );
+            }
             _ => panic!("impossibru"),
         };
         None
     }
 }
-
 
 // TODO load from file
 //
@@ -142,8 +168,8 @@ pub fn build_default_colors() -> HashMap<u8, Color> {
     colors.insert(0x01, Color::RGB(0, 30, 116));
     colors.insert(0x02, Color::RGB(8, 16, 144));
     colors.insert(0x03, Color::RGB(48, 0, 136));
-    colors.insert(0x04, Color::RGB(68, 0, 100));   
-    colors.insert(0x05, Color::RGB(92, 0, 48));   
+    colors.insert(0x04, Color::RGB(68, 0, 100));
+    colors.insert(0x05, Color::RGB(92, 0, 48));
     colors.insert(0x06, Color::RGB(84, 4, 0));
     colors.insert(0x07, Color::RGB(60, 24, 0));
     colors.insert(0x08, Color::RGB(32, 42, 0));
@@ -151,9 +177,9 @@ pub fn build_default_colors() -> HashMap<u8, Color> {
     colors.insert(0x0A, Color::RGB(0, 64, 0));
     colors.insert(0x0B, Color::RGB(0, 60, 0));
     colors.insert(0x0C, Color::RGB(0, 50, 60));
-    colors.insert(0x0D, Color::RGB(0, 0 , 0));
-    colors.insert(0x0E, Color::RGB(0, 0 , 0));
-    colors.insert(0x0F, Color::RGB(0, 0 , 0));
+    colors.insert(0x0D, Color::RGB(0, 0, 0));
+    colors.insert(0x0E, Color::RGB(0, 0, 0));
+    colors.insert(0x0F, Color::RGB(0, 0, 0));
     colors.insert(0x10, Color::RGB(152, 150, 152));
     colors.insert(0x11, Color::RGB(8, 76, 196));
     colors.insert(0x12, Color::RGB(48, 50, 236));
@@ -205,4 +231,3 @@ pub fn build_default_colors() -> HashMap<u8, Color> {
 
     colors
 }
-

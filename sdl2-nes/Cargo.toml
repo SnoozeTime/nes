@@ -1,0 +1,14 @@
+[package]
+name = "sdl2-nes"
+version = "0.1.0"
+authors = ["Benoit Eudier <benoit.eudier@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nesemu = { "path" = "../nesemu" }
+sdl2 = "0.32"
+
+env_logger = "0.6.0"
+clap = "2.32"

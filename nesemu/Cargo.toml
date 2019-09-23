@@ -1,20 +1,15 @@
 [package]
-name = "nes_emulator"
-version = "0.1.0"
+name = "nesemu"
+version = "0.2.0"
 authors = ["Benoit Eudier <benoit.eudier@gmail.com>"]
 edition = "2018"
 
-[lib]
-name = "nesemu"
-
 [dependencies]
-sdl2 = "0.32"
 log = { version = "0.4", features = ["release_max_level_warn"] }
 env_logger = "0.6.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-clap = "2.32"
 
 [profile.release]
 debug = true

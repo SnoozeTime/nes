@@ -1,11 +1,8 @@
-extern crate sdl2;
-extern crate nesemu;
-use std::env;
 use nesemu::nes::Nes;
 use nesemu::rom;
+use std::env;
 
 pub fn main() {
-
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         panic!("Usage {} <FILENAME>", args[0]);
@@ -16,6 +13,4 @@ pub fn main() {
 
     let mut nes = Nes::new(ines).unwrap();
     nes.decompile();
-
 }
-
