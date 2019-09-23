@@ -2,12 +2,14 @@
 //
 use crate::cpu::cpu::Cpu;
 use crate::cpu::memory::Memory;
-use crate::graphic::{EmulatorInput, GraphicHandler};
+use crate::graphic::{Canvas, Color, EmulatorInput};
+use crate::joypad::{InputState, Player};
+use crate::ppu::palette;
 use crate::ppu::Ppu;
 use crate::rom;
-use std::time::{Duration, Instant};
 
 use serde_derive::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -18,6 +20,9 @@ pub struct Nes {
     ppu: Ppu,
     memory: Memory,
     rom_name: String,
+    pub is_debug: bool,
+    pub is_pause: bool,
+    pub should_run: bool,
 }
 
 impl Nes {
@@ -38,7 +43,52 @@ impl Nes {
             ppu,
             memory,
             rom_name,
+            is_debug: false,
+            is_pause: false,
+            should_run: true,
         })
+    }
+
+    pub fn ppu_mut(&mut self) -> &mut Ppu {
+        &mut self.ppu
+    }
+
+    pub fn memory(&mut self) -> &Memory {
+        &self.memory
+    }
+
+    pub fn should_display(&mut self) -> bool {
+        self.ppu.should_display()
+    }
+
+    pub fn display(
+        &mut self,
+        canvas: &mut dyn Canvas,
+        colors: &HashMap<u8, Color>,
+        zoom_level: i32,
+    ) {
+        if self.should_display() {
+            let bg_color = palette::get_bg_color(&self.memory.ppu_mem.palettes, colors);
+            canvas.set_color(bg_color);
+            canvas.clear_state();
+            self.fill_canvas(canvas, zoom_level);
+            canvas.show();
+        }
+    }
+
+    pub fn fill_canvas(&self, canvas: &mut dyn Canvas, zoom_level: i32) {
+        for row in 0..240i32 {
+            for col in 0..256i32 {
+                let idx = row * 256 + col;
+                let pixel = self.ppu.pixels[idx as usize];
+
+                canvas.set_color(Color::rgb(pixel.0, pixel.1, pixel.2));
+
+                let xpixel = col * zoom_level;
+                let ypixel = row * zoom_level;
+                canvas.draw_rect(xpixel, ypixel, zoom_level as u32, zoom_level as u32);
+            }
+        }
     }
 
     // Load from json file.
@@ -50,51 +100,41 @@ impl Nes {
         Ok(n)
     }
 
-    // main loop
-    pub fn run(&mut self, ui: &mut dyn GraphicHandler) -> Result<(), &'static str> {
-        let mut is_pause = false;
-        let mut is_debug = false;
-
-        // Fixed time stamp for input polling.
-        let fixed_time_stamp = Duration::new(0, 16666667);
-        let mut previous_clock = Instant::now();
-        let mut accumulator = Duration::new(0, 0);
-
-        'should_run: loop {
-            // Update CPU and PPU (and later APU)
-            // if !is_pause {
-            let cpu_cycles = self.cpu.next(&mut self.memory)?;
-            self.ppu.next(3 * cpu_cycles, &mut self.memory, is_debug)?;
-
-            // handle events.
-            while accumulator > fixed_time_stamp {
-                accumulator -= fixed_time_stamp;
-                match ui.handle_events(&mut self.memory, is_pause) {
-                    Some(EmulatorInput::QUIT) => break 'should_run,
-                    Some(EmulatorInput::PAUSE) => is_pause = !is_pause,
-                    Some(EmulatorInput::DEBUG) => is_debug = !is_debug,
-                    Some(EmulatorInput::SAVE) => match self.save_state() {
-                        Err(err) => println!("Error while saving state: {}", err),
-                        Ok(_) => println!("Successfully saved to {}", self.get_save_name()),
-                    },
-                    None => {}
-                }
-                // render
-                ui.display(&mut self.memory, &mut self.ppu);
-            }
-
-            accumulator += Instant::now() - previous_clock;
-            previous_clock = Instant::now();
-
-            // If pause, let's wait a bit to avoid taking all the CPU
-            // if is_pause {
-            //     self.ui.draw_debug(&self.memory);
-            //     let ten_millis = std::time::Duration::from_millis(10);
-            //     std::thread::sleep(ten_millis);
-            // }
-        }
-
+    pub fn tick(&mut self, is_debug: bool) -> Result<(), &'static str> {
+        let cpu_cycles = self.cpu.next(&mut self.memory)?;
+        self.ppu.next(3 * cpu_cycles, &mut self.memory, is_debug)?;
         Ok(())
+    }
+
+    pub fn handle_events(&mut self, events: Vec<EmulatorInput>) {
+        for event in events {
+            match event {
+                EmulatorInput::QUIT => self.should_run = false,
+                EmulatorInput::PAUSE => self.is_pause = !self.is_pause,
+                EmulatorInput::DEBUG => self.is_debug = !self.is_debug,
+                EmulatorInput::SAVE => match self.save_state() {
+                    Err(err) => println!("Error while saving state: {}", err),
+                    Ok(_) => println!("Successfully saved to {}", self.get_save_name()),
+                },
+                EmulatorInput::INPUT(player, action, state) => {
+                    //
+                    match (player, state) {
+                        (Player::One, InputState::Pressed) => {
+                            self.memory.joypad_p1.button_down(&action)
+                        }
+                        (Player::Two, InputState::Pressed) => {
+                            self.memory.joypad_p2.button_down(&action)
+                        }
+                        (Player::One, InputState::Released) => {
+                            self.memory.joypad_p1.button_up(&action)
+                        }
+                        (Player::Two, InputState::Released) => {
+                            self.memory.joypad_p2.button_up(&action)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub fn decompile(&mut self) {

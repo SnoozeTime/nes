@@ -1,6 +1,12 @@
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Player {
+    One,
+    Two,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum InputAction {
     A,
     B,
@@ -10,6 +16,12 @@ pub enum InputAction {
     DOWN,
     LEFT,
     RIGHT,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum InputState {
+    Pressed,
+    Released,
 }
 
 // The NES supports several different input devices, including joypads, Zapper (light guns), and
@@ -32,7 +44,6 @@ pub enum InputAction {
 //
 #[derive(Serialize, Deserialize)]
 pub struct Joypad {
-
     current_index: u8, // between 0 and 7 usually.
 
     // 0 or 1
@@ -51,7 +62,6 @@ pub struct Joypad {
 
 impl Joypad {
     pub fn new() -> Joypad {
-
         Joypad {
             current_index: 0,
             a: 0,
@@ -75,7 +85,6 @@ impl Joypad {
     }
 
     pub fn read(&mut self) -> u8 {
-    
         let return_value = match self.current_index {
             0 => self.a,
             1 => self.b,
@@ -87,7 +96,7 @@ impl Joypad {
             7 => self.right,
             _ => 1,
         };
-    
+
         self.current_index += 1;
         return_value
     }
@@ -104,7 +113,7 @@ impl Joypad {
             InputAction::LEFT => self.left = 0,
         }
     }
-    
+
     pub fn button_down(&mut self, button: &InputAction) {
         match *button {
             InputAction::A => self.a = 1,
@@ -117,7 +126,4 @@ impl Joypad {
             InputAction::LEFT => self.left = 1,
         }
     }
-
 }
-
-

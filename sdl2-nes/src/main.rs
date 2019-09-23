@@ -3,13 +3,15 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::{Canvas, RenderTarget, WindowCanvas};
+use sdl2::render::{RenderTarget, WindowCanvas};
 use sdl2::EventPump;
+use std::time::{Duration, Instant};
 
+use nesemu::graphic::Canvas;
 use nesemu::{
     cpu::memory::Memory,
     graphic::{EmulatorInput, GraphicHandler},
-    joypad::InputAction,
+    joypad::{InputAction, InputState, Player},
     nes::Nes,
     ppu::{memory::RegisterType, palette, Ppu},
     rom,
@@ -19,6 +21,26 @@ use std::collections::HashMap;
 // This is the NES default
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
+
+struct SdlCanvas(WindowCanvas);
+
+impl nesemu::graphic::Canvas for SdlCanvas {
+    fn set_color(&mut self, color: nesemu::graphic::Color) {
+        self.0.set_draw_color(Color::RGB(color.r, color.g, color.b));
+    }
+    fn clear_state(&mut self) {
+        self.0.clear();
+    }
+    fn show(&mut self) {
+        self.0.present();
+    }
+    // TODO return Result.
+    fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32) {
+        self.0
+            .fill_rect(Rect::new(x, y, w, h))
+            .expect("Cannot draw rectangle");
+    }
+}
 
 fn build_default_input_p1() -> HashMap<Keycode, InputAction> {
     let mut m = HashMap::new();
@@ -50,10 +72,10 @@ fn build_default_input_p2() -> HashMap<Keycode, InputAction> {
 }
 
 pub struct Graphics {
-    zoom_level: u32,
+    pub zoom_level: i32,
     //sdl_context: Sdl,
     //video_subsystem: VideoSubsystem,
-    canvas: WindowCanvas,
+    canvas: SdlCanvas,
     event_pump: EventPump,
     colors: HashMap<u8, nesemu::graphic::Color>,
 
@@ -62,13 +84,13 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub fn new(zoom_level: u32) -> Result<Graphics, String> {
+    pub fn new(zoom_level: i32) -> Result<Graphics, String> {
         let sdl_context = sdl2::init().map_err(|err| err.to_string())?;
         let video_subsystem = sdl_context.video().map_err(|err| err.to_string())?;
 
-        let width = WIDTH * zoom_level; //*2;
+        let width = WIDTH * (zoom_level as u32); //*2;
         let window = video_subsystem
-            .window("NES emulator", width, HEIGHT * zoom_level)
+            .window("NES emulator", width, HEIGHT * (zoom_level as u32))
             .position_centered()
             .opengl()
             .build()
@@ -87,7 +109,7 @@ impl Graphics {
 
         Ok(Graphics {
             zoom_level,
-            canvas,
+            canvas: SdlCanvas(canvas),
             event_pump,
             colors: palette::build_default_colors(),
             input_map_p1: build_default_input_p1(),
@@ -100,7 +122,8 @@ impl GraphicHandler for Graphics {
     // This is called in the main loop and will listen for
     // input pressed. If a key is pressed, it will modify
     // the register accordingly.
-    fn handle_events(&mut self, mem: &mut Memory, is_paused: bool) -> Option<EmulatorInput> {
+    fn poll_events(&mut self) -> Vec<EmulatorInput> {
+        let mut emu_events = vec![];
         for event in self.event_pump.poll_iter() {
             match event {
                 // LEAVE THE EMULATOR
@@ -109,43 +132,46 @@ impl GraphicHandler for Graphics {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => {
-                    return Some(EmulatorInput::QUIT);
+                    emu_events.push(EmulatorInput::QUIT);
                 }
                 // PAUSE
                 Event::KeyDown {
                     keycode: Some(Keycode::Space),
                     ..
                 } => {
-                    return Some(EmulatorInput::PAUSE);
+                    emu_events.push(EmulatorInput::PAUSE);
                 }
                 // DEBUG mode
                 Event::KeyDown {
                     keycode: Some(Keycode::Return),
                     ..
                 } => {
-                    return Some(EmulatorInput::DEBUG);
+                    emu_events.push(EmulatorInput::DEBUG);
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::F2),
                     ..
-                } => {
-                    return Some(EmulatorInput::SAVE);
-                }
+                } => emu_events.push(EmulatorInput::SAVE),
+
                 // NES INPUT
                 Event::KeyDown {
                     keycode: Some(keycode),
                     ..
                 } => {
                     if let Some(action) = self.input_map_p1.get(&keycode) {
-                        if !is_paused {
-                            mem.joypad_p1.button_down(action);
-                        }
+                        emu_events.push(EmulatorInput::INPUT(
+                            Player::One,
+                            *action,
+                            InputState::Pressed,
+                        ));
                     }
 
                     if let Some(action) = self.input_map_p2.get(&keycode) {
-                        if !is_paused {
-                            mem.joypad_p2.button_down(action);
-                        }
+                        emu_events.push(EmulatorInput::INPUT(
+                            Player::Two,
+                            *action,
+                            InputState::Pressed,
+                        ))
                     }
                 }
                 Event::KeyUp {
@@ -153,47 +179,30 @@ impl GraphicHandler for Graphics {
                     ..
                 } => {
                     if let Some(action) = self.input_map_p1.get(&keycode) {
-                        if !is_paused {
-                            mem.joypad_p1.button_up(action);
-                        }
+                        emu_events.push(EmulatorInput::INPUT(
+                            Player::One,
+                            *action,
+                            InputState::Released,
+                        ));
                     }
 
                     if let Some(action) = self.input_map_p2.get(&keycode) {
-                        if !is_paused {
-                            mem.joypad_p2.button_up(action);
-                        }
+                        emu_events.push(EmulatorInput::INPUT(
+                            Player::Two,
+                            *action,
+                            InputState::Released,
+                        ));
                     }
                 }
 
                 _ => {}
             }
         }
-        None
+        emu_events
     }
 
-    fn display(&mut self, memory: &Memory, ppu: &mut Ppu) {
-        if ppu.should_display() {
-            let bg_color = palette::get_bg_color(&memory.ppu_mem.palettes, &self.colors);
-            self.canvas
-                .set_draw_color(Color::RGB(bg_color.r, bg_color.g, bg_color.b));
-            self.canvas.clear();
-            for row in 0..240i32 {
-                for col in 0..256i32 {
-                    let idx = row * 256 + col;
-                    let pixel = ppu.pixels[idx as usize];
-
-                    self.canvas
-                        .set_draw_color(Color::RGB(pixel.0, pixel.1, pixel.2));
-
-                    let xpixel = col * (self.zoom_level as i32);
-                    let ypixel = row * (self.zoom_level as i32);
-                    self.canvas
-                        .fill_rect(Rect::new(xpixel, ypixel, self.zoom_level, self.zoom_level))
-                        .expect("Cannot fill rect in display...");
-                }
-            }
-            self.canvas.present();
-        }
+    fn display(&mut self, nes: &mut Nes) {
+        nes.display(&mut self.canvas, &self.colors, self.zoom_level);
     }
 
     // For debug !
@@ -310,16 +319,40 @@ impl GraphicHandler for Graphics {
 //
 fn run_rom(path: String) {
     let ines = rom::read(path).unwrap();
-
     let mut nes = Nes::new(ines).unwrap();
-    let mut ui = Graphics::new(3).unwrap();
-    nes.run(&mut ui).unwrap();
+    main_loop(nes).unwrap();
 }
 
 fn load_state(path: String) {
-    let mut ui = Graphics::new(3).unwrap();
     let mut nes = Nes::load_state(path).unwrap();
-    nes.run(&mut ui).unwrap();
+    main_loop(nes).unwrap();
+}
+
+fn main_loop(mut nes: Nes) -> Result<(), &'static str> {
+    let mut ui = Graphics::new(3).unwrap();
+    // Fixed time stamp for input polling.
+    let fixed_time_stamp = Duration::new(0, 16666667);
+    let mut previous_clock = Instant::now();
+    let mut accumulator = Duration::new(0, 0);
+
+    while nes.should_run {
+        // Update CPU and PPU (and later APU)
+        // if !is_pause {
+        nes.tick(nes.is_debug)?;
+
+        // handle events and draw at 60 fps
+        while accumulator > fixed_time_stamp {
+            accumulator -= fixed_time_stamp;
+            let events = ui.poll_events();
+            nes.handle_events(events);
+            ui.display(&mut nes);
+        }
+
+        accumulator += Instant::now() - previous_clock;
+        previous_clock = Instant::now();
+    }
+
+    Ok(())
 }
 
 fn main() {
