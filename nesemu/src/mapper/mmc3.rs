@@ -1,6 +1,6 @@
 use super::Mirroring;
 use crate::rom::INesFile;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 /*
  * PRG is using 8KB banks:
@@ -53,7 +53,7 @@ pub struct Mmc3 {
     reg_ram: u8,
 
     // relevant for interrupts
-    
+
     // IRQ happened.
     pub irq: bool,
 
@@ -62,10 +62,7 @@ pub struct Mmc3 {
     irq_enabled: bool,
 }
 
-
 impl Mmc3 {
-
-
     pub fn read_prg(&self, addr: usize) -> u8 {
         match addr {
             0x8000..=0x9FFF => self.prg_rom_banks[self.prg_index_1][addr % 0x2000],
@@ -78,7 +75,6 @@ impl Mmc3 {
 
     // 8 registers.
     pub fn write_prg(&mut self, addr: usize, value: u8) {
-
         match addr {
             0x8000..=0x9FFF => {
                 if addr % 2 == 0 {
@@ -89,18 +85,17 @@ impl Mmc3 {
                     self.reg_bank_data = value as usize;
                     self.select_bank();
                 }
-            },
+            }
 
             0xA000..=0xBFFF => {
                 if addr % 2 == 0 {
                     // 0xA000 mirroring control
                     self.reg_mirroring = value;
-
                 } else {
                     // 0xA001 WRAM enable/disable..
                     self.reg_ram = value;
                 }
-            },
+            }
 
             0xC000..=0xDFFF => {
                 if addr % 2 == 0 {
@@ -110,19 +105,18 @@ impl Mmc3 {
                     // 0xC001 Clear the IRQ counter.
                     self.reload_irq_counter();
                 }
-            },
+            }
 
             0xE000..=0xFFFF => {
                 if addr % 2 == 0 {
                     // 0xE000 IRQ acknowledge
                     self.disable_irq();
-
                 } else {
                     // 0xE001 IRQ enable
                     self.enable_irq();
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 
@@ -152,11 +146,11 @@ impl Mmc3 {
             0x1800..=0x1BFF => self.chr_rom_banks[self.chr_index_7][addr % 0x400] = value,
             0x1C00..=0x1FFF => self.chr_rom_banks[self.chr_index_8][addr % 0x400] = value,
             _ => {}
-        }   
+        }
     }
 
-    pub fn get_chr(&self, idx: usize) -> &[u8] {
-        &self.chr_rom_banks[0] 
+    pub fn get_chr(&self, _idx: usize) -> &[u8] {
+        &self.chr_rom_banks[0]
     }
 
     pub fn get_mirroring(&self) -> Mirroring {
@@ -174,7 +168,7 @@ impl Mmc3 {
             let mut prg_page_low = vec![0; 0x2000];
             let mut prg_page_high = vec![0; 0x2000];
 
-            let rom_page = ines.get_prg_rom(nb+1)?;
+            let rom_page = ines.get_prg_rom(nb + 1)?;
             for (i, b) in rom_page[0..0x2000].iter().enumerate() {
                 prg_page_low[i] = *b;
             }
@@ -189,11 +183,11 @@ impl Mmc3 {
         // 0x400 element vector
         let mut pattern_table_pages = Vec::new();
         for nb in 0..ines.get_chr_rom_pages() {
-            let chr_page = ines.get_chr_rom(nb+1)?;
+            let chr_page = ines.get_chr_rom(nb + 1)?;
             for i in (0..0x2000).step_by(0x400) {
                 let mut page = vec![0; 0x400];
                 for j in 0..0x400 {
-                    page[j] = chr_page[i+j];
+                    page[j] = chr_page[i + j];
                 }
                 pattern_table_pages.push(page);
             }
@@ -204,9 +198,12 @@ impl Mmc3 {
         let prg_index_3 = prg_pages.len() - 2;
         let prg_index_4 = prg_pages.len() - 1;
 
-        println!("{}, {}, {}, {}", prg_index_1, prg_index_2, prg_index_3, prg_index_4);
+        println!(
+            "{}, {}, {}, {}",
+            prg_index_1, prg_index_2, prg_index_3, prg_index_4
+        );
 
-        Ok(Mmc3 { 
+        Ok(Mmc3 {
             prg_rom_banks: prg_pages,
             chr_rom_banks: pattern_table_pages,
             prg_index_1,
@@ -262,53 +259,49 @@ impl Mmc3 {
             0 => {
                 if chr_inversion {
                     self.chr_index_5 = self.reg_bank_data;
-                    self.chr_index_6 = self.reg_bank_data+1;
+                    self.chr_index_6 = self.reg_bank_data + 1;
                 } else {
                     self.chr_index_1 = self.reg_bank_data;
-                    self.chr_index_2 = self.reg_bank_data+1;
+                    self.chr_index_2 = self.reg_bank_data + 1;
                 }
-
-            },
+            }
             1 => {
                 if chr_inversion {
                     self.chr_index_7 = self.reg_bank_data;
-                    self.chr_index_8 = self.reg_bank_data+1;
+                    self.chr_index_8 = self.reg_bank_data + 1;
                 } else {
                     self.chr_index_3 = self.reg_bank_data;
-                    self.chr_index_4 = self.reg_bank_data+1;
+                    self.chr_index_4 = self.reg_bank_data + 1;
                 }
-            },
+            }
             2 => {
                 if chr_inversion {
                     self.chr_index_1 = self.reg_bank_data;
                 } else {
                     self.chr_index_5 = self.reg_bank_data;
                 }
-            },
+            }
             3 => {
                 if chr_inversion {
                     self.chr_index_2 = self.reg_bank_data;
                 } else {
                     self.chr_index_6 = self.reg_bank_data;
                 }
-
-            },
+            }
             4 => {
                 if chr_inversion {
                     self.chr_index_3 = self.reg_bank_data;
                 } else {
                     self.chr_index_7 = self.reg_bank_data;
                 }
-
-            },
+            }
             5 => {
                 if chr_inversion {
                     self.chr_index_4 = self.reg_bank_data;
                 } else {
                     self.chr_index_8 = self.reg_bank_data;
                 }
-
-            },
+            }
             6 => {
                 if (self.reg_bank_select >> 6) & 1 == 1 {
                     self.prg_index_3 = self.reg_bank_data;
@@ -317,13 +310,12 @@ impl Mmc3 {
                     self.prg_index_1 = self.reg_bank_data;
                     self.prg_index_3 = self.prg_rom_banks.len() - 2;
                 }
-            },
+            }
             7 => {
                 self.prg_index_2 = self.reg_bank_data;
-            },
+            }
             _ => panic!("Impossibru"),
         }
-
     }
 
     fn reload_irq_counter(&mut self) {
@@ -340,15 +332,14 @@ impl Mmc3 {
     }
 
     pub fn count_12(&mut self) {
-
         if self.irq_counter == 0 {
             self.irq_counter = self.reg_irq_latch;
         } else {
             self.irq_counter -= 1;
         }
-        
+
         if self.irq_counter == 0 && self.irq_enabled {
-            self.irq = true;         
+            self.irq = true;
         }
     }
 }

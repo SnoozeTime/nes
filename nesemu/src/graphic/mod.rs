@@ -25,7 +25,7 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn RGB(r: u8, g: u8, b: u8) -> Self {
+    pub fn rgb(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
 }

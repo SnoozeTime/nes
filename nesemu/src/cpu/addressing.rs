@@ -1,7 +1,7 @@
+use super::cpu::Cpu;
 use super::memory::Memory;
 use std::fmt;
 use std::fmt::Debug;
-use super::cpu::Cpu;
 
 // ----------------------------------------------
 // Addressing modes
@@ -34,9 +34,11 @@ pub enum AddressingModeType {
     Accumulator,
 }
 
-pub fn create_addressing(addressing_type: AddressingModeType,
-                         nes: &mut Cpu,
-                         memory: &mut Memory) -> Box<AddressingMode> {
+pub fn create_addressing(
+    addressing_type: AddressingModeType,
+    nes: &mut Cpu,
+    memory: &mut Memory,
+) -> Box<dyn AddressingMode> {
     use self::AddressingModeType::*;
     match addressing_type {
         Accumulator => AccumulatorAddressing::new(&nes),
@@ -50,30 +52,30 @@ pub fn create_addressing(addressing_type: AddressingModeType,
             let op1 = nes.advance(memory);
             let op2 = nes.advance(memory);
             AbsoluteAddressing::new(op1, op2)
-        },
+        }
         AbsoluteX => {
             let op1 = nes.advance(memory);
             let op2 = nes.advance(memory);
             IndexedAbsoluteAddressing::new(op1, op2, nes.get_regx())
-        },
+        }
         AbsoluteY => {
             let op1 = nes.advance(memory);
             let op2 = nes.advance(memory);
             IndexedAbsoluteAddressing::new(op1, op2, nes.get_regy())
-        },
+        }
         Indirect => {
             let op1 = nes.advance(memory);
             let op2 = nes.advance(memory);
             IndirectAddressing::new(op1, op2)
-        },
+        }
         PreIndexedIndirect => {
             let op = nes.advance(memory);
             PreIndexedIndirectAddressing::new(op, nes.get_regx())
-        },
+        }
         PostIndexedIndirect => {
             let op = nes.advance(memory);
             PostIndexedIndirectAddressing::new(op, nes.get_regy())
-        },
+        }
         _ => panic!("not implemented"),
     }
 }
@@ -83,7 +85,7 @@ pub trait AddressingMode {
 
     // Will get the value from memory.
     fn fetch(&self, mem: &mut Memory) -> u8;
-    fn fetch16(&self, _mem: &mut Memory) -> u16 {    
+    fn fetch16(&self, _mem: &mut Memory) -> u16 {
         return 0;
     }
 
@@ -92,14 +94,16 @@ pub trait AddressingMode {
     fn address(&self, _mem: &mut Memory) -> u16;
 
     // return extra cycles when crossing a page
-    fn extra_cycles(&self) -> u8 { 0 }
+    fn extra_cycles(&self) -> u8 {
+        0
+    }
 
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Data {{ ... }}")
     }
 }
 
-impl fmt::Debug for AddressingMode {
+impl fmt::Debug for dyn AddressingMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.debug_fmt(f)
     }
@@ -110,7 +114,7 @@ impl fmt::Debug for AddressingMode {
 pub struct ImpliedAddressing {}
 impl ImpliedAddressing {
     pub fn new() -> Box<ImpliedAddressing> {
-        Box::new(ImpliedAddressing{})
+        Box::new(ImpliedAddressing {})
     }
 }
 
@@ -125,20 +129,20 @@ impl AddressingMode for ImpliedAddressing {
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
 
-    fn address(&self, _mem: &mut Memory) -> u16 { 0 }
+    fn address(&self, _mem: &mut Memory) -> u16 {
+        0
+    }
 
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
 }
 
-
 impl fmt::Debug for ImpliedAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Implied Addressing")
     }
 }
-
 
 // Immediate addressing. Just get the value from the next instruction
 // -----------------------------------------------------------------
@@ -165,11 +169,12 @@ impl AddressingMode for ImmediateAddressing {
 
     fn set(&self, _mem: &mut Memory, _v: u8) {}
 
-    fn address(&self, _mem: &mut Memory) -> u16 { 0 }
+    fn address(&self, _mem: &mut Memory) -> u16 {
+        0
+    }
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
-
 }
 
 impl fmt::Debug for ImmediateAddressing {
@@ -177,7 +182,6 @@ impl fmt::Debug for ImmediateAddressing {
         write!(f, "Immediate Addressing -> {}", self.value)
     }
 }
-
 
 // Relative addressing
 // -----------------------------------
@@ -200,13 +204,13 @@ impl AddressingMode for RelativeAddressing {
         self.offset
     }
 
-    fn address(&self, _mem: &mut Memory) -> u16 { 0 }
-    fn set(&self, _mem: &mut Memory, _v: u8) {}    
+    fn address(&self, _mem: &mut Memory) -> u16 {
+        0
+    }
+    fn set(&self, _mem: &mut Memory, _v: u8) {}
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
-
-
 }
 
 impl fmt::Debug for RelativeAddressing {
@@ -238,15 +242,15 @@ impl AddressingMode for ZeroPageAddressing {
         mem.get(self.address as usize)
     }
 
-    fn address(&self, _mem: &mut Memory) -> u16 { self.address as u16 }
+    fn address(&self, _mem: &mut Memory) -> u16 {
+        self.address as u16
+    }
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
-    }    
+    }
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
-
-
 }
 
 impl fmt::Debug for ZeroPageAddressing {
@@ -283,26 +287,28 @@ impl AddressingMode for IndexedZeroPageAddressing {
 
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address.wrapping_add(self.offset) as usize, v);
-    }    
+    }
 
-    fn address(&self, _mem: &mut Memory) -> u16 { self.address.wrapping_add(self.offset) as u16 }
+    fn address(&self, _mem: &mut Memory) -> u16 {
+        self.address.wrapping_add(self.offset) as u16
+    }
 
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
-
-
 }
 
 impl fmt::Debug for IndexedZeroPageAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Indexed Zero-page adressing at: 0x{:x} + 0x{:x}",
-               self.address,
-               self.offset)
+        write!(
+            f,
+            "Indexed Zero-page adressing at: 0x{:x} + 0x{:x}",
+            self.address, self.offset
+        )
     }
 }
 
-// Absolute addressing mode. In  absolute  addressing,  the  address  of  the  data  to  operate on  is  specified  by  the  two  
+// Absolute addressing mode. In  absolute  addressing,  the  address  of  the  data  to  operate on  is  specified  by  the  two
 // operands supplied, least significant byte first
 // ----------------------------------------------------------------
 pub struct AbsoluteAddressing {
@@ -312,7 +318,7 @@ pub struct AbsoluteAddressing {
 impl AbsoluteAddressing {
     pub fn new(lsb: u8, msb: u8) -> Box<AbsoluteAddressing> {
         let address = ((msb as u16) << 8) + (lsb as u16);
-        Box::new(AbsoluteAddressing{ address })
+        Box::new(AbsoluteAddressing { address })
     }
 }
 
@@ -329,15 +335,15 @@ impl AddressingMode for AbsoluteAddressing {
         self.address
     }
 
-    fn address(&self, _mem: &mut Memory) -> u16 { self.address }
+    fn address(&self, _mem: &mut Memory) -> u16 {
+        self.address
+    }
     fn set(&self, mem: &mut Memory, v: u8) {
         mem.set(self.address as usize, v);
-    }    
+    }
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
-
-
 }
 
 impl fmt::Debug for AbsoluteAddressing {
@@ -356,7 +362,7 @@ pub struct IndexedAbsoluteAddressing {
 impl IndexedAbsoluteAddressing {
     pub fn new(lsb: u8, msb: u8, offset: u8) -> Box<IndexedAbsoluteAddressing> {
         let address = ((msb as u16) << 8) + (lsb as u16);
-        Box::new(IndexedAbsoluteAddressing{ address, offset })
+        Box::new(IndexedAbsoluteAddressing { address, offset })
     }
 }
 
@@ -373,9 +379,11 @@ impl AddressingMode for IndexedAbsoluteAddressing {
     fn set(&self, mem: &mut Memory, v: u8) {
         let target = self.address.wrapping_add(self.offset as u16);
         mem.set(target as usize, v)
-    }    
-    
-    fn address(&self, _mem: &mut Memory) -> u16 { self.address.wrapping_add(self.offset as u16) }
+    }
+
+    fn address(&self, _mem: &mut Memory) -> u16 {
+        self.address.wrapping_add(self.offset as u16)
+    }
 
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
@@ -389,20 +397,20 @@ impl AddressingMode for IndexedAbsoluteAddressing {
             return 0;
         }
     }
-
-
 }
 
 impl fmt::Debug for IndexedAbsoluteAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Indexed Absolute adressing at: 0x{:x}+0x{:x}",
-               self.address,
-               self.offset)
+        write!(
+            f,
+            "Indexed Absolute adressing at: 0x{:x}+0x{:x}",
+            self.address, self.offset
+        )
     }
 }
 
 // Indirect addressing - meh
-// Indirect  addressing  takes  two  operands,  forming  a  16-bit  address,  which  identifies  the least significant byte of another address which is where the data can be found. For example if the operands are bb and cc, and ccbb contains xx and ccbb + 1 contains yy, then the real target address is yyxx. 
+// Indirect  addressing  takes  two  operands,  forming  a  16-bit  address,  which  identifies  the least significant byte of another address which is where the data can be found. For example if the operands are bb and cc, and ccbb contains xx and ccbb + 1 contains yy, then the real target address is yyxx.
 // NB: Only JMP is using this addressing. It has a bug (yeaaa) so if self.lsb_location
 // ends with 0xFF, +1 will not correctly cross the page.
 pub struct IndirectAddressing {
@@ -412,7 +420,7 @@ pub struct IndirectAddressing {
 impl IndirectAddressing {
     pub fn new(lsb: u8, msb: u8) -> Box<IndirectAddressing> {
         let lsb_location = ((msb as u16) << 8) + (lsb as u16);
-        Box::new(IndirectAddressing{ lsb_location })
+        Box::new(IndirectAddressing { lsb_location })
     }
 }
 
@@ -422,7 +430,7 @@ impl AddressingMode for IndirectAddressing {
     }
 
     fn fetch(&self, _mem: &mut Memory) -> u8 {
-        0    
+        0
     }
 
     fn fetch16(&self, mem: &mut Memory) -> u16 {
@@ -438,26 +446,22 @@ impl AddressingMode for IndirectAddressing {
 
     fn address(&self, mem: &mut Memory) -> u16 {
         let lsb = mem.get(self.lsb_location as usize);
-        let msb = mem.get((self.lsb_location+1) as usize);
+        let msb = mem.get((self.lsb_location + 1) as usize);
         ((msb as u16) << 8) + (lsb as u16)
     }
-    
-    
+
     fn set(&self, mem: &mut Memory, v: u8) {
         let address = self.address(mem);
         mem.set(address as usize, v);
-    }    
+    }
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
-
-
 }
 
 impl fmt::Debug for IndirectAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Indirect adressing at: 0x{:x}",
-               self.lsb_location)
+        write!(f, "Indirect adressing at: 0x{:x}", self.lsb_location)
     }
 }
 
@@ -502,7 +506,7 @@ impl AddressingMode for PreIndexedIndirectAddressing {
 
         ((msb as u16) << 8) + (lsb as u16)
     }
- 
+
     fn extra_cycles(&self) -> u8 {
         let (_, overflow) = ((self.address & 0xFF) as u8).overflowing_add(self.offset);
         if overflow {
@@ -511,14 +515,15 @@ impl AddressingMode for PreIndexedIndirectAddressing {
             return 0;
         }
     }
-
 }
 
 impl fmt::Debug for PreIndexedIndirectAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Pre-index Indirect adressing at: 0x{:x}+0x{:x}",
-               self.address,
-               self.offset)
+        write!(
+            f,
+            "Pre-index Indirect adressing at: 0x{:x}+0x{:x}",
+            self.address, self.offset
+        )
     }
 }
 
@@ -566,16 +571,15 @@ impl AddressingMode for PostIndexedIndirectAddressing {
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
-
-
 }
 
 impl fmt::Debug for PostIndexedIndirectAddressing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "Post-index Indirect adressing at: 0x{:x}+0x{:x}",
-               self.address,
-               self.offset)
+        write!(
+            f,
+            "Post-index Indirect adressing at: 0x{:x}+0x{:x}",
+            self.address, self.offset
+        )
     }
 }
 
@@ -587,7 +591,9 @@ pub struct AccumulatorAddressing {
 
 impl AccumulatorAddressing {
     pub fn new(nes: &Cpu) -> Box<AccumulatorAddressing> {
-        Box::new(AccumulatorAddressing { accumulator: nes.get_acc() })
+        Box::new(AccumulatorAddressing {
+            accumulator: nes.get_acc(),
+        })
     }
 }
 
@@ -604,16 +610,13 @@ impl AddressingMode for AccumulatorAddressing {
         0
     }
 
-
     fn set(&self, _mem: &mut Memory, _v: u8) {
         // exceptional case. A is set directly
         // in cpu.rs
-    }    
+    }
     fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(f)
     }
-
-
 }
 
 impl fmt::Debug for AccumulatorAddressing {
@@ -628,7 +631,6 @@ mod tests {
 
     use super::*;
     use std::default::Default;
-
 
     #[test]
     fn test_immediate() {
@@ -660,6 +662,5 @@ mod tests {
         let addressing = IndexedZeroPageAddressing::new(0xFF, 0x03);
         assert_eq!(3, addressing.fetch(&mut memory));
     }
-   
-}
 
+}

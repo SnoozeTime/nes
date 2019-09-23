@@ -405,7 +405,7 @@ impl Ppu {
             // TODO better way is to put this in  write_vram_at code.
             // This is for MMC3 mapper
             if visible_line || pre_render_line {
-                self.count_a12(memory, ppu_ctrl);
+                self.count_a12(memory);
             }
         }
 
@@ -425,7 +425,7 @@ impl Ppu {
         }
     }
 
-    fn count_a12(&self, memory: &mut Memory, ppu_ctrl: u8) {
+    fn count_a12(&self, memory: &mut Memory) {
         //if is_16x8_sprites(ppu_ctrl) {
 
         //} else {
