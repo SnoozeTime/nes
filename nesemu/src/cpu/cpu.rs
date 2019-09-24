@@ -1,17 +1,16 @@
+use super::addressing::*;
 use super::instructions::Instruction;
 use super::memory::Memory;
-use super::addressing::*;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 #[allow(non_snake_case)] // PC, SP ... are names in the specs.
 #[derive(Serialize, Deserialize)]
 pub struct Cpu {
-
     // Program counter. Hold the address of the next instruction to be executed
     PC: u16,
 
     // stack pointer. from top to bottom.
-    SP: u8, 
+    SP: u8,
 
     // Accumulator. 8 bits register used for arithmetic and logic operation
     A: u8,
@@ -33,20 +32,27 @@ pub struct Cpu {
 }
 
 impl std::fmt::Debug for Cpu {
-
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let p = self.flags_to_u8_debug();
-        write!(f, "A:{:x} X:{:x} Y:{:x} P:{:x} SP:{:X} CYC:{}", self.A, self.X, self.Y, p, self.SP, (3*self.cycles) % 341) // 3*cycles to get the APU cycles
+        write!(
+            f,
+            "A:{:x} X:{:x} Y:{:x} P:{:x} SP:{:X} CYC:{}",
+            self.A,
+            self.X,
+            self.Y,
+            p,
+            self.SP,
+            (3 * self.cycles) % 341
+        ) // 3*cycles to get the APU cycles
     }
 }
 
 impl Cpu {
-
     // will create a new NES with the given code.
     pub fn new() -> Cpu {
         Cpu {
             PC: 0x8000,
-            SP: 0xFD, 
+            SP: 0xFD,
             A: 0,
             X: 0,
             Y: 0,
@@ -106,7 +112,6 @@ impl Cpu {
     }
 
     pub fn flags_to_u8_debug(&self) -> u8 {
-
         // http://wiki.nesdev.com/w/index.php/Status_flags
         let b = ((self.N as u8) << 7)
             + ((self.V as u8) << 6)
@@ -117,7 +122,6 @@ impl Cpu {
             + (self.C as u8);
         b
     }
-
 
     fn u8_to_flags(&mut self, b: u8) {
         self.N = (b >> 7) & 0x1 as u8;
@@ -130,7 +134,6 @@ impl Cpu {
 
     // return number of extra cycles (7 if interrupt happens)
     fn process_interrupt(&mut self, memory: &mut Memory) -> u8 {
-    
         // TODO RESET and BRK/IRQ
 
         // In order of priority
@@ -157,7 +160,6 @@ impl Cpu {
             self.PC = lsb + (msb << 8);
             return 7;
         } else if memory.irq() && self.I == 0 {
- 
             // push pc and flags to the stack.
             let pc = self.PC;
             self.push(memory, ((pc & 0xFF00) >> 8) as u8);
@@ -184,7 +186,6 @@ impl Cpu {
     }
 
     pub fn next(&mut self, memory: &mut Memory) -> Result<u64, &'static str> {
-
         // Hey, do we have an interrupt?
         let interrupt_cycles = self.process_interrupt(memory);
 
@@ -198,14 +199,14 @@ impl Cpu {
                 // http://www.6502.org/tutorials/vflag.html
                 // A,Z,C,N,V = A+M+C
                 // ADC can be used both with signed and unsigned numbers.
-                // 
+                //
                 let rhs = addressing.fetch(memory);
                 self.adc(rhs);
-            },
+            }
             Instruction::SBC(_, addressing, _) => {
                 let rhs = addressing.fetch(memory);
                 self.adc(!rhs);
-            },
+            }
             Instruction::CMP(_, addressing, _) => {
                 let m = addressing.fetch(memory);
                 let (result, overflow) = self.A.overflowing_sub(m);
@@ -215,7 +216,7 @@ impl Cpu {
                     self.C = 1;
                 }
                 self.set_result_flags(result);
-            },
+            }
             Instruction::CPX(_, addressing, _) => {
                 let m = addressing.fetch(memory);
                 let (result, overflow) = self.X.overflowing_sub(m);
@@ -225,7 +226,7 @@ impl Cpu {
                     self.C = 1;
                 }
                 self.set_result_flags(result);
-            },
+            }
             Instruction::CPY(_, addressing, _) => {
                 let m = addressing.fetch(memory);
                 let (result, overflow) = self.Y.overflowing_sub(m);
@@ -235,12 +236,12 @@ impl Cpu {
                     self.C = 1;
                 }
                 self.set_result_flags(result);
-            },
+            }
             Instruction::AND(_, addressing, _length) => {
                 let result = self.A & addressing.fetch(memory);
                 self.set_result_flags(result);
                 self.A = result;
-            },
+            }
             Instruction::ASL(_, addressing, _length) => {
                 let shifted = u16::from(addressing.fetch(memory)) << 1;
                 let result = (shifted & 0xFF) as u8;
@@ -251,7 +252,7 @@ impl Cpu {
                     _ => addressing.set(memory, result),
                 }
                 self.set_result_flags(result);
-            },
+            }
             Instruction::LSR(_, addressing, _length) => {
                 let operand = addressing.fetch(memory);
                 self.C = operand & 1;
@@ -261,7 +262,7 @@ impl Cpu {
                     _ => addressing.set(memory, result),
                 }
                 self.set_result_flags(result);
-            },
+            }
             Instruction::ROL(_, addressing, _) => {
                 let shifted = u16::from(addressing.fetch(memory)) << 1;
                 let result = (shifted & 0xFF) as u8 | (self.C & 1);
@@ -272,8 +273,7 @@ impl Cpu {
                     _ => addressing.set(memory, result),
                 }
                 self.set_result_flags(result);
-
-            },
+            }
             Instruction::ROR(_, addressing, _) => {
                 let operand = addressing.fetch(memory);
                 let result = operand >> 1 | (self.C << 7);
@@ -283,32 +283,31 @@ impl Cpu {
                     _ => addressing.set(memory, result),
                 }
                 self.set_result_flags(result);
-
-            },
+            }
             // -------------------------------------
             // Jumps
             // ----------------------------------
             Instruction::JMP(_, addressing, _length) => {
                 self.PC = addressing.fetch16(memory);
-            },
+            }
             Instruction::JSR(_, addressing, _) => {
                 let return_addr = self.PC - 1;
                 self.push(memory, ((return_addr & 0xFF00) >> 8) as u8);
                 self.push(memory, (return_addr & 0xFF) as u8);
                 self.PC = addressing.fetch16(memory);
-            },
+            }
             Instruction::RTS(_, _, _) => {
                 let lsb = self.pull(memory);
                 let msb = self.pull(memory);
                 self.PC = u16::from(lsb) + (u16::from(msb) << 8) + 1;
-            },
+            }
 
             // ----------------------------------------
             // branches
             // ----------------------------------------
             Instruction::BCC(_, addressing, _lenght) => {
                 let offset = addressing.fetch(memory);
-                if self.C == 0 { 
+                if self.C == 0 {
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     // Carry clear let's take the branch.
@@ -325,10 +324,10 @@ impl Cpu {
                     }
                     again_extra_cycles += cycles;
                 }
-            },
+            }
             Instruction::BCS(_, addressing, _lenght) => {
                 let offset = addressing.fetch(memory);
-                if self.C != 0 { 
+                if self.C != 0 {
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
@@ -341,13 +340,12 @@ impl Cpu {
                         cycles += 1;
                     }
                     again_extra_cycles += cycles;
-
                 }
-            },
+            }
 
             Instruction::BEQ(_, addressing, _lenght) => {
                 let offset = addressing.fetch(memory);
-                if self.Z != 0 { 
+                if self.Z != 0 {
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
@@ -360,9 +358,8 @@ impl Cpu {
                         cycles += 1;
                     }
                     again_extra_cycles += cycles;
-
                 }
-            },
+            }
             Instruction::BIT(_, addressing, _length) => {
                 let to_test = addressing.fetch(memory);
                 let result = to_test & self.A;
@@ -375,54 +372,54 @@ impl Cpu {
 
                 self.V = (to_test >> 6) & 0x1;
                 self.N = (to_test >> 7) & 0x1;
-            },
+            }
             Instruction::EOR(_, addressing, _length) => {
                 let operand = addressing.fetch(memory);
                 let result = self.A ^ operand;
                 self.set_result_flags(result);
                 self.A = result;
-            },
+            }
             Instruction::ORA(_, addressing, _length) => {
                 let result = self.A | addressing.fetch(memory);
                 self.set_result_flags(result);
                 self.A = result;
-            },
+            }
 
             // INCREMENTS AND DECREMENTS
             Instruction::INC(_, addressing, _cycles) => {
                 let result = addressing.fetch(memory).wrapping_add(1);
                 self.set_result_flags(result);
                 addressing.set(memory, result);
-            },
+            }
             Instruction::INX(_, _addressing, _cycles) => {
                 // Wrapping add?
                 let result = self.X.wrapping_add(1);
                 self.set_result_flags(result);
                 self.X = result;
-            },
+            }
             Instruction::INY(_, _addressing, _cycles) => {
                 let result = self.Y.wrapping_add(1);
                 self.set_result_flags(result);
                 self.Y = result;
-            },
+            }
             Instruction::DEC(_, addressing, _cycles) => {
                 let result = addressing.fetch(memory).wrapping_sub(1);
                 self.set_result_flags(result);
                 addressing.set(memory, result);
-            },
+            }
             Instruction::DEX(_, _addressing, _cycles) => {
                 let result = self.X.wrapping_sub(1);
                 self.set_result_flags(result);
                 self.X = result;
-            },
+            }
             Instruction::DEY(_, _addressing, _cycles) => {
                 let result = self.Y.wrapping_sub(1);
                 self.set_result_flags(result);
                 self.Y = result;
-            },           
+            }
             Instruction::BMI(_, addressing, _lenght) => {
                 let offset = addressing.fetch(memory);
-                if self.N != 0 { 
+                if self.N != 0 {
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
@@ -436,10 +433,10 @@ impl Cpu {
                     }
                     again_extra_cycles += cycles;
                 }
-            },
+            }
             Instruction::BNE(_, addressing, _lenght) => {
                 let offset = u16::from(addressing.fetch(memory));
-                if self.Z == 0 { 
+                if self.Z == 0 {
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
@@ -452,12 +449,11 @@ impl Cpu {
                         cycles += 1;
                     }
                     again_extra_cycles += cycles;
-
                 }
-            },
+            }
             Instruction::BPL(_, addressing, _lenght) => {
                 let offset = u16::from(addressing.fetch(memory));
-                if self.N == 0 { 
+                if self.N == 0 {
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
@@ -470,12 +466,11 @@ impl Cpu {
                         cycles += 1;
                     }
                     again_extra_cycles += cycles;
-
                 }
-            },
+            }
             Instruction::BVC(_, addressing, _lenght) => {
                 let offset = u16::from(addressing.fetch(memory));
-                if self.V == 0 { 
+                if self.V == 0 {
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
@@ -488,12 +483,11 @@ impl Cpu {
                         cycles += 1;
                     }
                     again_extra_cycles += cycles;
-
                 }
-            },
+            }
             Instruction::BVS(_, addressing, _lenght) => {
                 let offset = u16::from(addressing.fetch(memory));
-                if self.V != 0 { 
+                if self.V != 0 {
                     let mut cycles = 1;
                     let original_pc = self.PC;
                     if (offset & 0x80) == 0x80 {
@@ -507,115 +501,113 @@ impl Cpu {
                     }
                     again_extra_cycles += cycles;
                 }
-
-            },
+            }
 
             Instruction::CLC(_, _, _length) => {
                 self.C = 0;
-            },
+            }
             Instruction::CLD(_, _, _length) => {
                 self.D = 0;
-            },
+            }
             Instruction::CLI(_, _, _length) => {
                 self.I = 0;
-            },
+            }
             Instruction::CLV(_, _, _length) => {
                 self.V = 0;
-            },
+            }
             Instruction::SEC(_, _, _) => {
                 self.C = 1;
-            },
-            Instruction::SED(_,_,_) => {
+            }
+            Instruction::SED(_, _, _) => {
                 self.D = 1;
-            },
-            Instruction::SEI(_,_,_) => {
+            }
+            Instruction::SEI(_, _, _) => {
                 self.I = 1;
-            },
+            }
             Instruction::LDA(_, addressing, _length) => {
                 // Affect N and Z flags
                 let result = addressing.fetch(memory);
                 self.A = result;
-                self.set_result_flags(result);    
-            },
+                self.set_result_flags(result);
+            }
             Instruction::LDX(_, addressing, _length) => {
                 let result = addressing.fetch(memory);
                 self.X = result;
                 self.set_result_flags(result);
-            },
+            }
             Instruction::LDY(_, addressing, _length) => {
                 let result = addressing.fetch(memory);
                 self.Y = result;
                 self.set_result_flags(result);
-            },
+            }
             Instruction::STA(_, addressing, _length) => {
                 addressing.set(memory, self.A);
 
                 // TODO should only be STA that store in this register...
-               if addressing.address(memory) == 0x4014 {
-                   // DMA writing is actually loading a bunch of sprites in OAM
-                   // instead of looping and writing to OAM directly, but it still
-                   // takes quite some time.
-                    again_extra_cycles += 513;  // TODO +1 if on odd cpu cycle
-               }
-            },
+                if addressing.address(memory) == 0x4014 {
+                    // DMA writing is actually loading a bunch of sprites in OAM
+                    // instead of looping and writing to OAM directly, but it still
+                    // takes quite some time.
+                    again_extra_cycles += 513; // TODO +1 if on odd cpu cycle
+                }
+            }
             Instruction::STX(_, addressing, _length) => {
                 addressing.set(memory, self.X);
-            },
+            }
             Instruction::STY(_, addressing, _length) => {
                 addressing.set(memory, self.Y);
-            },
+            }
             // transfer instructions
             Instruction::TAX(_, _, _length) => {
                 let result = self.A;
                 self.X = result;
                 self.set_result_flags(result);
-            },
+            }
             Instruction::TAY(_, _, _length) => {
                 let result = self.A;
                 self.Y = result;
                 self.set_result_flags(result);
-            },
+            }
             Instruction::TXA(_, _, _length) => {
                 let result = self.X;
                 self.A = result;
                 self.set_result_flags(result);
-            },
+            }
             Instruction::TYA(_, _, _length) => {
                 let result = self.Y;
                 self.A = result;
                 self.set_result_flags(result);
-
-            },
+            }
 
             // stack instructions
             Instruction::TSX(_, _, _length) => {
                 let result = self.SP;
                 self.X = result;
                 self.set_result_flags(result);
-            },
+            }
             Instruction::TXS(_, _, _length) => {
                 self.SP = self.X;
-            },
+            }
             Instruction::PHA(_, _, _length) => {
                 let to_push = self.A;
                 self.push(memory, to_push);
-            },
+            }
             Instruction::PLA(_, _, _length) => {
                 let result = self.pull(memory);
                 self.A = result;
                 self.set_result_flags(result);
-            },
+            }
             Instruction::PHP(_, _, _length) => {
                 let to_push = self.flags_to_u8();
                 self.push(memory, to_push);
-            },
+            }
             Instruction::PLP(_, _, _length) => {
                 let result = self.pull(memory);
                 self.u8_to_flags(result);
-            },
-            Instruction::BRK(_,_,_) => {
+            }
+            Instruction::BRK(_, _, _) => {
                 // IRQ interrupt vector is at $FFFE/F
-                // TODO THIS IS WRONG!                
+                // TODO THIS IS WRONG!
                 // push PC and Status flag
                 let pc = self.PC;
                 self.push(memory, ((pc & 0xFF00) >> 8) as u8);
@@ -623,156 +615,153 @@ impl Cpu {
                 let flags = self.flags_to_u8();
                 self.push(memory, flags);
 
-                let lsb = u16::from(memory.get(0xFFFE-1 as usize));
-                let msb = u16::from(memory.get(0xFFFF-1 as usize));
+                let lsb = u16::from(memory.get(0xFFFE - 1 as usize));
+                let msb = u16::from(memory.get(0xFFFF - 1 as usize));
                 self.PC = lsb + (msb << 8);
-            },
-            Instruction::RTI(_,_,_) => {
+            }
+            Instruction::RTI(_, _, _) => {
                 let flags = self.pull(memory);
                 self.u8_to_flags(flags);
                 let lsb = u16::from(self.pull(memory));
                 let msb = u16::from(self.pull(memory));
                 self.PC = lsb + (msb << 8);
-            },
-            Instruction::NOP(_,_,_) 
-                | Instruction::DOP(_,_,_) 
-                | Instruction::TOP(_,_,_) => {
-                    // nothing to see here.
-                },
+            }
+            Instruction::NOP(_, _, _) | Instruction::DOP(_, _, _) | Instruction::TOP(_, _, _) => {
+                // nothing to see here.
+            }
 
-                // ----------------------------------------------
-                // Unofficial opcodes
-                // ---------------------------------------------
-                Instruction::ANC(_, addressing, _) => {
-                    let result = self.A & addressing.fetch(memory);
-                    self.set_result_flags(result);
-                    self.C = self.N;
-                },
-                Instruction::ARR(_, addressing, _) => {
-                    let operand = addressing.fetch(memory);
+            // ----------------------------------------------
+            // Unofficial opcodes
+            // ---------------------------------------------
+            Instruction::ANC(_, addressing, _) => {
+                let result = self.A & addressing.fetch(memory);
+                self.set_result_flags(result);
+                self.C = self.N;
+            }
+            Instruction::ARR(_, addressing, _) => {
+                let operand = addressing.fetch(memory);
 
-                    let and_result = operand & self.A;
-                    let result = and_result >> 1 | (self.C << 7);
-                    self.C = and_result & 1;
+                let and_result = operand & self.A;
+                let result = and_result >> 1 | (self.C << 7);
+                self.C = and_result & 1;
 
-                    let sixth_bit = result >> 6 & 1; 
-                    let fifth_bit = result >> 5 & 1;
-                    match (sixth_bit, fifth_bit) {
-                        (1, 1) => {
-                            self.C = 1;
-                            self.V = 0;
-                        },
-                        (0, 0) => {
-                            self.C = 0;
-                            self.V = 0;
-                        },
-                        (0, 1) => {
-                            self.V = 1;
-                            self.C = 0;
-                        },
-                        (1, 0) => {
-                            self.V = 1;
-                            self.C = 1;
-                        }
-                        (_, _) => {//uh
-                        }
+                let sixth_bit = result >> 6 & 1;
+                let fifth_bit = result >> 5 & 1;
+                match (sixth_bit, fifth_bit) {
+                    (1, 1) => {
+                        self.C = 1;
+                        self.V = 0;
                     }
-                    self.set_result_flags(result);
-                    self.A = result;
-                },
-                Instruction::ALR(_, addressing, _) => {
-                    let operand = addressing.fetch(memory);
-                    let before_shift = self.A & operand;
-                    self.C = before_shift & 1;
-                    let result = before_shift >> 1;
-                    self.A = result;
-                    self.set_result_flags(result);
-
-                },
-                Instruction::LAX(_, addressing, _) => {
-                    let operand = addressing.fetch(memory);
-                    self.X = operand;
-                    self.A = operand;
-                    self.set_result_flags(operand);
-                },
-                Instruction::SAX(_, addressing, _) => {
-                    let result = self.A & self.X;
-                    // http://www.ffd2.com/fridge/docs/6502-NMOS.extra.opcodes
-                    // self.set_result_flags(result);
-                    addressing.set(memory, result);
-                },
-                Instruction::DCP(_, addressing, _) => {
-                    let operand = addressing.fetch(memory);
-                    let result = operand.wrapping_sub(1);
-                    addressing.set(memory, result);
-                    let (test_result, overflow) = self.A.overflowing_sub(result);
-                    if overflow {
+                    (0, 0) => {
                         self.C = 0;
-                    } else {
+                        self.V = 0;
+                    }
+                    (0, 1) => {
+                        self.V = 1;
+                        self.C = 0;
+                    }
+                    (1, 0) => {
+                        self.V = 1;
                         self.C = 1;
                     }
-                    self.set_result_flags(test_result);
+                    (_, _) => {
+                        //uh
+                    }
+                }
+                self.set_result_flags(result);
+                self.A = result;
+            }
+            Instruction::ALR(_, addressing, _) => {
+                let operand = addressing.fetch(memory);
+                let before_shift = self.A & operand;
+                self.C = before_shift & 1;
+                let result = before_shift >> 1;
+                self.A = result;
+                self.set_result_flags(result);
+            }
+            Instruction::LAX(_, addressing, _) => {
+                let operand = addressing.fetch(memory);
+                self.X = operand;
+                self.A = operand;
+                self.set_result_flags(operand);
+            }
+            Instruction::SAX(_, addressing, _) => {
+                let result = self.A & self.X;
+                // http://www.ffd2.com/fridge/docs/6502-NMOS.extra.opcodes
+                // self.set_result_flags(result);
+                addressing.set(memory, result);
+            }
+            Instruction::DCP(_, addressing, _) => {
+                let operand = addressing.fetch(memory);
+                let result = operand.wrapping_sub(1);
+                addressing.set(memory, result);
+                let (test_result, overflow) = self.A.overflowing_sub(result);
+                if overflow {
+                    self.C = 0;
+                } else {
+                    self.C = 1;
+                }
+                self.set_result_flags(test_result);
+            }
+            Instruction::ISC(_, addressing, _) => {
+                // INC
+                let result = addressing.fetch(memory).wrapping_add(1);
+                self.set_result_flags(result);
+                addressing.set(memory, result);
 
-                },
-                Instruction::ISC(_, addressing, _) => {
-                    // INC
-                    let result = addressing.fetch(memory).wrapping_add(1);
-                    self.set_result_flags(result);
-                    addressing.set(memory, result);
+                // SBC
+                self.adc(!result);
+            }
+            Instruction::RLA(_, addressing, _) => {
+                let shifted = u16::from(addressing.fetch(memory)) << 1;
+                let result = (shifted & 0xFF) as u8 | (self.C & 1);
+                self.C = (shifted >> 8) as u8;
+                addressing.set(memory, result);
 
-                    // SBC
-                    self.adc(!result);
-                },
-                Instruction::RLA(_, addressing, _) => {
+                let and_result = self.A & result;
+                self.set_result_flags(and_result);
+                self.A = and_result;
+            }
+            Instruction::RRA(_, addressing, _) => {
+                // ROR then ADC.
+                let operand = addressing.fetch(memory);
+                let result = operand >> 1 | (self.C << 7);
+                self.C = operand & 1;
+                addressing.set(memory, result);
+                self.set_result_flags(result);
 
-                    let shifted = u16::from(addressing.fetch(memory)) << 1;
-                    let result = (shifted & 0xFF) as u8 | (self.C & 1);
-                    self.C = (shifted >> 8) as u8;
-                    addressing.set(memory, result);
+                // max value is 0x1FF. There is carry if > 0xFF.
+                self.adc(result);
+            }
+            Instruction::SLO(_, addressing, _) => {
+                // shift left one bit in memory
+                let shifted = u16::from(addressing.fetch(memory)) << 1;
+                let result = (shifted & 0xFF) as u8;
+                self.C = (shifted >> 8) as u8;
+                addressing.set(memory, result);
 
-                    let and_result = self.A & result;
-                    self.set_result_flags(and_result);
-                    self.A = and_result;
-                },
-                Instruction::RRA(_, addressing, _) => {
-                    // ROR then ADC.
-                    let operand = addressing.fetch(memory);
-                    let result = operand >> 1 | (self.C << 7);
-                    self.C = operand & 1;
-                    addressing.set(memory, result);
-                    self.set_result_flags(result);
+                // OR With A.
+                let or_result = self.A | result;
+                self.A = or_result;
+                self.set_result_flags(or_result);
+            }
+            Instruction::SRE(_, addressing, _) => {
+                // Shift right.
+                let operand = addressing.fetch(memory);
+                self.C = operand & 1;
+                let result = operand >> 1;
+                addressing.set(memory, result);
 
-                    // max value is 0x1FF. There is carry if > 0xFF.
-                    self.adc(result);
-                },
-                Instruction::SLO(_, addressing, _) => {
-                    // shift left one bit in memory
-                    let shifted = u16::from(addressing.fetch(memory)) << 1;
-                    let result = (shifted & 0xFF) as u8;
-                    self.C = (shifted >> 8) as u8;
-                    addressing.set(memory, result);
-
-                    // OR With A.
-                    let or_result = self.A | result;
-                    self.A = or_result;
-                    self.set_result_flags(or_result);
-                },
-                Instruction::SRE(_, addressing, _) => {
-                    // Shift right.
-                    let operand = addressing.fetch(memory);
-                    self.C = operand & 1;
-                    let result = operand >> 1;
-                    addressing.set(memory, result);
-
-                    // EOR With A 
-                    let eor_result = self.A ^ result;
-                    self.set_result_flags(eor_result);
-                    self.A = eor_result;
-                },
-                Instruction::UNKNOWN(_,_) => {}
+                // EOR With A
+                let eor_result = self.A ^ result;
+                self.set_result_flags(eor_result);
+                self.A = eor_result;
+            }
+            Instruction::UNKNOWN(_, _) => {}
         };
 
-        let total_cycles = instruction.get_cycles() as u64 + again_extra_cycles as u64 + interrupt_cycles as u64;
+        let total_cycles =
+            instruction.get_cycles() as u64 + again_extra_cycles as u64 + interrupt_cycles as u64;
         self.cycles += total_cycles;
         Ok(total_cycles as u64)
     }
@@ -799,9 +788,8 @@ impl Cpu {
 
     fn adc(&mut self, rhs: u8) {
         // max value is 0x1FF. There is carry if > 0xFF.
-        let sum = u16::from(self.A)
-            + u16::from(rhs) + u16::from(self.C);
-        let result = (sum & 0xFF) as u8; 
+        let sum = u16::from(self.A) + u16::from(rhs) + u16::from(self.C);
+        let result = (sum & 0xFF) as u8;
         self.C = (sum >> 8) as u8;
 
         self.set_result_flags(result);
@@ -809,7 +797,7 @@ impl Cpu {
         // now the overflow.
         // if addition of two negative numbers yield a positive result, set
         // V to 1.
-        // if addition of two positive numbers yield a negative result, set V 
+        // if addition of two positive numbers yield a negative result, set V
         // to 1.
         if ((rhs ^ self.A) >> 7 == 0) && ((rhs ^ result) >> 7 == 1) {
             self.V = 1;
@@ -829,22 +817,30 @@ mod tests {
     use crate::rom::INesFile;
 
     fn new_memory(rom: Vec<u8>) -> Memory {
-
         let mut prg_rom = vec![0; 0x4000];
         for (i, b) in rom.iter().enumerate() {
             prg_rom[i] = *b;
         }
 
-        let ines = INesFile::new(prg_rom, 1, vec![0; 0x2000], 1, 0, 0, 0, 0, 0, "test".to_owned());
+        let ines = INesFile::new(
+            prg_rom,
+            1,
+            vec![0; 0x2000],
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            "test".to_owned(),
+        );
         Memory::new(&ines).unwrap()
     }
-
-
 
     #[test]
     fn test_LDA_immediate_no_flag() {
         // Load accumulator. Immediate addressing
-        let code = vec![0xA9, 0x36]; 
+        let code = vec![0xA9, 0x36];
 
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
@@ -858,7 +854,7 @@ mod tests {
 
     #[test]
     fn test_LDA_zeropage_negative() {
-        let code = vec![0xA5, 0x06]; 
+        let code = vec![0xA5, 0x06];
 
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
@@ -867,12 +863,12 @@ mod tests {
         nes.next(&mut memory).unwrap();
 
         assert_eq!(0x84, nes.A);
-        assert_eq!(1, nes.N); 
+        assert_eq!(1, nes.N);
     }
 
     #[test]
     fn test_LDA_absolute_processor_zero() {
-        let code = vec![0xAD, 0x06, 0xA3]; 
+        let code = vec![0xAD, 0x06, 0xA3];
 
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
@@ -898,7 +894,7 @@ mod tests {
 
     #[test]
     fn test_LDY_indexed_absolute() {
-        let code = vec![0xBC, 0x06, 0xA3]; 
+        let code = vec![0xBC, 0x06, 0xA3];
 
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
@@ -945,7 +941,7 @@ mod tests {
 
     #[test]
     fn test_ADC_positive_overflow() {
-        let code = vec![0xA9, 0x64, 0x69, 0x64]; 
+        let code = vec![0xA9, 0x64, 0x69, 0x64];
 
         // if signed 0x64 (>0) + 0x64 (>0) = 0xc8 (< 0)
         let mut nes = Cpu::new();
@@ -956,12 +952,11 @@ mod tests {
         assert_eq!(0xC8, nes.A);
         assert_eq!(0, nes.C);
         assert_eq!(1, nes.V);
-
     }
 
     #[test]
     fn test_AND() {
-        let code = vec![0xA9, 0x64, 0x29, 0xA0]; 
+        let code = vec![0xA9, 0x64, 0x29, 0xA0];
 
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
@@ -971,13 +966,11 @@ mod tests {
         assert_eq!(0x20, nes.A);
         assert_eq!(0, nes.Z);
         assert_eq!(0, nes.N);
-
-
     }
 
     #[test]
     fn test_ASL_accumulator_nocarry() {
-        let code = vec![0xA9, 0x64, 0x0A]; 
+        let code = vec![0xA9, 0x64, 0x0A];
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -990,7 +983,7 @@ mod tests {
 
     #[test]
     fn test_ASL_zeropage_with_carry() {
-        let code = vec![0x06, 0x07]; 
+        let code = vec![0x06, 0x07];
 
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
@@ -999,14 +992,14 @@ mod tests {
         nes.next(&mut memory).unwrap();
 
         assert_eq!(0x08, memory.get(0x07 as usize));
-        assert_eq!(0, nes.N); 
+        assert_eq!(0, nes.N);
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.C);
     }
 
     #[test]
     fn test_lsr_acc() {
-        let code = vec![0x4A]; 
+        let code = vec![0x4A];
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -1014,14 +1007,14 @@ mod tests {
         nes.next(&mut memory).unwrap();
 
         assert_eq!(0x25, nes.A);
-        assert_eq!(0, nes.N); 
+        assert_eq!(0, nes.N);
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.C);
     }
 
     #[test]
     fn test_rol_acc() {
-        let code = vec![0x2A]; 
+        let code = vec![0x2A];
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -1030,14 +1023,14 @@ mod tests {
         nes.next(&mut memory).unwrap();
 
         assert_eq!(0x97, nes.A);
-        assert_eq!(1, nes.N); 
+        assert_eq!(1, nes.N);
         assert_eq!(0, nes.Z);
         assert_eq!(0, nes.C);
     }
 
     #[test]
     fn test_ror_mem() {
-        let code = vec![0x66, 0x02]; 
+        let code = vec![0x66, 0x02];
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -1046,14 +1039,14 @@ mod tests {
         nes.next(&mut memory).unwrap();
 
         assert_eq!(0xa5, memory.get(0x02));
-        assert_eq!(1, nes.N); 
+        assert_eq!(1, nes.N);
         assert_eq!(0, nes.Z);
         assert_eq!(1, nes.C);
     }
 
     #[test]
     fn test_bcc_not_taken() {
-        let code = vec![0x90, 0x07]; // offset is +7. 
+        let code = vec![0x90, 0x07]; // offset is +7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -1064,29 +1057,29 @@ mod tests {
 
     #[test]
     fn test_bcc_taken_positive() {
-        let code = vec![0x90, 0x07]; // offset is +7. 
+        let code = vec![0x90, 0x07]; // offset is +7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.C = 0; 
+        nes.C = 0;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x8009, nes.PC);
     }
 
     #[test]
     fn test_bcc_taken_negative() {
-        let code = vec![0x90, 0xF9]; // offset is -7. 
+        let code = vec![0x90, 0xF9]; // offset is -7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.C = 0; 
+        nes.C = 0;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bcs_not_taken() {
-        let code = vec![0xB0, 0x07]; // offset is +7. 
+        let code = vec![0xB0, 0x07]; // offset is +7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -1097,88 +1090,88 @@ mod tests {
 
     #[test]
     fn test_bcs_taken_positive() {
-        let code = vec![0xB0, 0x07]; // offset is +7. 
+        let code = vec![0xB0, 0x07]; // offset is +7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.C = 1; 
+        nes.C = 1;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x8009, nes.PC);
     }
 
     #[test]
     fn test_bcs_taken_negative() {
-        let code = vec![0xB0, 0xF9]; // offset is -7. 
+        let code = vec![0xB0, 0xF9]; // offset is -7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.C = 1; 
+        nes.C = 1;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_beq() {
-        let code = vec![0xF0, 0xF9]; // offset is -7. 
+        let code = vec![0xF0, 0xF9]; // offset is -7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.Z = 1; 
+        nes.Z = 1;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bnq() {
-        let code = vec![0xD0, 0xF9]; // offset is -7. 
+        let code = vec![0xD0, 0xF9]; // offset is -7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.Z = 0; 
+        nes.Z = 0;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bmi() {
-        let code = vec![0x30, 0xF9]; // offset is -7. 
+        let code = vec![0x30, 0xF9]; // offset is -7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.N = 1; 
+        nes.N = 1;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bpl() {
-        let code = vec![0x10, 0xF9]; // offset is -7. 
+        let code = vec![0x10, 0xF9]; // offset is -7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.N = 0; 
+        nes.N = 0;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bvc() {
-        let code = vec![0x50, 0xF9]; // offset is -7. 
+        let code = vec![0x50, 0xF9]; // offset is -7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.V = 0; 
+        nes.V = 0;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
 
     #[test]
     fn test_bvs() {
-        let code = vec![0x70, 0xF9]; // offset is -7. 
+        let code = vec![0x70, 0xF9]; // offset is -7.
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
-        nes.V = 1; 
+        nes.V = 1;
         nes.next(&mut memory).unwrap();
         assert_eq!(0x7FFB, nes.PC);
     }
@@ -1188,7 +1181,6 @@ mod tests {
         let code = vec![0x24, 0x02]; // Bit test for zero page location
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
-
 
         // this should set the overflow, negative and zero flag.
         memory.set(0x02, 0xF4); // '0b11110101'
@@ -1205,7 +1197,6 @@ mod tests {
         let code = vec![0x24, 0x02]; // Bit test for zero page location
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
-
 
         // this should set the overflow, negative and zero flag.
         memory.set(0x02, 0x75); // '0b01110101'
@@ -1294,7 +1285,6 @@ mod tests {
         assert_eq!(0xF1, memory.get(0x04));
     }
 
-
     #[test]
     fn test_transfer_A_to_X() {
         //TAX
@@ -1371,7 +1361,7 @@ mod tests {
 
     #[test]
     fn test_stack_accumulator() {
-        let code = vec![0x48, 0x68];//push pull
+        let code = vec![0x48, 0x68]; //push pull
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -1389,10 +1379,9 @@ mod tests {
 
     #[test]
     fn test_stack_processor_flag() {
-        let code = vec![0x08, 0x28];//push pull
+        let code = vec![0x08, 0x28]; //push pull
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
-
 
         nes.C = 1;
         nes.Z = 1;
@@ -1422,7 +1411,7 @@ mod tests {
 
     #[test]
     fn test_exclusive_eor() {
-        let code = vec![0x49, 0x3];//push pull
+        let code = vec![0x49, 0x3]; //push pull
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -1433,7 +1422,7 @@ mod tests {
 
     #[test]
     fn test_exclusive_ora() {
-        let code = vec![0x09, 0x03];//push pull
+        let code = vec![0x09, 0x03]; //push pull
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
 
@@ -1454,7 +1443,6 @@ mod tests {
 
         assert_eq!(0, memory.get(0x02 as usize));
     }
-
 
     #[test]
     fn test_inx_dex() {
@@ -1504,7 +1492,6 @@ mod tests {
 
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.Z);
-
     }
 
     #[test]
@@ -1545,7 +1532,6 @@ mod tests {
 
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.Z);
-
     }
 
     #[test]
@@ -1586,7 +1572,6 @@ mod tests {
 
         assert_eq!(1, nes.C);
         assert_eq!(1, nes.Z);
-
     }
 
     #[test]
@@ -1623,7 +1608,6 @@ mod tests {
     // AND X register with accumulator and store result in X
     #[test]
     fn test_axs() {
-
         let code = vec![0x87, 0x01];
         let mut nes = Cpu::new();
         let mut memory = new_memory(code);
@@ -1660,7 +1644,7 @@ mod tests {
     }
 
     // ALR
-    // This opcode ANDs the contents of the A register with an immediate value and 
+    // This opcode ANDs the contents of the A register with an immediate value and
     // then LSRs the result.
     #[test]
     fn test_alr() {
@@ -1707,5 +1691,3 @@ mod tests {
     }
 
 }
-
-

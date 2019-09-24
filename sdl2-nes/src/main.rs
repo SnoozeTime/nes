@@ -7,10 +7,9 @@ use sdl2::render::{RenderTarget, WindowCanvas};
 use sdl2::EventPump;
 use std::time::{Duration, Instant};
 
-use nesemu::graphic::Canvas;
 use nesemu::{
     cpu::memory::Memory,
-    graphic::{EmulatorInput, GraphicHandler},
+    graphic::EmulatorInput,
     joypad::{InputAction, InputState, Player},
     nes::Nes,
     ppu::{memory::RegisterType, palette, Ppu},
@@ -24,7 +23,7 @@ const HEIGHT: u32 = 240;
 
 struct SdlCanvas(WindowCanvas);
 
-impl nesemu::graphic::Canvas for SdlCanvas {
+impl SdlCanvas {
     fn set_color(&mut self, color: nesemu::graphic::Color) {
         self.0.set_draw_color(Color::RGB(color.r, color.g, color.b));
     }
@@ -116,9 +115,7 @@ impl Graphics {
             input_map_p2: build_default_input_p2(),
         })
     }
-}
 
-impl GraphicHandler for Graphics {
     // This is called in the main loop and will listen for
     // input pressed. If a key is pressed, it will modify
     // the register accordingly.
@@ -200,123 +197,8 @@ impl GraphicHandler for Graphics {
         }
         emu_events
     }
-
-    fn display(&mut self, nes: &mut Nes) {
-        nes.display(&mut self.canvas, &self.colors, self.zoom_level);
-    }
-
-    // For debug !
-    //    pub fn draw_debug(&mut self, memory: &Memory){
-    //	self.canvas.set_draw_color(palette::get_bg_color(&memory.ppu_mem.palettes, &self.colors));
-    //        self.canvas.clear();
-    //	// begin at
-    //	// X = WIDTH*zoom_level + 10
-    //	// Y = 10
-    //	// First draw 2 nametables in memory, then we take care of mirroring
-    //        let pattern_table_nb = usize::from((memory.ppu_mem.peek(RegisterType::PPUCTRL) >> 4) & 1);
-    //	let pattern_table = &memory.get_pattern_table(pattern_table_nb);
-    //
-    //	let x1 = WIDTH*self.zoom_level + 10;
-    //	let x2 = WIDTH*self.zoom_level + 20 + WIDTH;
-    //        let nametable1 = &memory.get_logical_table(0);
-    //        let nametable2 = &memory.get_logical_table(1);
-    //        let nametable3 = &memory.get_logical_table(2);
-    //        let nametable4 = &memory.get_logical_table(3);
-    //	self.draw_nametable(nametable1, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 10);
-    //	self.draw_nametable(nametable2, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 10);
-    //	self.draw_nametable(nametable3, pattern_table, &memory.ppu_mem.palettes, x1 as i32, 20+HEIGHT as i32);
-    //	self.draw_nametable(nametable4, pattern_table, &memory.ppu_mem.palettes, x2 as i32, 20+HEIGHT as i32);
-    //        self.canvas.present();
-    //    }
-    //
-    //    fn draw_nametable(&mut self, nametable: &[u8], pattern_table: &[u8], palettes: &[u8], x: i32, y: i32) {
-    //	for row in 0..30i32 {
-    //	    let rowattr = row / 4;
-    //	    for col in 0..32i32 {
-    //		let index = 32*(row as usize) + (col as usize);
-    //		let tile = Tile::new(pattern_table, nametable[index] as usize);
-    //
-    //		let xtile = col*8;
-    //		let ytile = row*8;
-    //
-    //		// fetch attributes for this tile.
-    //		let colattr = col / 4;
-    //		let attr_idx = 0x3c0 + 8*rowattr+colattr;
-    //		let attr_byte = nametable[attr_idx as usize];
-    //
-    //		let box_row = (row%4) / 2;
-    //		let box_col = (col%4) / 2;
-    //		let attribute = match (box_row, box_col) {
-    //		    (0, 0) => attr_byte & 0b11,
-    //		    (0, 1) => (attr_byte & 0b1100) >> 2 ,
-    //		    (1, 0) => (attr_byte & 0b110000) >> 4,
-    //		    (1, 1) => (attr_byte & 0b11000000) >> 6,
-    //		    _ => panic!("Not possible"),
-    //		};
-    //
-    //		let palette = palette::get_bg_palette(attribute, palettes, &self.colors)
-    //                    .expect("Cannot get palette from attribute");
-    //
-    //		// Now draw
-    //		tile.draw(&mut self.canvas, x+xtile, y+ytile, &palette);
-    //	    }
-    //	}
-    //    }
 }
-//
-//struct Tile {
-//    plane1: [u8; 8],
-//    plane2: [u8; 8],
-//}
-//
-//impl Tile {
-//    fn new(pattern_table: &[u8], sprite_nb: usize) -> Tile {
-//        let mut plane1 = [0; 8];
-//        let mut plane2 = [0; 8];
-//
-//        for i in 0..8 {
-//            plane1[i] = pattern_table[16 * sprite_nb + i];
-//            plane2[i] = pattern_table[16 * sprite_nb + i + 8];
-//        }
-//
-//        Tile { plane1, plane2 }
-//    }
-//
-//    fn draw<T: RenderTarget>(
-//        &self,
-//        canvas: &mut Canvas<T>,
-//        x: i32,
-//        y: i32,
-//        palette: &palette::Palette,
-//    ) {
-//        for yline in 0..8 {
-//            let v1 = self.plane1[yline];
-//            let v2 = self.plane2[yline];
-//            for xline in 0..8 {
-//                let bit1 = (v1 >> 8 - (xline + 1)) & 1;
-//                let bit2 = ((v2 >> 8 - (xline + 1)) & 1) << 1;
-//                let v = bit1 + bit2;
-//                if v == 1 {
-//                    canvas.set_draw_color(palette.color1);
-//                } else if v == 2 {
-//                    canvas.set_draw_color(palette.color2);
-//                } else if v == 3 {
-//                    canvas.set_draw_color(palette.color3);
-//                } else {
-//                    canvas.set_draw_color(Color::RGB(0, 0, 0));
-//                }
-//
-//                let xpixel = x + (xline as i32);
-//                let ypixel = y + (yline as i32);
-//                // // A draw a rectangle which almost fills our window with it !
-//                canvas
-//                    .fill_rect(Rect::new(xpixel, ypixel, 1, 1))
-//                    .expect("In Tile::draw, cannot fill_rect");
-//            }
-//        }
-//    }
-//}
-//
+
 fn run_rom(path: String) {
     let ines = rom::read(path).unwrap();
     let mut nes = Nes::new(ines).unwrap();
@@ -334,7 +216,7 @@ fn main_loop(mut nes: Nes) -> Result<(), &'static str> {
     let fixed_time_stamp = Duration::new(0, 16666667);
     let mut previous_clock = Instant::now();
     let mut accumulator = Duration::new(0, 0);
-
+    let zoom_level = ui.zoom_level;
     while nes.should_run {
         // Update CPU and PPU (and later APU)
         // if !is_pause {
@@ -345,7 +227,27 @@ fn main_loop(mut nes: Nes) -> Result<(), &'static str> {
             accumulator -= fixed_time_stamp;
             let events = ui.poll_events();
             nes.handle_events(events);
-            ui.display(&mut nes);
+            //ui.display(&mut nes);
+
+            if nes.should_display() {
+                let bg_color = palette::get_bg_color(&nes.memory().ppu_mem.palettes, &ui.colors);
+                ui.canvas.set_color(bg_color);
+                ui.canvas.clear_state();
+
+                for row in 0..240i32 {
+                    for col in 0..256i32 {
+                        let pixel = nes.get_pixel(row, col);
+                        ui.canvas.set_color(pixel);
+
+                        let xpixel = col * zoom_level;
+                        let ypixel = row * zoom_level;
+
+                        ui.canvas
+                            .draw_rect(xpixel, ypixel, zoom_level as u32, zoom_level as u32);
+                    }
+                }
+                ui.canvas.show();
+            }
         }
 
         accumulator += Instant::now() - previous_clock;

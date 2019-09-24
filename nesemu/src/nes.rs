@@ -2,14 +2,12 @@
 //
 use crate::cpu::cpu::Cpu;
 use crate::cpu::memory::Memory;
-use crate::graphic::{Canvas, Color, EmulatorInput};
+use crate::graphic::{Color, EmulatorInput};
 use crate::joypad::{InputState, Player};
-use crate::ppu::palette;
 use crate::ppu::Ppu;
 use crate::rom;
 
 use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::error::Error;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -49,6 +47,18 @@ impl Nes {
         })
     }
 
+    pub fn width(&self) -> usize {
+        256
+    }
+
+    pub fn height(&self) -> usize {
+        240
+    }
+
+    pub fn cpu(&self) -> &Cpu {
+        &self.cpu
+    }
+
     pub fn ppu_mut(&mut self) -> &mut Ppu {
         &mut self.ppu
     }
@@ -61,34 +71,10 @@ impl Nes {
         self.ppu.should_display()
     }
 
-    pub fn display(
-        &mut self,
-        canvas: &mut dyn Canvas,
-        colors: &HashMap<u8, Color>,
-        zoom_level: i32,
-    ) {
-        if self.should_display() {
-            let bg_color = palette::get_bg_color(&self.memory.ppu_mem.palettes, colors);
-            canvas.set_color(bg_color);
-            canvas.clear_state();
-            self.fill_canvas(canvas, zoom_level);
-            canvas.show();
-        }
-    }
-
-    pub fn fill_canvas(&self, canvas: &mut dyn Canvas, zoom_level: i32) {
-        for row in 0..240i32 {
-            for col in 0..256i32 {
-                let idx = row * 256 + col;
-                let pixel = self.ppu.pixels[idx as usize];
-
-                canvas.set_color(Color::rgb(pixel.0, pixel.1, pixel.2));
-
-                let xpixel = col * zoom_level;
-                let ypixel = row * zoom_level;
-                canvas.draw_rect(xpixel, ypixel, zoom_level as u32, zoom_level as u32);
-            }
-        }
+    pub fn get_pixel(&self, row: i32, col: i32) -> Color {
+        let idx = row * 256 + col;
+        let pixel = self.ppu.pixels[idx as usize];
+        Color::rgb(pixel.0, pixel.1, pixel.2)
     }
 
     // Load from json file.
@@ -106,34 +92,34 @@ impl Nes {
         Ok(())
     }
 
-    pub fn handle_events(&mut self, events: Vec<EmulatorInput>) {
-        for event in events {
-            match event {
-                EmulatorInput::QUIT => self.should_run = false,
-                EmulatorInput::PAUSE => self.is_pause = !self.is_pause,
-                EmulatorInput::DEBUG => self.is_debug = !self.is_debug,
-                EmulatorInput::SAVE => match self.save_state() {
-                    Err(err) => println!("Error while saving state: {}", err),
-                    Ok(_) => println!("Successfully saved to {}", self.get_save_name()),
-                },
-                EmulatorInput::INPUT(player, action, state) => {
-                    //
-                    match (player, state) {
-                        (Player::One, InputState::Pressed) => {
-                            self.memory.joypad_p1.button_down(&action)
-                        }
-                        (Player::Two, InputState::Pressed) => {
-                            self.memory.joypad_p2.button_down(&action)
-                        }
-                        (Player::One, InputState::Released) => {
-                            self.memory.joypad_p1.button_up(&action)
-                        }
-                        (Player::Two, InputState::Released) => {
-                            self.memory.joypad_p2.button_up(&action)
-                        }
+    pub fn handle_event(&mut self, event: EmulatorInput) {
+        match event {
+            EmulatorInput::QUIT => self.should_run = false,
+            EmulatorInput::PAUSE => self.is_pause = !self.is_pause,
+            EmulatorInput::DEBUG => self.is_debug = !self.is_debug,
+            EmulatorInput::SAVE => match self.save_state() {
+                Err(err) => println!("Error while saving state: {}", err),
+                Ok(_) => println!("Successfully saved to {}", self.get_save_name()),
+            },
+            EmulatorInput::INPUT(player, action, state) => {
+                //
+                match (player, state) {
+                    (Player::One, InputState::Pressed) => {
+                        self.memory.joypad_p1.button_down(&action)
                     }
+                    (Player::Two, InputState::Pressed) => {
+                        self.memory.joypad_p2.button_down(&action)
+                    }
+                    (Player::One, InputState::Released) => self.memory.joypad_p1.button_up(&action),
+                    (Player::Two, InputState::Released) => self.memory.joypad_p2.button_up(&action),
                 }
             }
+        }
+    }
+
+    pub fn handle_events(&mut self, events: Vec<EmulatorInput>) {
+        for event in events {
+            self.handle_event(event);
         }
     }
 
