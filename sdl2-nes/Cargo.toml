@@ -8,7 +8,7 @@ edition = "2018"
 
 [profile.release]
 debug = true
-lto = true
+# lto = true
 
 [dependencies]
 nesemu = { "path" = "../nesemu" }

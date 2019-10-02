@@ -115,11 +115,11 @@ const renderLoop = () => {
     //console.timeEnd("EMU");
 
     //console.time("DISPLAY");
-    //drawGrid();
-    //drawPixels();
+    drawGrid();
+    drawPixels();
     //console.timeEnd("DISPLAY");
-    console.log("hi");
-  requestAnimationFrame(renderLoop);
+    //console.log("hi");
+    requestAnimationFrame(renderLoop);
 };
 
 drawGrid();

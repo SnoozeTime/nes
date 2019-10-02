@@ -106,7 +106,7 @@ impl NesEmulator {
 
     pub fn get_pixel(&self, row: i32, col: i32) -> Color {
         let c = self.inner.get_pixel(row, col);
-        Color(c.r, c.g, c.b)
+        Color(c.0, c.1, c.2)
     }
 
     pub fn pixels(&self) -> *const (u8, u8, u8) {

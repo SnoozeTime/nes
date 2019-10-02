@@ -71,12 +71,19 @@ pub struct Ppu {
     pub pixels: [(u8, u8, u8); 0xf000],
 
     #[serde(skip)]
-    #[serde(default = "palette::build_default_colors2")]
-    colors: [Color; 64],
+    #[serde(default = "empty_screen2")]
+    pub pixels2: [u8; 0x2D000],
+
+    #[serde(skip)]
+    #[serde(default = "palette::build_default_colors")]
+    pub colors: [Color; 64],
 }
 
 fn empty_screen() -> [(u8, u8, u8); 0xF000] {
     [(0, 0, 0); 0xF000]
+}
+fn empty_screen2() -> [u8; 0x2D000] {
+    [0; 0x2D000]
 }
 
 impl Ppu {
@@ -106,7 +113,8 @@ impl Ppu {
             sprite_attributes: vec![0; 8],
 
             pixels: [(0, 0, 0); 0xf000],
-            colors: palette::build_default_colors2(),
+            pixels2: empty_screen2(),
+            colors: palette::build_default_colors(),
         }
     }
 

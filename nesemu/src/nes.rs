@@ -2,8 +2,9 @@
 //
 use crate::cpu::cpu::Cpu;
 use crate::cpu::memory::Memory;
-use crate::graphic::EmulatorInput;
+use crate::graphic::{Color, EmulatorInput};
 use crate::joypad::{InputState, Player};
+use crate::ppu::palette;
 use crate::ppu::Ppu;
 use crate::rom;
 
@@ -75,9 +76,10 @@ impl Nes {
         self.ppu.should_display()
     }
 
-    pub fn get_pixel(&self, row: i32, col: i32) -> (u8, u8, u8) {
+    pub fn get_pixel(&self, row: usize, col: usize) -> (u8, u8, u8) {
         let idx = row * 256 + col;
-        let pixel = self.ppu.pixels[idx as usize];
+        //println!("{:?}", idx);
+        let pixel = self.ppu.pixels[idx];
         pixel
     }
 
@@ -90,10 +92,10 @@ impl Nes {
         Ok(n)
     }
 
-    pub fn tick(&mut self, is_debug: bool) -> Result<(), &'static str> {
+    pub fn tick(&mut self, is_debug: bool) -> Result<u64, &'static str> {
         let cpu_cycles = self.cpu.next(&mut self.memory)?;
         self.ppu.next(3 * cpu_cycles, &mut self.memory, is_debug)?;
-        Ok(())
+        Ok(cpu_cycles)
     }
 
     pub fn handle_event(&mut self, event: EmulatorInput) {
@@ -125,6 +127,10 @@ impl Nes {
         for event in events {
             self.handle_event(event);
         }
+    }
+
+    pub fn get_bg_color(&self) -> Color {
+        palette::get_bg_color(&self.memory.ppu_mem.palettes, &self.ppu.colors)
     }
 
     pub fn decompile(&mut self) {
