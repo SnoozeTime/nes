@@ -3,11 +3,11 @@
 // CHR-ROM: mapped to pattern tables of PPU
 //
 //
-use serde_derive::{Serialize, Deserialize};
-pub mod nrom;
+use serde_derive::{Deserialize, Serialize};
 pub mod mmc1;
-pub mod uxrom;
 pub mod mmc3;
+pub mod nrom;
+pub mod uxrom;
 
 use crate::rom;
 
@@ -87,7 +87,6 @@ macro_rules! mapper_types {
 
             let mapper_id = rom.get_mapper_id();
 
-            println!("MAPPER ID: {}", mapper_id);
             match mapper_id {
                 $(
                     $id => {
@@ -108,4 +107,3 @@ mapper_types!(
     Uxrom: (2, uxrom::Uxrom),
     Mmc3: (4, mmc3::Mmc3)
 );
-

@@ -2,7 +2,7 @@
 //
 use crate::cpu::cpu::Cpu;
 use crate::cpu::memory::Memory;
-use crate::graphic::{Color, EmulatorInput};
+use crate::graphic::EmulatorInput;
 use crate::joypad::{InputState, Player};
 use crate::ppu::Ppu;
 use crate::rom;
@@ -59,6 +59,10 @@ impl Nes {
         &self.cpu
     }
 
+    pub fn cpu_mut(&mut self) -> &mut Cpu {
+        &mut self.cpu
+    }
+
     pub fn ppu_mut(&mut self) -> &mut Ppu {
         &mut self.ppu
     }
@@ -71,7 +75,7 @@ impl Nes {
         self.ppu.should_display()
     }
 
-    pub fn get_pixel(&self, row: i32, col: i32) -> Color {
+    pub fn get_pixel(&self, row: i32, col: i32) -> (u8, u8, u8) {
         let idx = row * 256 + col;
         let pixel = self.ppu.pixels[idx as usize];
         pixel

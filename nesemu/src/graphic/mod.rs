@@ -10,7 +10,6 @@ pub enum EmulatorInput {
     INPUT(Player, InputAction, InputState),
 }
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Color {
     pub r: u8,

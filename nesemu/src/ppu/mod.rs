@@ -69,7 +69,7 @@ pub struct Ppu {
 
     #[serde(skip)]
     #[serde(default = "empty_screen")]
-    pub pixels: [Color; 0xf000],
+    pub pixels: [(u8, u8, u8); 0xf000],
 
     #[serde(skip)]
     #[serde(default = "palette::build_default_colors")]
@@ -106,7 +106,7 @@ impl Ppu {
             is_active: vec![false; 8],
             sprite_attributes: vec![0; 8],
 
-            pixels: [Color::rgb(0, 0, 0); 0xf000],
+            pixels: [(0, 0, 0); 0xf000],
             colors: palette::build_default_colors(),
         }
     }
@@ -171,15 +171,15 @@ impl Ppu {
         let hide_sprite = ((ppu_mask >> 2) & 1 == 1) && (self.cycle <= 8);
         // First of all, do we render sprites?
         if hide_sprite || sprite_pixel_data == None || !render_sprite {
-            self.pixels[idx] = Color::from(bg_pixel);
+            self.pixels[idx] = bg_pixel;
         } else if let Some(sprite_pixel) = sprite_pixel_data {
             // if sprite has priority, draw it first.
             let bg_priority = sprite_pixel.3 == 1;
 
             if bg_priority && bg_pixel_v != 0 {
-                self.pixels[idx] = Color::from(bg_pixel);
+                self.pixels[idx] = bg_pixel;
             } else {
-                self.pixels[idx] = Color::rgb(sprite_pixel.0, sprite_pixel.1, sprite_pixel.2);
+                self.pixels[idx] = (sprite_pixel.0, sprite_pixel.1, sprite_pixel.2);
             }
         }
     }
