@@ -12,30 +12,17 @@ pub fn get_bg_color(vram: &[u8], colors: &[Color; 64]) -> Color {
     colors[vram[0x00] as usize]
 }
 
-// palette number between 0 and 4 (exclusive)
-// vram
-// colors: Color map.
-pub fn get_bg_palette(palette_number: u8, vram: &[u8], colors: &[Color; 64]) -> Palette {
-    // only 4 palettes for background.
-    assert!(palette_number < 4);
-
-    let background = unsafe { *colors.get_unchecked((vram[0x00] & 0b111111) as usize) };
-
-    let idx = 4 * (palette_number as usize) + 1;
-    let (color1, color2, color3) = unsafe {
-        (
-            *colors.get_unchecked((vram[idx] & 0b111111) as usize),
-            *colors.get_unchecked((vram[idx + 1] & 0b111111) as usize),
-            *colors.get_unchecked((vram[idx + 2] & 0b111111) as usize),
-        )
-    };
-
-    Palette {
-        background,
-        color1,
-        color2,
-        color3,
-    }
+pub fn get_bg_palette(
+    palette_number: u16,
+    vram: &[u8],
+    colors: &[Color; 64],
+    pixel_value: u16,
+) -> Color {
+    // Background color is repeated multiple time in the vram (at 0x00, 0x04, 0x08 and 0xC)
+    let idx = ((4 * palette_number + pixel_value) & 0b11111) as usize;
+    let vram_value = unsafe { *vram.get_unchecked(idx) & 0b111111 } as usize;
+    let color = unsafe { *colors.get_unchecked(vram_value) };
+    color
 }
 
 pub fn get_sprite_palette(palette_number: u8, vram: &[u8], colors: &[Color; 64]) -> Palette {

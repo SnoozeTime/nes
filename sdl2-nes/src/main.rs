@@ -3,7 +3,6 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::EventPump;
 use std::thread;
@@ -181,21 +180,22 @@ impl Graphics {
 fn run_rom(path: String) {
     let ines = rom::read(path).unwrap();
     let nes = Nes::new(ines).unwrap();
-    main_loop(nes).unwrap();
+
+    let ui = Graphics::new(3).unwrap();
+    main_loop(ui, nes).unwrap();
 }
 
 fn load_state(path: String) {
     let nes = Nes::load_state(path).unwrap();
-    main_loop(nes).unwrap();
+    let ui = Graphics::new(3).unwrap();
+    main_loop(ui, nes).unwrap();
 }
 
-fn main_loop(mut nes: Nes) -> Result<(), &'static str> {
-    let mut ui = Graphics::new(3).unwrap();
+fn main_loop(mut ui: Graphics, mut nes: Nes) -> Result<(), &'static str> {
     // Fixed time stamp for input polling.
     let fixed_time_stamp = Duration::new(0, 16666667);
     let mut previous_clock = Instant::now();
     //let mut accumulator = Duration::new(0, 0);
-    let zoom_level = ui.zoom_level;
 
     // texture to draw the pixels to the screen. Drawing pixel
     // by pixel is too slow :)
@@ -222,12 +222,12 @@ fn main_loop(mut nes: Nes) -> Result<(), &'static str> {
         // if !is_pause {
 
         let mut total_cycles = CPU_CYCLES_PER_FRAME;
+        // hot af
         while total_cycles > 0 {
             total_cycles -= nes.tick(nes.is_debug)? as i64;
         }
         let events = ui.poll_events();
         nes.handle_events(events);
-        //ui.display(&mut nes);
 
         if nes.should_display() {
             texture
@@ -244,28 +244,7 @@ fn main_loop(mut nes: Nes) -> Result<(), &'static str> {
                 })
                 .unwrap();
 
-            // TODO Better way.
-            // Use the existing pixels in ppu as a texture.
             ui.canvas.copy(&texture, None, None).unwrap();
-            //            for row in 0..240i32 {
-            //                for col in 0..256i32 {
-            //                    let pixel = nes.get_pixel(row, col);
-            //                    ui.canvas
-            //                        .set_draw_color(Color::RGB(pixel.0, pixel.1, pixel.2));
-            //
-            //                    let xpixel = col * zoom_level;
-            //                    let ypixel = row * zoom_level;
-            //
-            //                    ui.canvas
-            //                        .fill_rect(Rect::new(
-            //                            xpixel,
-            //                            ypixel,
-            //                            zoom_level as u32,
-            //                            zoom_level as u32,
-            //                        ))
-            //                        .expect("Cannot draw rectangle");
-            //                }
-            //            }
             ui.canvas.present();
         }
 

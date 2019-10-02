@@ -71,19 +71,12 @@ pub struct Ppu {
     pub pixels: [(u8, u8, u8); 0xf000],
 
     #[serde(skip)]
-    #[serde(default = "empty_screen2")]
-    pub pixels2: [u8; 0x2D000],
-
-    #[serde(skip)]
     #[serde(default = "palette::build_default_colors")]
     pub colors: [Color; 64],
 }
 
 fn empty_screen() -> [(u8, u8, u8); 0xF000] {
     [(0, 0, 0); 0xF000]
-}
-fn empty_screen2() -> [u8; 0x2D000] {
-    [0; 0x2D000]
 }
 
 impl Ppu {
@@ -113,7 +106,6 @@ impl Ppu {
             sprite_attributes: vec![0; 8],
 
             pixels: [(0, 0, 0); 0xf000],
-            pixels2: empty_screen2(),
             colors: palette::build_default_colors(),
         }
     }
@@ -147,24 +139,18 @@ impl Ppu {
         let idx = 256 * self.line + (self.cycle - 1);
         let bg_pixel_v = self.fetch_bg_pixel(&memory);
         let bg_pixel = {
-            if ((ppu_mask >> 1) & 1 == 0) && self.cycle <= 8 {
+            if !render_bg || (((ppu_mask >> 1) & 1 == 0) && self.cycle <= 8) {
                 (0, 0, 0)
             } else {
-                if render_bg {
-                    let attribute = self.fetch_bg_attr(&memory);
-                    let palette =
-                        palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.colors);
+                let attribute = self.fetch_bg_attr(&memory);
+                let color = palette::get_bg_palette(
+                    attribute,
+                    &memory.ppu_mem.palettes,
+                    &self.colors,
+                    bg_pixel_v,
+                );
 
-                    let color = match bg_pixel_v {
-                        1 => palette.color1,
-                        2 => palette.color2,
-                        3 => palette.color3,
-                        _ => palette.background,
-                    };
-                    (color.r, color.g, color.b)
-                } else {
-                    (0, 0, 0)
-                }
+                (color.r, color.g, color.b)
             }
         };
 
@@ -202,13 +188,13 @@ impl Ppu {
         for i in 0..8 {
             let is_active = unsafe { *self.is_active.get_unchecked(i) };
             if is_active {
-                let bmp_low = unsafe { *self.low_sprite_bmp_reg.get_unchecked(i) };
-                let bmp_high = unsafe { *self.high_sprite_bmp_reg.get_unchecked(i) };
-                let attr = unsafe { *self.sprite_attributes.get_unchecked(i) };
-
                 // choose the pixel
                 let offset = unsafe { *self.x_position_offset.get_unchecked(i) };
                 if offset < 8 {
+                    let bmp_low = unsafe { *self.low_sprite_bmp_reg.get_unchecked(i) };
+                    let bmp_high = unsafe { *self.high_sprite_bmp_reg.get_unchecked(i) };
+                    let attr = unsafe { *self.sprite_attributes.get_unchecked(i) };
+
                     unsafe {
                         *self.x_position_offset.get_unchecked_mut(i) += 1;
                     }
@@ -264,20 +250,20 @@ impl Ppu {
         pixel_data
     }
 
-    fn fetch_bg_pixel(&self, memory: &Memory) -> u8 {
+    fn fetch_bg_pixel(&self, memory: &Memory) -> u16 {
         let x = memory.ppu_mem.x;
         let low_plane_bit = (self.low_bg_shift_reg >> (15 - x)) & 1;
         let high_plane_bit = (self.high_bg_shift_reg >> (15 - x)) & 1;
 
-        (low_plane_bit | (high_plane_bit << 1)) as u8
+        (low_plane_bit | (high_plane_bit << 1))
     }
 
-    fn fetch_bg_attr(&self, memory: &Memory) -> u8 {
+    fn fetch_bg_attr(&self, memory: &Memory) -> u16 {
         let x = memory.ppu_mem.x;
         let low_plane_bit = (self.x_bg_attr_shift >> (15 - x)) & 1;
         let high_plane_bit = (self.y_bg_attr_shift >> (15 - x)) & 1;
 
-        (low_plane_bit | (high_plane_bit << 1)) as u8
+        (low_plane_bit | (high_plane_bit << 1))
     }
 
     fn exec_cycle(&mut self, memory: &mut Memory) {
@@ -574,10 +560,8 @@ impl Ppu {
         &mut self,
         cycles_to_exec: u64,
         memory: &mut Memory,
-        debug: bool,
+        _debug: bool,
     ) -> Result<(), &'static str> {
-        self.debug = debug;
-
         for _ in 0..cycles_to_exec {
             self.exec_cycle(memory);
         }
