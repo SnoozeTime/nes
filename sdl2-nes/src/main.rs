@@ -24,8 +24,8 @@ const HEIGHT: u32 = 240;
 struct SdlCanvas(WindowCanvas);
 
 impl SdlCanvas {
-    fn set_color(&mut self, color: nesemu::graphic::Color) {
-        self.0.set_draw_color(Color::RGB(color.r, color.g, color.b));
+    fn set_color(&mut self, color: (u8, u8, u8)) {
+        self.0.set_draw_color(Color::RGB(color.0, color.1, color.2));
     }
     fn clear_state(&mut self) {
         self.0.clear();
@@ -231,7 +231,7 @@ fn main_loop(mut nes: Nes) -> Result<(), &'static str> {
 
             if nes.should_display() {
                 let bg_color = palette::get_bg_color(&nes.memory().ppu_mem.palettes, &ui.colors);
-                ui.canvas.set_color(bg_color);
+                ui.canvas.set_color((bg_color.r, bg_color.g, bg_color.b));
                 ui.canvas.clear_state();
 
                 for row in 0..240i32 {

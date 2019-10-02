@@ -2,7 +2,6 @@ pub mod memory;
 pub mod palette;
 use self::memory::RegisterType;
 use super::cpu::memory::Memory;
-use std::collections::HashMap;
 
 use crate::graphic::Color;
 use serde_derive::{Deserialize, Serialize};
@@ -72,8 +71,8 @@ pub struct Ppu {
     pub pixels: [(u8, u8, u8); 0xf000],
 
     #[serde(skip)]
-    #[serde(default = "palette::build_default_colors")]
-    colors: HashMap<u8, Color>,
+    #[serde(default = "palette::build_default_colors2")]
+    colors: [Color; 64],
 }
 
 fn empty_screen() -> [(u8, u8, u8); 0xF000] {
@@ -107,7 +106,7 @@ impl Ppu {
             sprite_attributes: vec![0; 8],
 
             pixels: [(0, 0, 0); 0xf000],
-            colors: palette::build_default_colors(),
+            colors: palette::build_default_colors2(),
         }
     }
 
@@ -146,8 +145,7 @@ impl Ppu {
                 if render_bg {
                     let attribute = self.fetch_bg_attr(&memory);
                     let palette =
-                        palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.colors)
-                            .expect("Cannot get palette for background");
+                        palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.colors);
 
                     let color = match bg_pixel_v {
                         1 => palette.color1,
@@ -194,16 +192,18 @@ impl Ppu {
 
         // x between 0 and -7 are active.
         for i in 0..8 {
-            if self.is_active[i] {
-                let bmp_low = self.low_sprite_bmp_reg[i];
-                let bmp_high = self.high_sprite_bmp_reg[i];
-                let attr = self.sprite_attributes[i];
+            let is_active = unsafe { *self.is_active.get_unchecked(i) };
+            if is_active {
+                let bmp_low = unsafe { *self.low_sprite_bmp_reg.get_unchecked(i) };
+                let bmp_high = unsafe { *self.high_sprite_bmp_reg.get_unchecked(i) };
+                let attr = unsafe { *self.sprite_attributes.get_unchecked(i) };
 
                 // choose the pixel
-                let offset = self.x_position_offset[i];
+                let offset = unsafe { *self.x_position_offset.get_unchecked(i) };
                 if offset < 8 {
-                    self.x_position_offset[i] += 1;
-
+                    unsafe {
+                        *self.x_position_offset.get_unchecked_mut(i) += 1;
+                    }
                     if pixel_data == None {
                         let low_bit = (bmp_low >> (7 - offset)) & 1;
                         let high_bit = (bmp_high >> (7 - offset)) & 1;
@@ -223,8 +223,7 @@ impl Ppu {
                             attr & 0b11,
                             &memory.ppu_mem.palettes,
                             &self.colors,
-                        )
-                        .expect("In draw-sprite, cannot get sprite_palette");
+                        );
 
                         pixel_data = match v {
                             1 => Some((
