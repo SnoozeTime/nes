@@ -34,78 +34,186 @@ pub enum AddressingModeType {
     Accumulator,
 }
 
-pub fn create_addressing(
-    addressing_type: AddressingModeType,
-    nes: &mut Cpu,
-    memory: &mut Memory,
-) -> Box<dyn AddressingMode> {
-    use self::AddressingModeType::*;
-    match addressing_type {
-        Accumulator => AccumulatorAddressing::new(&nes),
-        Implied => ImpliedAddressing::new(),
-        Immediate => ImmediateAddressing::new(nes.advance(memory)),
-        ZeroPage => ZeroPageAddressing::new(nes.advance(memory)),
-        ZeroPageX => IndexedZeroPageAddressing::new(nes.advance(memory), nes.get_regx()),
-        ZeroPageY => IndexedZeroPageAddressing::new(nes.advance(memory), nes.get_regy()),
-        Relative => RelativeAddressing::new(nes.advance(memory)),
-        Absolute => {
-            let op1 = nes.advance(memory);
-            let op2 = nes.advance(memory);
-            AbsoluteAddressing::new(op1, op2)
-        }
-        AbsoluteX => {
-            let op1 = nes.advance(memory);
-            let op2 = nes.advance(memory);
-            IndexedAbsoluteAddressing::new(op1, op2, nes.get_regx())
-        }
-        AbsoluteY => {
-            let op1 = nes.advance(memory);
-            let op2 = nes.advance(memory);
-            IndexedAbsoluteAddressing::new(op1, op2, nes.get_regy())
-        }
-        Indirect => {
-            let op1 = nes.advance(memory);
-            let op2 = nes.advance(memory);
-            IndirectAddressing::new(op1, op2)
-        }
-        PreIndexedIndirect => {
-            let op = nes.advance(memory);
-            PreIndexedIndirectAddressing::new(op, nes.get_regx())
-        }
-        PostIndexedIndirect => {
-            let op = nes.advance(memory);
-            PostIndexedIndirectAddressing::new(op, nes.get_regy())
-        }
-        _ => panic!("not implemented"),
-    }
+#[derive(Debug)]
+pub enum MySavior {
+    Implied(ImpliedAddressing),
+    ZeroPage(ZeroPageAddressing),
+    Immediate(ImmediateAddressing),
+    Relative(RelativeAddressing),
+    IndexedZeroPage(IndexedZeroPageAddressing),
+    Absolute(AbsoluteAddressing),
+    IndexedAbsolute(IndexedAbsoluteAddressing),
+    Indirect(IndirectAddressing),
+    PreIndexedIndirect(PreIndexedIndirectAddressing),
+    PostIndexedIndirect(PostIndexedIndirectAddressing),
+    Accumulator(AccumulatorAddressing),
 }
 
-pub trait AddressingMode {
-    fn mode_type(&self) -> AddressingModeType;
+impl MySavior {
+    pub fn new(addressing_type: AddressingModeType, nes: &mut Cpu, memory: &mut Memory) -> Self {
+        match addressing_type {
+            AddressingModeType::Accumulator => {
+                MySavior::Accumulator(AccumulatorAddressing::new(&nes))
+            }
+            AddressingModeType::Implied => MySavior::Implied(ImpliedAddressing::new()),
+            AddressingModeType::Immediate => {
+                MySavior::Immediate(ImmediateAddressing::new(nes.advance(memory)))
+            }
+            AddressingModeType::ZeroPage => {
+                MySavior::ZeroPage(ZeroPageAddressing::new(nes.advance(memory)))
+            }
+            AddressingModeType::ZeroPageX => MySavior::IndexedZeroPage(
+                IndexedZeroPageAddressing::new(nes.advance(memory), nes.get_regx()),
+            ),
+            AddressingModeType::ZeroPageY => MySavior::IndexedZeroPage(
+                IndexedZeroPageAddressing::new(nes.advance(memory), nes.get_regy()),
+            ),
+            AddressingModeType::Relative => {
+                MySavior::Relative(RelativeAddressing::new(nes.advance(memory)))
+            }
+            AddressingModeType::Absolute => {
+                let op1 = nes.advance(memory);
+                let op2 = nes.advance(memory);
+                MySavior::Absolute(AbsoluteAddressing::new(op1, op2))
+            }
+            AddressingModeType::AbsoluteX => {
+                let op1 = nes.advance(memory);
+                let op2 = nes.advance(memory);
+                MySavior::IndexedAbsolute(IndexedAbsoluteAddressing::new(op1, op2, nes.get_regx()))
+            }
+            AddressingModeType::AbsoluteY => {
+                let op1 = nes.advance(memory);
+                let op2 = nes.advance(memory);
+                MySavior::IndexedAbsolute(IndexedAbsoluteAddressing::new(op1, op2, nes.get_regy()))
+            }
+            AddressingModeType::Indirect => {
+                let op1 = nes.advance(memory);
+                let op2 = nes.advance(memory);
+                MySavior::Indirect(IndirectAddressing::new(op1, op2))
+            }
+            AddressingModeType::PreIndexedIndirect => {
+                let op = nes.advance(memory);
+                MySavior::PreIndexedIndirect(PreIndexedIndirectAddressing::new(op, nes.get_regx()))
+            }
+            AddressingModeType::PostIndexedIndirect => {
+                let op = nes.advance(memory);
+                MySavior::PostIndexedIndirect(PostIndexedIndirectAddressing::new(
+                    op,
+                    nes.get_regy(),
+                ))
+            }
+            _ => panic!("not implemented"),
+        }
+    }
+
+    pub fn mode_type(&self) -> AddressingModeType {
+        use MySavior::*;
+        match *self {
+            Implied(ref x) => x.mode_type(),
+            ZeroPage(ref x) => x.mode_type(),
+            Immediate(ref x) => x.mode_type(),
+            Relative(ref x) => x.mode_type(),
+            IndexedZeroPage(ref x) => x.mode_type(),
+            Absolute(ref x) => x.mode_type(),
+            IndexedAbsolute(ref x) => x.mode_type(),
+            Indirect(ref x) => x.mode_type(),
+            PreIndexedIndirect(ref x) => x.mode_type(),
+            PostIndexedIndirect(ref x) => x.mode_type(),
+            Accumulator(ref x) => x.mode_type(),
+        }
+    }
 
     // Will get the value from memory.
-    fn fetch(&self, mem: &mut Memory) -> u8;
-    fn fetch16(&self, _mem: &mut Memory) -> u16 {
-        return 0;
+    pub fn fetch(&self, mem: &mut Memory) -> u8 {
+        use MySavior::*;
+        match *self {
+            Implied(ref x) => x.fetch(mem),
+            ZeroPage(ref x) => x.fetch(mem),
+            Immediate(ref x) => x.fetch(mem),
+            Relative(ref x) => x.fetch(mem),
+            IndexedZeroPage(ref x) => x.fetch(mem),
+            Absolute(ref x) => x.fetch(mem),
+            IndexedAbsolute(ref x) => x.fetch(mem),
+            Indirect(ref x) => x.fetch(mem),
+            PreIndexedIndirect(ref x) => x.fetch(mem),
+            PostIndexedIndirect(ref x) => x.fetch(mem),
+            Accumulator(ref x) => x.fetch(mem),
+        }
+    }
+
+    pub fn fetch16(&self, mem: &mut Memory) -> u16 {
+        use MySavior::*;
+        match *self {
+            Absolute(ref x) => x.fetch16(mem),
+            Indirect(ref x) => x.fetch16(mem),
+            _ => 0,
+        }
+
+        //return 0;
     }
 
     // will set the value to memory
-    fn set(&self, mem: &mut Memory, value: u8);
-    fn address(&self, _mem: &mut Memory) -> u16;
+    pub fn set(&self, mem: &mut Memory, value: u8) {
+        use MySavior::*;
+        match *self {
+            Implied(ref x) => x.set(mem, value),
+            ZeroPage(ref x) => x.set(mem, value),
+            Immediate(ref x) => x.set(mem, value),
+            Relative(ref x) => x.set(mem, value),
+            IndexedZeroPage(ref x) => x.set(mem, value),
+            Absolute(ref x) => x.set(mem, value),
+            IndexedAbsolute(ref x) => x.set(mem, value),
+            Indirect(ref x) => x.set(mem, value),
+            PreIndexedIndirect(ref x) => x.set(mem, value),
+            PostIndexedIndirect(ref x) => x.set(mem, value),
+            Accumulator(ref x) => x.set(mem, value),
+        }
+    }
+
+    pub fn address(&self, mem: &mut Memory) -> u16 {
+        use MySavior::*;
+        match *self {
+            Implied(ref x) => x.address(mem),
+            ZeroPage(ref x) => x.address(mem),
+            Immediate(ref x) => x.address(mem),
+            Relative(ref x) => x.address(mem),
+            IndexedZeroPage(ref x) => x.address(mem),
+            Absolute(ref x) => x.address(mem),
+            IndexedAbsolute(ref x) => x.address(mem),
+            Indirect(ref x) => x.address(mem),
+            PreIndexedIndirect(ref x) => x.address(mem),
+            PostIndexedIndirect(ref x) => x.address(mem),
+            Accumulator(ref x) => x.address(mem),
+        }
+    }
 
     // return extra cycles when crossing a page
-    fn extra_cycles(&self) -> u8 {
-        0
+    pub fn extra_cycles(&self) -> u8 {
+        use MySavior::*;
+        match *self {
+            IndexedAbsolute(ref x) => x.extra_cycles(),
+            PreIndexedIndirect(ref x) => x.extra_cycles(),
+            _ => 0,
+        }
+
+        //0
     }
 
-    fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Data {{ ... }}")
-    }
-}
-
-impl fmt::Debug for dyn AddressingMode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.debug_fmt(f)
+    pub fn debug_fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use MySavior::*;
+        match *self {
+            Implied(ref x) => x.debug_fmt(f),
+            ZeroPage(ref x) => x.debug_fmt(f),
+            Immediate(ref x) => x.debug_fmt(f),
+            Relative(ref x) => x.debug_fmt(f),
+            IndexedZeroPage(ref x) => x.debug_fmt(f),
+            Absolute(ref x) => x.debug_fmt(f),
+            IndexedAbsolute(ref x) => x.debug_fmt(f),
+            Indirect(ref x) => x.debug_fmt(f),
+            PreIndexedIndirect(ref x) => x.debug_fmt(f),
+            PostIndexedIndirect(ref x) => x.debug_fmt(f),
+            Accumulator(ref x) => x.debug_fmt(f),
+        }
     }
 }
 
@@ -113,12 +221,12 @@ impl fmt::Debug for dyn AddressingMode {
 // --------------------------------------------------------------------
 pub struct ImpliedAddressing {}
 impl ImpliedAddressing {
-    pub fn new() -> Box<ImpliedAddressing> {
-        Box::new(ImpliedAddressing {})
+    pub fn new() -> ImpliedAddressing {
+        ImpliedAddressing {}
     }
 }
 
-impl AddressingMode for ImpliedAddressing {
+impl ImpliedAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Implied
     }
@@ -152,12 +260,12 @@ pub struct ImmediateAddressing {
 }
 
 impl ImmediateAddressing {
-    pub fn new(value: u8) -> Box<ImmediateAddressing> {
-        Box::new(ImmediateAddressing { value })
+    pub fn new(value: u8) -> ImmediateAddressing {
+        ImmediateAddressing { value }
     }
 }
 
-impl AddressingMode for ImmediateAddressing {
+impl ImmediateAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Immediate
     }
@@ -190,12 +298,12 @@ pub struct RelativeAddressing {
 }
 
 impl RelativeAddressing {
-    pub fn new(offset: u8) -> Box<RelativeAddressing> {
-        Box::new(RelativeAddressing { offset })
+    pub fn new(offset: u8) -> RelativeAddressing {
+        RelativeAddressing { offset }
     }
 }
 
-impl AddressingMode for RelativeAddressing {
+impl RelativeAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Relative
     }
@@ -228,12 +336,12 @@ pub struct ZeroPageAddressing {
 }
 
 impl ZeroPageAddressing {
-    pub fn new(address: u8) -> Box<ZeroPageAddressing> {
-        Box::new(ZeroPageAddressing { address })
+    pub fn new(address: u8) -> ZeroPageAddressing {
+        ZeroPageAddressing { address }
     }
 }
 
-impl AddressingMode for ZeroPageAddressing {
+impl ZeroPageAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::ZeroPage
     }
@@ -268,12 +376,12 @@ pub struct IndexedZeroPageAddressing {
 }
 
 impl IndexedZeroPageAddressing {
-    pub fn new(address: u8, offset: u8) -> Box<IndexedZeroPageAddressing> {
-        Box::new(IndexedZeroPageAddressing { address, offset })
+    pub fn new(address: u8, offset: u8) -> IndexedZeroPageAddressing {
+        IndexedZeroPageAddressing { address, offset }
     }
 }
 
-impl AddressingMode for IndexedZeroPageAddressing {
+impl IndexedZeroPageAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::IndexedZeroPage
     }
@@ -316,13 +424,13 @@ pub struct AbsoluteAddressing {
 }
 
 impl AbsoluteAddressing {
-    pub fn new(lsb: u8, msb: u8) -> Box<AbsoluteAddressing> {
+    pub fn new(lsb: u8, msb: u8) -> AbsoluteAddressing {
         let address = ((msb as u16) << 8) + (lsb as u16);
-        Box::new(AbsoluteAddressing { address })
+        AbsoluteAddressing { address }
     }
 }
 
-impl AddressingMode for AbsoluteAddressing {
+impl AbsoluteAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Absolute
     }
@@ -360,13 +468,13 @@ pub struct IndexedAbsoluteAddressing {
 }
 
 impl IndexedAbsoluteAddressing {
-    pub fn new(lsb: u8, msb: u8, offset: u8) -> Box<IndexedAbsoluteAddressing> {
+    pub fn new(lsb: u8, msb: u8, offset: u8) -> IndexedAbsoluteAddressing {
         let address = ((msb as u16) << 8) + (lsb as u16);
-        Box::new(IndexedAbsoluteAddressing { address, offset })
+        IndexedAbsoluteAddressing { address, offset }
     }
 }
 
-impl AddressingMode for IndexedAbsoluteAddressing {
+impl IndexedAbsoluteAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::IndexedAbsolute
     }
@@ -418,13 +526,13 @@ pub struct IndirectAddressing {
 }
 
 impl IndirectAddressing {
-    pub fn new(lsb: u8, msb: u8) -> Box<IndirectAddressing> {
+    pub fn new(lsb: u8, msb: u8) -> IndirectAddressing {
         let lsb_location = ((msb as u16) << 8) + (lsb as u16);
-        Box::new(IndirectAddressing { lsb_location })
+        IndirectAddressing { lsb_location }
     }
 }
 
-impl AddressingMode for IndirectAddressing {
+impl IndirectAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Indirect
     }
@@ -475,13 +583,13 @@ pub struct PreIndexedIndirectAddressing {
 }
 
 impl PreIndexedIndirectAddressing {
-    pub fn new(address_byte: u8, offset: u8) -> Box<PreIndexedIndirectAddressing> {
+    pub fn new(address_byte: u8, offset: u8) -> PreIndexedIndirectAddressing {
         let address = address_byte;
-        Box::new(PreIndexedIndirectAddressing { address, offset })
+        PreIndexedIndirectAddressing { address, offset }
     }
 }
 
-impl AddressingMode for PreIndexedIndirectAddressing {
+impl PreIndexedIndirectAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::PreIndexedIndirect
     }
@@ -536,13 +644,13 @@ pub struct PostIndexedIndirectAddressing {
 }
 
 impl PostIndexedIndirectAddressing {
-    pub fn new(address_byte: u8, offset: u8) -> Box<PostIndexedIndirectAddressing> {
+    pub fn new(address_byte: u8, offset: u8) -> PostIndexedIndirectAddressing {
         let address = address_byte;
-        Box::new(PostIndexedIndirectAddressing { address, offset })
+        PostIndexedIndirectAddressing { address, offset }
     }
 }
 
-impl AddressingMode for PostIndexedIndirectAddressing {
+impl PostIndexedIndirectAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::PostIndexedIndirect
     }
@@ -590,14 +698,14 @@ pub struct AccumulatorAddressing {
 }
 
 impl AccumulatorAddressing {
-    pub fn new(nes: &Cpu) -> Box<AccumulatorAddressing> {
-        Box::new(AccumulatorAddressing {
+    pub fn new(nes: &Cpu) -> AccumulatorAddressing {
+        AccumulatorAddressing {
             accumulator: nes.get_acc(),
-        })
+        }
     }
 }
 
-impl AddressingMode for AccumulatorAddressing {
+impl AccumulatorAddressing {
     fn mode_type(&self) -> AddressingModeType {
         AddressingModeType::Accumulator
     }

@@ -15,7 +15,7 @@ use std::io::{Read, Write};
 #[derive(Serialize, Deserialize)]
 pub struct Nes {
     cpu: Cpu,
-    ppu: Ppu,
+    pub ppu: Ppu,
     memory: Memory,
     rom_name: String,
     pub is_debug: bool,
@@ -74,7 +74,7 @@ impl Nes {
     pub fn get_pixel(&self, row: i32, col: i32) -> Color {
         let idx = row * 256 + col;
         let pixel = self.ppu.pixels[idx as usize];
-        Color::rgb(pixel.0, pixel.1, pixel.2)
+        pixel
     }
 
     // Load from json file.

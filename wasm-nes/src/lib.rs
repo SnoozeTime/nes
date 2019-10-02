@@ -3,7 +3,13 @@ mod utils;
 use nesemu::graphic::EmulatorInput;
 use nesemu::nes::Nes;
 use nesemu::rom;
+use std::time::{Duration, Instant};
 use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub fn init_panic_hook() {
+    console_error_panic_hook::set_once();
+}
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -28,6 +34,24 @@ pub struct NesEmulator {
 
 #[wasm_bindgen]
 pub struct EmuInput(EmulatorInput);
+
+#[wasm_bindgen]
+pub struct Color(u8, u8, u8);
+
+#[wasm_bindgen]
+impl Color {
+    pub fn r(&self) -> u8 {
+        self.0
+    }
+
+    pub fn g(&self) -> u8 {
+        self.1
+    }
+
+    pub fn b(&self) -> u8 {
+        self.2
+    }
+}
 
 const DKKONG: &'static [u8] = include_bytes!("../../games/dk.nes");
 
@@ -67,11 +91,26 @@ impl NesEmulator {
     pub fn height(&self) -> usize {
         self.inner.height()
     }
+
+    pub fn run_bunch_of_ticks(&mut self) {
+        for _ in 0..29780 {
+            self.tick();
+        }
+    }
     /// -----------------------------
     /// Some debug functions.
     /// -----------------------------
     pub fn log_cpu(&self) {
         log(&format!("{:?}", self.inner.cpu()));
+    }
+
+    pub fn get_pixel(&self, row: i32, col: i32) -> Color {
+        let c = self.inner.get_pixel(row, col);
+        Color(c.r, c.g, c.b)
+    }
+
+    pub fn pixels(&self) -> *const (u8, u8, u8) {
+        self.inner.ppu.pixels.as_ptr()
     }
 }
 
