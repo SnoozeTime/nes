@@ -59,6 +59,10 @@ impl Nes {
         &self.cpu
     }
 
+    pub fn cpu_mut(&mut self) -> &mut Cpu {
+        &mut self.cpu
+    }
+
     pub fn ppu_mut(&mut self) -> &mut Ppu {
         &mut self.ppu
     }
