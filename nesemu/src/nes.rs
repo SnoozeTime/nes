@@ -2,9 +2,8 @@
 //
 use crate::cpu::cpu::Cpu;
 use crate::cpu::memory::Memory;
-use crate::graphic::{Color, EmulatorInput};
+use crate::graphic::EmulatorInput;
 use crate::joypad::{InputState, Player};
-use crate::ppu::palette;
 use crate::ppu::Ppu;
 use crate::rom;
 
@@ -25,6 +24,24 @@ pub struct Nes {
 }
 
 impl Nes {
+    /// Empty NES console with no rom loaded.
+    pub fn empty() -> Self {
+        let cpu = Cpu::new();
+        let ppu = Ppu::new();
+        let memory = Memory::default();
+
+        let rom_name = String::new();
+        Nes {
+            cpu,
+            ppu,
+            memory,
+            rom_name,
+            is_debug: false,
+            is_pause: false,
+            should_run: false,
+        }
+    }
+
     pub fn new(ines: rom::INesFile) -> Result<Nes, String> {
         let mut cpu = Cpu::new();
         let ppu = Ppu::new();
@@ -127,10 +144,6 @@ impl Nes {
         for event in events {
             self.handle_event(event);
         }
-    }
-
-    pub fn get_bg_color(&self) -> Color {
-        palette::get_bg_color(&self.memory.ppu_mem.palettes, &self.ppu.colors)
     }
 
     pub fn decompile(&mut self) {

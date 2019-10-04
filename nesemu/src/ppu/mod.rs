@@ -4,7 +4,6 @@ use self::memory::RegisterType;
 use super::cpu::memory::Memory;
 use palette::BLACK_INDEX;
 
-use crate::graphic::Color;
 use serde_derive::{Deserialize, Serialize};
 
 fn reverse_bit(mut in_byte: u8) -> u8 {
