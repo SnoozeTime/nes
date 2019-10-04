@@ -76,7 +76,7 @@ impl Nes {
         self.ppu.should_display()
     }
 
-    pub fn get_pixel(&self, row: usize, col: usize) -> (u8, u8, u8) {
+    pub fn get_pixel(&self, row: usize, col: usize) -> u8 {
         let idx = row * 256 + col;
         //println!("{:?}", idx);
         let pixel = self.ppu.pixels[idx];

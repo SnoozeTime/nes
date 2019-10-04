@@ -1,5 +1,5 @@
 use crate::graphic::Color;
-
+pub const BLACK_INDEX: u8 = 0x0D;
 #[derive(Debug)]
 pub struct Palette {
     pub background: Color,
@@ -10,6 +10,16 @@ pub struct Palette {
 
 pub fn get_bg_color(vram: &[u8], colors: &[Color; 64]) -> Color {
     colors[vram[0x00] as usize]
+}
+
+pub fn get_color_index_bg(palette_number: u16, vram: &[u8], pixel_value: u16) -> u8 {
+    let idx = (4 * palette_number + pixel_value) as usize;
+    unsafe { *vram.get_unchecked(idx) }
+}
+
+pub fn get_color_index_sprite(palette_number: u8, vram: &[u8], pixel_value: u8) -> u8 {
+    let idx = ((0x10 + 4 * palette_number + pixel_value) & 0b11111) as usize;
+    unsafe { *vram.get_unchecked(idx) & 0b111111 }
 }
 
 pub fn get_bg_palette(

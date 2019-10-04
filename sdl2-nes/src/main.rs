@@ -7,11 +7,13 @@ use sdl2::render::WindowCanvas;
 use sdl2::EventPump;
 use std::thread;
 use std::time::{Duration, Instant};
+use tracing::trace;
 
 use nesemu::{
     graphic::EmulatorInput,
     joypad::{InputAction, InputState, Player},
     nes::Nes,
+    ppu::palette,
     rom,
 };
 use std::collections::HashMap;
@@ -57,6 +59,7 @@ pub struct Graphics {
     canvas: WindowCanvas,
     event_pump: EventPump,
 
+    colors: [nesemu::graphic::Color; 64],
     input_map_p1: HashMap<Keycode, InputAction>,
     input_map_p2: HashMap<Keycode, InputAction>,
 }
@@ -89,6 +92,7 @@ impl Graphics {
             zoom_level,
             canvas,
             event_pump,
+            colors: palette::build_default_colors(),
             input_map_p1: build_default_input_p1(),
             input_map_p2: build_default_input_p2(),
         })
@@ -222,23 +226,34 @@ fn main_loop(mut ui: Graphics, mut nes: Nes) -> Result<(), &'static str> {
         // if !is_pause {
 
         let mut total_cycles = CPU_CYCLES_PER_FRAME;
+
+        let mut now = Instant::now();
         // hot af
         while total_cycles > 0 {
             total_cycles -= nes.tick(nes.is_debug)? as i64;
         }
+        let diff = Instant::now() - now;
+        now = Instant::now();
+        trace!(msg = "NES tick", duration = ?diff);
+
         let events = ui.poll_events();
         nes.handle_events(events);
+
+        let diff = Instant::now() - now;
+        now = Instant::now();
+        trace!(msg = "Handle events", duration = ?diff);
 
         if nes.should_display() {
             texture
                 .with_lock(None, |buffer: &mut [u8], pitch: usize| {
                     for y in 0..240usize {
                         for x in 0..256usize {
-                            let pixel = nes.get_pixel(y, x);
+                            let pixel = nes.get_pixel(y, x) as usize;;
+                            let color = ui.colors[pixel];
                             let offset = y * pitch + x * 3;
-                            buffer[offset] = pixel.0;
-                            buffer[offset + 1] = pixel.1;
-                            buffer[offset + 2] = pixel.2;
+                            buffer[offset] = color.r;
+                            buffer[offset + 1] = color.g;
+                            buffer[offset + 2] = color.b;
                         }
                     }
                 })
@@ -248,7 +263,10 @@ fn main_loop(mut ui: Graphics, mut nes: Nes) -> Result<(), &'static str> {
             ui.canvas.present();
         }
 
+        let diff = Instant::now() - now;
+        trace!(msg = "Display", duration = ?diff);
         let dt = Instant::now() - previous_clock;
+
         if dt < fixed_time_stamp {
             thread::sleep(fixed_time_stamp - dt);
         } else {
@@ -288,7 +306,10 @@ fn main() {
         )
         .get_matches();
 
-    env_logger::init();
+    let sub = tracing_subscriber::FmtSubscriber::builder()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .finish();
+    tracing::subscriber::set_global_default(sub).unwrap();
     if let Some(matches) = matches.subcommand_matches("run") {
         let rom_path = matches.value_of("input").unwrap();
         run_rom(rom_path.to_string());

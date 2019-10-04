@@ -64,12 +64,22 @@ pub struct Mmc3 {
 
 impl Mmc3 {
     pub fn read_prg(&self, addr: usize) -> u8 {
-        match addr {
-            0x8000..=0x9FFF => self.prg_rom_banks[self.prg_index_1][addr % 0x2000],
-            0xA000..=0xBFFF => self.prg_rom_banks[self.prg_index_2][addr % 0x2000],
-            0xC000..=0xDFFF => self.prg_rom_banks[self.prg_index_3][addr % 0x2000],
-            0xE000..=0xFFFF => self.prg_rom_banks[self.prg_index_4][addr % 0x2000],
-            _ => 0,
+        if addr >= 0x8000 {
+            let bank_idx = match addr {
+                0x8000..=0x9FFF => self.prg_index_1,
+                0xA000..=0xBFFF => self.prg_index_2,
+                0xC000..=0xDFFF => self.prg_index_3,
+                0xE000..=0xFFFF => self.prg_index_4,
+                _ => panic!("oh"),
+            };
+            unsafe {
+                *self
+                    .prg_rom_banks
+                    .get_unchecked(bank_idx)
+                    .get_unchecked(addr % 0x2000)
+            }
+        } else {
+            0
         }
     }
 
@@ -123,28 +133,108 @@ impl Mmc3 {
     // Read/Write pattern tables. Sometimes, it is RAM instead of ROM
     pub fn read_chr(&self, addr: usize) -> u8 {
         match addr {
-            0x0000..=0x03FF => self.chr_rom_banks[self.chr_index_1][addr % 0x400],
-            0x0400..=0x07FF => self.chr_rom_banks[self.chr_index_2][addr % 0x400],
-            0x0800..=0x0BFF => self.chr_rom_banks[self.chr_index_3][addr % 0x400],
-            0x0C00..=0x0FFF => self.chr_rom_banks[self.chr_index_4][addr % 0x400],
-            0x1000..=0x13FF => self.chr_rom_banks[self.chr_index_5][addr % 0x400],
-            0x1400..=0x17FF => self.chr_rom_banks[self.chr_index_6][addr % 0x400],
-            0x1800..=0x1BFF => self.chr_rom_banks[self.chr_index_7][addr % 0x400],
-            0x1C00..=0x1FFF => self.chr_rom_banks[self.chr_index_8][addr % 0x400],
+            0x0000..=0x03FF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked(self.chr_index_1)
+                    .get_unchecked(addr % 0x400)
+            },
+            0x0400..=0x07FF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked(self.chr_index_2)
+                    .get_unchecked(addr % 0x400)
+            },
+            0x0800..=0x0BFF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked(self.chr_index_3)
+                    .get_unchecked(addr % 0x400)
+            },
+            0x0C00..=0x0FFF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked(self.chr_index_4)
+                    .get_unchecked(addr % 0x400)
+            },
+            0x1000..=0x13FF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked(self.chr_index_5)
+                    .get_unchecked(addr % 0x400)
+            },
+            0x1400..=0x17FF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked(self.chr_index_6)
+                    .get_unchecked(addr % 0x400)
+            },
+            0x1800..=0x1BFF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked(self.chr_index_7)
+                    .get_unchecked(addr % 0x400)
+            },
+            0x1C00..=0x1FFF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked(self.chr_index_8)
+                    .get_unchecked(addr % 0x400)
+            },
             _ => 0,
         }
     }
 
     pub fn write_chr(&mut self, addr: usize, value: u8) {
         match addr {
-            0x0000..=0x03FF => self.chr_rom_banks[self.chr_index_1][addr % 0x400] = value,
-            0x0400..=0x07FF => self.chr_rom_banks[self.chr_index_2][addr % 0x400] = value,
-            0x0800..=0x0BFF => self.chr_rom_banks[self.chr_index_3][addr % 0x400] = value,
-            0x0C00..=0x0FFF => self.chr_rom_banks[self.chr_index_4][addr % 0x400] = value,
-            0x1000..=0x13FF => self.chr_rom_banks[self.chr_index_5][addr % 0x400] = value,
-            0x1400..=0x17FF => self.chr_rom_banks[self.chr_index_6][addr % 0x400] = value,
-            0x1800..=0x1BFF => self.chr_rom_banks[self.chr_index_7][addr % 0x400] = value,
-            0x1C00..=0x1FFF => self.chr_rom_banks[self.chr_index_8][addr % 0x400] = value,
+            0x0000..=0x03FF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked_mut(self.chr_index_1)
+                    .get_unchecked_mut(addr % 0x400) = value
+            },
+            0x0400..=0x07FF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked_mut(self.chr_index_2)
+                    .get_unchecked_mut(addr % 0x400) = value
+            },
+            0x0800..=0x0BFF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked_mut(self.chr_index_3)
+                    .get_unchecked_mut(addr % 0x400) = value
+            },
+            0x0C00..=0x0FFF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked_mut(self.chr_index_4)
+                    .get_unchecked_mut(addr % 0x400) = value
+            },
+            0x1000..=0x13FF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked_mut(self.chr_index_5)
+                    .get_unchecked_mut(addr % 0x400) = value
+            },
+            0x1400..=0x17FF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked_mut(self.chr_index_6)
+                    .get_unchecked_mut(addr % 0x400) = value
+            },
+            0x1800..=0x1BFF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked_mut(self.chr_index_7)
+                    .get_unchecked_mut(addr % 0x400) = value
+            },
+            0x1C00..=0x1FFF => unsafe {
+                *self
+                    .chr_rom_banks
+                    .get_unchecked_mut(self.chr_index_8)
+                    .get_unchecked_mut(addr % 0x400) = value
+            },
             _ => {}
         }
     }
