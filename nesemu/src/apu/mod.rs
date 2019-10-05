@@ -34,6 +34,8 @@ pub struct ApuMemory {
     pub pulse_1_reg2: u8,
     pulse_1: Pulse,
 
+    pulse_2: Pulse,
+
     frame_counter: FrameCounter,
     /// True if something has changed since last write/read
     pub dirty: bool,
@@ -43,6 +45,8 @@ impl ApuMemory {
     pub fn write(&mut self, addr: usize, value: u8) {
         self.dirty = true;
         match addr {
+            // PULSE 1
+            // ---------------------------------
             0x4000 => {
                 self.pulse_1_reg1 = value;
                 self.pulse_1.duty_cycle = value >> 6;
@@ -66,9 +70,36 @@ impl ApuMemory {
                 // 0x4003 = LLLL.L.xxx
                 self.pulse_1.length_counter_load = value >> 3;
             }
+
+            // PULSE 2
+            // ---------------------------------------
+            0x4004 => {
+                self.pulse_2.duty_cycle = value >> 6;
+                self.pulse_2.envelope.period = value & 0b1111;
+                self.pulse_2.envelope.do_loop = value & 0b00100000 == 0b00100000;
+                self.pulse_2.envelope.enabled = value & 0b00010000 == 0;
+            }
+            0x4005 => self.pulse_1_reg2 = value,
+
+            // Timer for the first pulse channel. Set via 0x4002 and 0x4003
+            // HHH.LLLL.LLLL
+            // 0x4002 = LLLL.LLLL
+            // 0x4003 = xxxx.xHHH
+            0x4006 => {
+                self.pulse_2.timer = self.pulse_2.timer & 0b11100000000 | (value as u16);
+            }
+            0x4007 => {
+                self.pulse_2.timer = (value as u16 & 0b111) << 8 | self.pulse_2.timer & 0b11111111;
+
+                // Counter to 0. When 0, channel is silenced.
+                // 0x4003 = LLLL.L.xxx
+                self.pulse_2.length_counter_load = value >> 3;
+            }
+
             0x4015 => {
                 self.status_reg = value;
                 self.pulse_1.enabled = value & 0b1 == 0b1;
+                self.pulse_2.enabled = value & 0b10 == 0b10;
             }
             _ => (),
         }
@@ -287,17 +318,22 @@ impl Apu {
             if self.cycles % 2 == 0 {
                 // clock pulse
                 mem.apu_mem.pulse_1.tick();
+                mem.apu_mem.pulse_2.tick();
             }
 
             // Length counter and envelopes update.
             if mem.apu_mem.frame_counter.is_1st_quarter() {
                 mem.apu_mem.pulse_1.envelope.tick();
+                mem.apu_mem.pulse_2.envelope.tick();
             } else if mem.apu_mem.frame_counter.is_half() {
                 mem.apu_mem.pulse_1.envelope.tick();
+                mem.apu_mem.pulse_2.envelope.tick();
             } else if mem.apu_mem.frame_counter.is_3rd_quarter() {
                 mem.apu_mem.pulse_1.envelope.tick();
+                mem.apu_mem.pulse_2.envelope.tick();
             } else if mem.apu_mem.frame_counter.is_last() {
                 mem.apu_mem.pulse_1.envelope.tick();
+                mem.apu_mem.pulse_2.envelope.tick();
             }
 
             // Instead of taking a lot of samples (Frequency of APU is > 1 Mhz). let's just sample at
@@ -307,15 +343,22 @@ impl Apu {
                 // take a sample and reset timer.
                 self.sample_timer = self.sample_timer_rate + 1;
 
-                let mut pulse_1_sample = if mem.apu_mem.pulse_1.enabled {
+                let pulse_1_sample = if mem.apu_mem.pulse_1.enabled {
                     mem.apu_mem.pulse_1.sample()
                 } else {
                     0.0
                 };
 
-                pulse_1_sample = self.filters.tick(pulse_1_sample);
+                let pulse_2_sample = if mem.apu_mem.pulse_2.enabled {
+                    mem.apu_mem.pulse_2.sample()
+                } else {
+                    0.0
+                };
 
-                self.samples.push(pulse_1_sample as i16);
+                let mut mixed = pulse_1_sample + pulse_2_sample;
+                mixed = self.filters.tick(mixed);
+
+                self.samples.push(mixed as i16);
             }
             self.sample_timer -= 1;
         }

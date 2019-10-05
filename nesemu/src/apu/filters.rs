@@ -1,3 +1,9 @@
+//! This is quite dirty. I got the equations from blargg's comment on
+//! NES forum: http://forums.nesdev.com/viewtopic.php?p=44255#p44255
+//!
+//! Other emulators are using different equations for some reason.
+//!
+//! TODO something better :') or at least without magic numbers.
 use std::default::Default;
 use std::f64::consts::PI;
 
