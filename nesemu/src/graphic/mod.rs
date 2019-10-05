@@ -1,4 +1,5 @@
 use crate::joypad::{InputAction, InputState, Player};
+use serde_derive::{Deserialize, Serialize};
 
 // Emulator specific action
 pub enum EmulatorInput {
@@ -9,7 +10,7 @@ pub enum EmulatorInput {
     INPUT(Player, InputAction, InputState),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -18,6 +19,10 @@ pub struct Color {
 
 impl Color {
     pub fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b }
+    }
+
+    pub fn from((r, g, b): (u8, u8, u8)) -> Self {
         Self { r, g, b }
     }
 }

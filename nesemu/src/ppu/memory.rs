@@ -1,28 +1,25 @@
+use crate::mapper::{MapperType, Mirroring};
+use serde_derive::{Deserialize, Serialize};
 use std::fmt;
-use serde_derive::{Serialize, Deserialize};
-use crate::mapper::{Mirroring, MapperType};
-
-
 
 // Behaviour of PPU register is quite special. For example, when reading PPUSTATUS,
-// the vblank flag will be cleared. In order to avoid cluttering the logic in 
+// the vblank flag will be cleared. In order to avoid cluttering the logic in
 // Memory.rs, I'll gather all the ppu register behaviour here.
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize)]
 pub enum RegisterType {
     PPUCTRL,
-    PPUMASK, 
+    PPUMASK,
     PPUSTATUS,
     OAMADDR,
     OAMDATA,
     PPUSCROLL,
-    PPUADDR, 
-    PPUDATA, 
+    PPUADDR,
+    PPUDATA,
     OAMDMA,
 }
 
 impl RegisterType {
-
     pub fn lookup(value: usize) -> Option<RegisterType> {
         match value {
             0x2000 => Some(RegisterType::PPUCTRL),
@@ -102,18 +99,15 @@ pub struct PpuMemory {
     // $2C00-$2FFF  $0400   Nametable 3
     // $3000-$3EFF  $0F00   Mirrors of $2000-$2EFF
     // $3F00-$3F1F  $0020   Palette RAM indexes
-    // $3F20-$3FFF  $00E0   Mirrors of $3F00-$3F1F 
-
+    // $3F20-$3FFF  $00E0   Mirrors of $3F00-$3F1F
     pub nametable_1: Vec<u8>, // 0x0400
     pub nametable_2: Vec<u8>, // 0x0400
-    pub palettes: Vec<u8>, //0x0020
+    pub palettes: Vec<u8>,    //0x0020
 
     pub is_rendering: bool,
 }
 
-
 impl fmt::Debug for PpuMemory {
-
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "PPUCTRL:{:X} PPUMASK:{:X} PPUSTATUS:{:X} OAMADDR:{:X} OAMDATA:{:X} PPUSCROLL:{:X} PPUADDR:{:X} PPUDATA:{:X} OAMDMA:{:X}",
                self.ppuctrl,
@@ -130,7 +124,6 @@ impl fmt::Debug for PpuMemory {
 
 use self::RegisterType::*;
 impl PpuMemory {
-
     pub fn new() -> PpuMemory {
         PpuMemory {
             nmi: false,
@@ -198,7 +191,7 @@ impl PpuMemory {
             PPUSTATUS => {
                 self.ppustatus = value;
                 self.raise_nmi();
-            },
+            }
             OAMADDR => self.oamaddr = value,
             OAMDATA => self.oamdata = value,
             PPUSCROLL => self.ppuscroll = value,
@@ -218,9 +211,9 @@ impl PpuMemory {
             PPUDATA => self.write_data(value, mapper),
             OAMADDR => self.write_oamaddr(value),
             OAMDATA => self.write_oamdata(value),
-            OAMDMA => panic!("Use directly 'write_oamdma'"), 
+            OAMDMA => panic!("Use directly 'write_oamdma'"),
             PPUSCROLL => self.write_scroll(value),
-            PPUSTATUS => {},
+            PPUSTATUS => {}
         }
     }
 
@@ -232,7 +225,7 @@ impl PpuMemory {
                 //           panic!("{:?} cannot be read by CPU", register_type);
                 //
                 0
-            },
+            }
             PPUSTATUS => self.read_status(),
             PPUDATA => self.read_data(mapper),
             _ => 8,
@@ -282,28 +275,27 @@ impl PpuMemory {
 
         // that can overflow and panic hard...
         for (i, b) in cpu_mem[start_range..=end_range].iter().enumerate() {
-            self.oam[self.oam_addr as usize +i] = *b;
+            self.oam[self.oam_addr as usize + i] = *b;
         }
     }
 
     fn write_scroll(&mut self, value: u8) {
         /*
-         *$2005 first write (w is 0)
-         t: ....... ...HGFED = d: HGFED...
-         x:              CBA = d: .....CBA
-         w:                  = 1
+        *$2005 first write (w is 0)
+        t: ....... ...HGFED = d: HGFED...
+        x:              CBA = d: .....CBA
+        w:                  = 1
 
-         $2005 second write (w is 1)
-         t: CBA..HG FED..... = d: HGFEDCBA
-         w:                  = 0
+        $2005 second write (w is 1)
+        t: CBA..HG FED..... = d: HGFEDCBA
+        w:                  = 0
 
-         * */
+        * */
         if self.w == 0 {
-            self.t = ((value >> 3)as u16) | (self.t & !0b11111);
+            self.t = ((value >> 3) as u16) | (self.t & !0b11111);
             self.x = value & 0b111;
             self.w = 1;
         } else {
-
             let masked_t = self.t & !0x73E0;
             let y_value = (value >> 3) as u16;
             let fine_y_value = (value & 0b111) as u16;
@@ -311,7 +303,6 @@ impl PpuMemory {
             self.t = masked_t | (y_value << 5) | (fine_y_value << 12);
             self.w = 0;
         }
-
     }
 
     // Background addr and data
@@ -320,7 +311,7 @@ impl PpuMemory {
             // first write
             self.t = (((addr_byte & 0b111111) as u16) << 8) + (self.t & 0xFF);
             // 14th bit set to 0!.
-            self.t &= !(1<<14);
+            self.t &= !(1 << 14);
             self.w = 1;
         } else {
             // second write
@@ -344,24 +335,20 @@ impl PpuMemory {
     fn write_vram_at(&mut self, addr: usize, data: u8, mapper: &mut MapperType) {
         match addr {
             0x0000..=0x1FFF => {
-                mapper.write_chr(addr, data); 
-            },
+                mapper.write_chr(addr, data);
+            }
             0x2000..=0x23FF => {
                 self.write_to_1st_nametable(addr, data);
+            }
+            0x2400..=0x27FF => match mapper.get_mirroring() {
+                Mirroring::HORIZONTAL => self.write_to_1st_nametable(addr, data),
+                Mirroring::VERTICAL => self.write_to_2nd_nametable(addr, data),
+                Mirroring::ONE_SCREEN => self.write_to_1st_nametable(addr, data),
             },
-            0x2400..=0x27FF => {
-                match mapper.get_mirroring() {
-                    Mirroring::HORIZONTAL => self.write_to_1st_nametable(addr, data),
-                    Mirroring::VERTICAL => self.write_to_2nd_nametable(addr, data),
-                    Mirroring::ONE_SCREEN => self.write_to_1st_nametable(addr, data),
-                }
-            },
-            0x2800..=0x2BFF => {
-                match mapper.get_mirroring() {
-                    Mirroring::HORIZONTAL => self.write_to_2nd_nametable(addr, data),
-                    Mirroring::VERTICAL => self.write_to_1st_nametable(addr, data),
-                    Mirroring::ONE_SCREEN => self.write_to_1st_nametable(addr, data),
-                }
+            0x2800..=0x2BFF => match mapper.get_mirroring() {
+                Mirroring::HORIZONTAL => self.write_to_2nd_nametable(addr, data),
+                Mirroring::VERTICAL => self.write_to_1st_nametable(addr, data),
+                Mirroring::ONE_SCREEN => self.write_to_1st_nametable(addr, data),
             },
             0x2C00..=0x2FFF => {
                 if mapper.get_mirroring() == Mirroring::ONE_SCREEN {
@@ -369,17 +356,17 @@ impl PpuMemory {
                 } else {
                     self.write_to_2nd_nametable(addr, data);
                 }
-            },
+            }
             0x3000..=0x3EFF => {
                 // Mirrors of 0x2000, 0x2EFFF
                 let newaddr = 0x2000 | (addr & 0xFFF);
                 self.write_vram_at(newaddr, data, mapper);
-            },
+            }
             // palettes mirrors
             0x3F00..=0x3FFF => {
                 let offset = (addr & 0xFF) % 0x20;
-                self.write_palette(offset, data); 
-            },
+                self.write_palette(offset, data);
+            }
             _ => panic!("write_vram_at Out of bounds: {}", addr),
         }
     }
@@ -404,16 +391,16 @@ impl PpuMemory {
     }
 
     fn read_data(&mut self, mapper: &MapperType) -> u8 {
-        let addr_latch = self.v;
+        let addr_latch = self.v % 0x4000;
 
-        let v = match addr_latch % 0x4000 {
+        let v = match addr_latch {
             0x3F00..=0x4000 => {
-                self.vram_read_buffer = self.read_vram_at((addr_latch as usize) % 0x4000, mapper);
+                self.vram_read_buffer = self.read_vram_at(addr_latch as usize, mapper);
                 self.vram_read_buffer
-            },
+            }
             _ => {
                 let old_buffer = self.vram_read_buffer;
-                self.vram_read_buffer = self.read_vram_at((addr_latch as usize) % 0x4000, mapper);
+                self.vram_read_buffer = self.read_vram_at(addr_latch as usize, mapper);
                 old_buffer
             }
         };
@@ -428,23 +415,18 @@ impl PpuMemory {
     }
 
     pub fn read_vram_at(&self, addr: usize, mapper: &MapperType) -> u8 {
-
         match addr {
-            0x0..=0x1FFF => mapper.read_chr(addr), 
+            0x0..=0x1FFF => mapper.read_chr(addr),
             0x2000..=0x23FF => self.read_from_1st_nametable(addr),
-            0x2400..=0x27FF => {
-                match mapper.get_mirroring() {
-                    Mirroring::HORIZONTAL => self.read_from_1st_nametable(addr),
-                    Mirroring::VERTICAL => self.read_from_2nd_nametable(addr),
-                    Mirroring::ONE_SCREEN => self.read_from_1st_nametable(addr),
-                }
+            0x2400..=0x27FF => match mapper.get_mirroring() {
+                Mirroring::HORIZONTAL => self.read_from_1st_nametable(addr),
+                Mirroring::VERTICAL => self.read_from_2nd_nametable(addr),
+                Mirroring::ONE_SCREEN => self.read_from_1st_nametable(addr),
             },
-            0x2800..=0x2BFF => {
-                match mapper.get_mirroring() {
-                    Mirroring::HORIZONTAL => self.read_from_2nd_nametable(addr),
-                    Mirroring::VERTICAL => self.read_from_1st_nametable(addr),
-                    Mirroring::ONE_SCREEN => self.read_from_1st_nametable(addr),
-                }
+            0x2800..=0x2BFF => match mapper.get_mirroring() {
+                Mirroring::HORIZONTAL => self.read_from_2nd_nametable(addr),
+                Mirroring::VERTICAL => self.read_from_1st_nametable(addr),
+                Mirroring::ONE_SCREEN => self.read_from_1st_nametable(addr),
             },
             0x2C00..=0x2FFF => {
                 if mapper.get_mirroring() == Mirroring::ONE_SCREEN {
@@ -452,20 +434,42 @@ impl PpuMemory {
                 } else {
                     self.read_from_2nd_nametable(addr)
                 }
-            },
+            }
+            // Mirrors of 0x2000 - 0x2EFFF
+            //            0x3000..=0x33FF => self.read_from_1st_nametable(addr),
+            //            0x3400..=0x37FF => {
+            //                match mapper.get_mirroring() {
+            //                    Mirroring::HORIZONTAL => self.read_from_1st_nametable(addr),
+            //                    Mirroring::VERTICAL => self.read_from_2nd_nametable(addr),
+            //                    Mirroring::ONE_SCREEN => self.read_from_1st_nametable(addr),
+            //                }
+            //            },
+            //            0x3800..=0x3BFF => {
+            //                match mapper.get_mirroring() {
+            //                    Mirroring::HORIZONTAL => self.read_from_2nd_nametable(addr),
+            //                    Mirroring::VERTICAL => self.read_from_1st_nametable(addr),
+            //                    Mirroring::ONE_SCREEN => self.read_from_1st_nametable(addr),
+            //                }
+            //            },
+            //            0x3C00..=0x3EFF => {
+            //                if mapper.get_mirroring() == Mirroring::ONE_SCREEN {
+            //                    self.read_from_1st_nametable(addr)
+            //                } else {
+            //                    self.read_from_2nd_nametable(addr)
+            //                }
+            //            },
             0x3000..=0x3EFF => {
                 // Mirrors of 0x2000, 0x2EFFF
                 let newaddr = 0x2000 | (addr & 0xFFF);
                 self.read_vram_at(newaddr, mapper)
-            },
-            // palettes 
+            }
+            // palettes
             0x3F00..=0x3FFF => {
                 let offset = (addr & 0xFF) % 0x20;
                 self.palettes[offset]
             }
             _ => panic!("read_vram_at Out of bounds: {:X}", addr),
         }
-
     }
 
     fn read_from_1st_nametable(&self, addr: usize) -> u8 {
@@ -479,10 +483,8 @@ impl PpuMemory {
     }
 
     fn raise_nmi(&mut self) {
-        self.nmi = (self.ppustatus & 0x80 == 0x80) &&
-            (self.ppuctrl & 0x80 == 0x80);
+        self.nmi = (self.ppustatus & 0x80 == 0x80) && (self.ppuctrl & 0x80 == 0x80);
     }
-
 
     // ---------------------------------------------------
     // Virtual nametable. There is space for only 2 nametables
@@ -491,29 +493,24 @@ impl PpuMemory {
     pub fn get_logical_table(&self, table_nb: u8, mapper: &MapperType) -> &[u8] {
         match table_nb {
             0 => &self.nametable_1,
-            1 => {
-                match mapper.get_mirroring() {
-                    Mirroring::HORIZONTAL => &self.nametable_1,
-                    Mirroring::VERTICAL => &self.nametable_2,
-                    Mirroring::ONE_SCREEN => &self.nametable_1,
-                }
+            1 => match mapper.get_mirroring() {
+                Mirroring::HORIZONTAL => &self.nametable_1,
+                Mirroring::VERTICAL => &self.nametable_2,
+                Mirroring::ONE_SCREEN => &self.nametable_1,
             },
-            2 => {
-                match mapper.get_mirroring() {
-                    Mirroring::VERTICAL => &self.nametable_1,
-                    Mirroring::HORIZONTAL => &self.nametable_2,
-                    Mirroring::ONE_SCREEN => &self.nametable_1,
-                }
-
+            2 => match mapper.get_mirroring() {
+                Mirroring::VERTICAL => &self.nametable_1,
+                Mirroring::HORIZONTAL => &self.nametable_2,
+                Mirroring::ONE_SCREEN => &self.nametable_1,
             },
-            3 => { if mapper.get_mirroring() == Mirroring::ONE_SCREEN {
-                &self.nametable_1
-            } else {
-                &self.nametable_2
+            3 => {
+                if mapper.get_mirroring() == Mirroring::ONE_SCREEN {
+                    &self.nametable_1
+                } else {
+                    &self.nametable_2
+                }
             }
-            },
             _ => panic!("Only 4 nametables"),
         }
     }
 }
-

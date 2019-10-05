@@ -1,8 +1,9 @@
 //
 //
+use crate::apu::Apu;
 use crate::cpu::cpu::Cpu;
 use crate::cpu::memory::Memory;
-use crate::graphic::{Color, EmulatorInput};
+use crate::graphic::EmulatorInput;
 use crate::joypad::{InputState, Player};
 use crate::ppu::Ppu;
 use crate::rom;
@@ -15,7 +16,8 @@ use std::io::{Read, Write};
 #[derive(Serialize, Deserialize)]
 pub struct Nes {
     cpu: Cpu,
-    ppu: Ppu,
+    pub ppu: Ppu,
+    apu: Apu,
     memory: Memory,
     rom_name: String,
     pub is_debug: bool,
@@ -24,6 +26,25 @@ pub struct Nes {
 }
 
 impl Nes {
+    /// Empty NES console with no rom loaded.
+    pub fn empty() -> Self {
+        let cpu = Cpu::new();
+        let ppu = Ppu::new();
+        let memory = Memory::default();
+
+        let rom_name = String::new();
+        Nes {
+            cpu,
+            ppu,
+            apu: Apu::new(),
+            memory,
+            rom_name,
+            is_debug: false,
+            is_pause: false,
+            should_run: false,
+        }
+    }
+
     pub fn new(ines: rom::INesFile) -> Result<Nes, String> {
         let mut cpu = Cpu::new();
         let ppu = Ppu::new();
@@ -39,6 +60,7 @@ impl Nes {
         Ok(Nes {
             cpu,
             ppu,
+            apu: Apu::new(),
             memory,
             rom_name,
             is_debug: false,
@@ -75,10 +97,11 @@ impl Nes {
         self.ppu.should_display()
     }
 
-    pub fn get_pixel(&self, row: i32, col: i32) -> Color {
+    pub fn get_pixel(&self, row: usize, col: usize) -> u8 {
         let idx = row * 256 + col;
-        let pixel = self.ppu.pixels[idx as usize];
-        Color::rgb(pixel.0, pixel.1, pixel.2)
+        //println!("{:?}", idx);
+        let pixel = self.ppu.pixels[idx];
+        pixel
     }
 
     // Load from json file.
@@ -90,10 +113,15 @@ impl Nes {
         Ok(n)
     }
 
-    pub fn tick(&mut self, is_debug: bool) -> Result<(), &'static str> {
+    pub fn tick(&mut self, is_debug: bool) -> Result<u64, &'static str> {
         let cpu_cycles = self.cpu.next(&mut self.memory)?;
         self.ppu.next(3 * cpu_cycles, &mut self.memory, is_debug)?;
-        Ok(())
+        self.apu.next(cpu_cycles, &mut self.memory);
+        Ok(cpu_cycles)
+    }
+
+    pub fn audio_samples(&mut self) -> Vec<i16> {
+        self.apu.samples()
     }
 
     pub fn handle_event(&mut self, event: EmulatorInput) {

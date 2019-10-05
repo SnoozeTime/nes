@@ -2,9 +2,8 @@ pub mod memory;
 pub mod palette;
 use self::memory::RegisterType;
 use super::cpu::memory::Memory;
-use std::collections::HashMap;
+use palette::BLACK_INDEX;
 
-use crate::graphic::Color;
 use serde_derive::{Deserialize, Serialize};
 
 fn reverse_bit(mut in_byte: u8) -> u8 {
@@ -19,6 +18,31 @@ fn reverse_bit(mut in_byte: u8) -> u8 {
     }
 
     out_byte << rest
+}
+
+#[repr(align(64))]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+struct SpriteData {
+    high_sprite_bmp_reg: u8,
+    low_sprite_bmp_reg: u8,
+    x_position_counters: u8,
+    x_position_offset: u8,
+    sprite_attributes: u8,
+    is_active: bool,
+}
+
+use std::default::Default;
+impl Default for SpriteData {
+    fn default() -> Self {
+        Self {
+            high_sprite_bmp_reg: 0,
+            low_sprite_bmp_reg: 0,
+            x_position_counters: 0,
+            x_position_offset: 0,
+            sprite_attributes: 0,
+            is_active: false,
+        }
+    }
 }
 
 /*
@@ -56,28 +80,19 @@ pub struct Ppu {
 
     odd_frame: bool,
     // For sprites
-    secondary_oam: Vec<u8>, //; 32],
+    secondary_oam: [u8; 32],
     nb_sprites: usize,
 
     // 8 sprites per line!
-    high_sprite_bmp_reg: Vec<u8>, //; 8],
-    low_sprite_bmp_reg: Vec<u8>,  //; 8],
-    x_position_counters: Vec<u8>, //; 8],
-    x_position_offset: Vec<u8>,   //; 8],
-    sprite_attributes: Vec<u8>,   //; 8],
-    is_active: Vec<bool>,         //; 8],
+    sprite_data: [SpriteData; 8],
 
     #[serde(skip)]
     #[serde(default = "empty_screen")]
-    pub pixels: [(u8, u8, u8); 0xf000],
-
-    #[serde(skip)]
-    #[serde(default = "palette::build_default_colors")]
-    colors: HashMap<u8, Color>,
+    pub pixels: [u8; 0xF000],
 }
 
-fn empty_screen() -> [(u8, u8, u8); 0xF000] {
-    [(0, 0, 0); 0xF000]
+fn empty_screen() -> [u8; 0xF000] {
+    [BLACK_INDEX; 0xF000]
 }
 
 impl Ppu {
@@ -97,17 +112,11 @@ impl Ppu {
             y_bg_attr_shift: 0,
             low_bg_shift_reg: 0,
             odd_frame: false,
-            secondary_oam: vec![0; 32],
+            secondary_oam: [0; 32],
             nb_sprites: 0,
-            high_sprite_bmp_reg: vec![0; 8],
-            low_sprite_bmp_reg: vec![0; 8],
-            x_position_counters: vec![0; 8],
-            x_position_offset: vec![0; 8],
-            is_active: vec![false; 8],
-            sprite_attributes: vec![0; 8],
+            sprite_data: [SpriteData::default(); 8],
 
-            pixels: [(0, 0, 0); 0xf000],
-            colors: palette::build_default_colors(),
+            pixels: empty_screen(),
         }
     }
 
@@ -140,25 +149,12 @@ impl Ppu {
         let idx = 256 * self.line + (self.cycle - 1);
         let bg_pixel_v = self.fetch_bg_pixel(&memory);
         let bg_pixel = {
-            if ((ppu_mask >> 1) & 1 == 0) && self.cycle <= 8 {
-                (0, 0, 0)
+            if !render_bg || (((ppu_mask >> 1) & 1 == 0) && self.cycle <= 8) {
+                //(0, 0, 0)
+                BLACK_INDEX
             } else {
-                if render_bg {
-                    let attribute = self.fetch_bg_attr(&memory);
-                    let palette =
-                        palette::get_bg_palette(attribute, &memory.ppu_mem.palettes, &self.colors)
-                            .expect("Cannot get palette for background");
-
-                    let color = match bg_pixel_v {
-                        1 => palette.color1,
-                        2 => palette.color2,
-                        3 => palette.color3,
-                        _ => palette.background,
-                    };
-                    (color.r, color.g, color.b)
-                } else {
-                    (0, 0, 0)
-                }
+                let attribute = self.fetch_bg_attr(&memory);
+                palette::get_color_index_bg(attribute, &memory.ppu_mem.palettes, bg_pixel_v)
             }
         };
 
@@ -174,35 +170,31 @@ impl Ppu {
             self.pixels[idx] = bg_pixel;
         } else if let Some(sprite_pixel) = sprite_pixel_data {
             // if sprite has priority, draw it first.
-            let bg_priority = sprite_pixel.3 == 1;
+            let bg_priority = sprite_pixel.1 == 1;
 
             if bg_priority && bg_pixel_v != 0 {
                 self.pixels[idx] = bg_pixel;
             } else {
-                self.pixels[idx] = (sprite_pixel.0, sprite_pixel.1, sprite_pixel.2);
+                self.pixels[idx] = sprite_pixel.0;
             }
         }
     }
 
     /// Return (r,g,b, priority)
-    fn fetch_sprite_pixel(
-        &mut self,
-        memory: &mut Memory,
-        has_bg_pixel: bool,
-    ) -> Option<(u8, u8, u8, u8)> {
-        let mut pixel_data: Option<(u8, u8, u8, u8)> = None;
+    fn fetch_sprite_pixel(&mut self, memory: &mut Memory, has_bg_pixel: bool) -> Option<(u8, u8)> {
+        let mut pixel_data: Option<(u8, u8)> = None;
 
+        let mut has_sprite_0_hit = false;
         // x between 0 and -7 are active.
-        for i in 0..8 {
-            if self.is_active[i] {
-                let bmp_low = self.low_sprite_bmp_reg[i];
-                let bmp_high = self.high_sprite_bmp_reg[i];
-                let attr = self.sprite_attributes[i];
-
+        for (i, mut sprite) in self.sprite_data.iter_mut().enumerate() {
+            if sprite.is_active {
                 // choose the pixel
-                let offset = self.x_position_offset[i];
+                let offset = sprite.x_position_offset;
                 if offset < 8 {
-                    self.x_position_offset[i] += 1;
+                    let bmp_low = sprite.low_sprite_bmp_reg;
+                    let bmp_high = sprite.high_sprite_bmp_reg;
+                    let attr = sprite.sprite_attributes;
+                    sprite.x_position_offset += 1;
 
                     if pixel_data == None {
                         let low_bit = (bmp_low >> (7 - offset)) & 1;
@@ -213,64 +205,48 @@ impl Ppu {
                             // sprite 0 hit detection.
                             // TODO correct implementation ->
                             // https://wiki.nesdev.com/w/index.php/PPU_OAM#Sprite_zero_hits
-                            if has_bg_pixel && v != 0 {
-                                self.sprite_0_set(memory);
-                            }
+                            has_sprite_0_hit = has_bg_pixel && v != 0;
                         }
 
                         let bg_priority = (attr >> 5) & 1;
-                        let palette = palette::get_sprite_palette(
-                            attr & 0b11,
-                            &memory.ppu_mem.palettes,
-                            &self.colors,
-                        )
-                        .expect("In draw-sprite, cannot get sprite_palette");
-
-                        pixel_data = match v {
-                            1 => Some((
-                                palette.color1.r,
-                                palette.color1.g,
-                                palette.color1.b,
-                                bg_priority,
-                            )),
-                            2 => Some((
-                                palette.color2.r,
-                                palette.color2.g,
-                                palette.color2.b,
-                                bg_priority,
-                            )),
-                            3 => Some((
-                                palette.color3.r,
-                                palette.color3.g,
-                                palette.color3.b,
-                                bg_priority,
-                            )),
-                            _ => None,
+                        pixel_data = if v > 0 {
+                            let color_idx = palette::get_color_index_sprite(
+                                attr & 0b11,
+                                &memory.ppu_mem.palettes,
+                                v,
+                            );
+                            Some((color_idx, bg_priority))
+                        } else {
+                            None
                         }
                     }
                 } else {
-                    self.is_active[i] = false;
+                    sprite.is_active = false;
                 }
             }
+        }
+
+        if has_sprite_0_hit {
+            self.sprite_0_set(memory);
         }
 
         pixel_data
     }
 
-    fn fetch_bg_pixel(&self, memory: &Memory) -> u8 {
+    fn fetch_bg_pixel(&self, memory: &Memory) -> u16 {
         let x = memory.ppu_mem.x;
         let low_plane_bit = (self.low_bg_shift_reg >> (15 - x)) & 1;
         let high_plane_bit = (self.high_bg_shift_reg >> (15 - x)) & 1;
 
-        (low_plane_bit | (high_plane_bit << 1)) as u8
+        (low_plane_bit | (high_plane_bit << 1))
     }
 
-    fn fetch_bg_attr(&self, memory: &Memory) -> u8 {
+    fn fetch_bg_attr(&self, memory: &Memory) -> u16 {
         let x = memory.ppu_mem.x;
         let low_plane_bit = (self.x_bg_attr_shift >> (15 - x)) & 1;
         let high_plane_bit = (self.y_bg_attr_shift >> (15 - x)) & 1;
 
-        (low_plane_bit | (high_plane_bit << 1)) as u8
+        (low_plane_bit | (high_plane_bit << 1))
     }
 
     fn exec_cycle(&mut self, memory: &mut Memory) {
@@ -298,11 +274,11 @@ impl Ppu {
 
         // first, display the pixel at (x,y)
         if visible_line && rendering_enabled && pixel_cycles {
-            for i in 0..8 {
-                if self.x_position_counters[i] != 0 {
-                    self.x_position_counters[i] -= 1;
-                    if self.x_position_counters[i] == 0 {
-                        self.is_active[i] = true;
+            for sprite in &mut self.sprite_data {
+                if sprite.x_position_counters != 0 {
+                    sprite.x_position_counters -= 1;
+                    if sprite.x_position_counters == 0 {
+                        sprite.is_active = true;
                     }
                 }
             }
@@ -457,7 +433,7 @@ impl Ppu {
         //  for next line.
         let eightb_nametable = 0x1000 * ((ppu_ctrl >> 3) & 1) as usize;
         let is_16b = is_16x8_sprites(ppu_ctrl);
-        for i in 0..8 {
+        for (i, mut sprite) in self.sprite_data.iter_mut().enumerate() {
             if i <= self.nb_sprites {
                 let secondary_oam_addr = 4 * i;
                 let y = (self.line + 1) % 240;
@@ -493,7 +469,7 @@ impl Ppu {
                     tile_addr += 1;
                 }
 
-                let bmp_low = self.tile_low_addr(nametable, tile_addr, tile_y);
+                let bmp_low = Ppu::tile_low_addr(nametable, tile_addr, tile_y);
                 let bmp_high = bmp_low + 8;
                 // see bit 3 of PPUCTRL.
 
@@ -505,19 +481,19 @@ impl Ppu {
                     tile_high = reverse_bit(tile_high);
                 }
 
-                self.high_sprite_bmp_reg[i] = tile_high;
-                self.low_sprite_bmp_reg[i] = tile_low;
-                self.x_position_counters[i] = x;
-                self.x_position_offset[i] = 0;
-                self.is_active[i] = false;
-                self.sprite_attributes[i] = attr_byte;
+                sprite.high_sprite_bmp_reg = tile_high;
+                sprite.low_sprite_bmp_reg = tile_low;
+                sprite.x_position_counters = x;
+                sprite.x_position_offset = 0;
+                sprite.is_active = false;
+                sprite.sprite_attributes = attr_byte;
             } else {
-                self.high_sprite_bmp_reg[i] = 0;
-                self.low_sprite_bmp_reg[i] = 0;
-                self.x_position_counters[i] = 0;
-                self.x_position_offset[i] = 0;
-                self.is_active[i] = false;
-                self.sprite_attributes[i] = 0;
+                sprite.high_sprite_bmp_reg = 0;
+                sprite.low_sprite_bmp_reg = 0;
+                sprite.x_position_counters = 0;
+                sprite.x_position_offset = 0;
+                sprite.is_active = false;
+                sprite.sprite_attributes = 0;
             }
         }
     }
@@ -531,7 +507,7 @@ impl Ppu {
 
     fn fetch_bmp_low(&mut self, memory: &Memory, ppu_ctrl: u8) {
         let pattern_table_addr = 0x1000 * ((ppu_ctrl >> 4) & 1) as usize;
-        let bmp_low = self.tile_low_addr(
+        let bmp_low = Ppu::tile_low_addr(
             pattern_table_addr,
             self.nt as usize,
             self.fine_y(memory) as usize,
@@ -542,7 +518,7 @@ impl Ppu {
     fn fetch_bmp_high(&mut self, memory: &Memory, ppu_ctrl: u8) {
         // fetch bitmap high. One byte higher than low addr.
         let pattern_table_addr = 0x1000 * ((ppu_ctrl >> 4) & 1) as usize;
-        let addr = self.tile_low_addr(
+        let addr = Ppu::tile_low_addr(
             pattern_table_addr,
             self.nt as usize,
             self.fine_y(memory) as usize,
@@ -567,10 +543,8 @@ impl Ppu {
         &mut self,
         cycles_to_exec: u64,
         memory: &mut Memory,
-        debug: bool,
+        _debug: bool,
     ) -> Result<(), &'static str> {
-        self.debug = debug;
-
         for _ in 0..cycles_to_exec {
             self.exec_cycle(memory);
         }
@@ -640,7 +614,7 @@ impl Ppu {
         memory.ppu_mem.set_v((v & 0xFBE0) | (t & 0x041F));
     }
 
-    fn tile_low_addr(&self, pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {
+    fn tile_low_addr(pattern_table: usize, tile_nb: usize, fine_y: usize) -> usize {
         pattern_table + 16 * tile_nb + fine_y
     }
 

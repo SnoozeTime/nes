@@ -32,6 +32,29 @@ emulator.log_cpu();
 emulator.tick();
 emulator.log_cpu();
 
+var Key = {
+  _pressed: {},
+
+  LEFT: 37,
+  UP: 38,
+  RIGHT: 39,
+  DOWN: 40,
+  
+  isDown: function(keyCode) {
+    return this._pressed[keyCode];
+  },
+  
+  onKeydown: function(event) {
+    this._pressed[event.keyCode] = true;
+  },
+  
+  onKeyup: function(event) {
+    delete this._pressed[event.keyCode];
+  }
+};
+
+
+
 const drawGrid = () => {
   ctx.beginPath();
  ctx.lineWidth = 5;
@@ -52,10 +75,53 @@ const drawGrid = () => {
   ctx.stroke();
 };
 
+
+
 const drawPixels = () => {
 
-    
+  ctx.beginPath();
 
-}
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) {
+      const color = emulator.get_pixel(row, col);
+
+
+      ctx.fillStyle = `rgb(
+        ${color.r()},
+        ${color.g()},
+        ${color.b()})`;
+
+      ctx.fillRect(
+        col * CELL_SIZE,
+        row * CELL_SIZE,
+        CELL_SIZE,
+        CELL_SIZE
+      );
+    }
+  }
+
+  ctx.stroke();
+};
+
+
+const renderLoop = () => {
+
+   // for (var i = 0; i < 29780; i++) {
+   //     emulator.tick();
+   // }
+
+    //console.time("EMU");
+    emulator.run_bunch_of_ticks();
+    //console.timeEnd("EMU");
+
+    //console.time("DISPLAY");
+    drawGrid();
+    drawPixels();
+    //console.timeEnd("DISPLAY");
+    //console.log("hi");
+    requestAnimationFrame(renderLoop);
+};
 
 drawGrid();
+drawPixels();
+requestAnimationFrame(renderLoop);

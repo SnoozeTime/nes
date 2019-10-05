@@ -1,16 +1,16 @@
-use super::memory::Memory;
-use super::addressing::{AddressingMode, create_addressing};
+use super::addressing::MySavior;
 use super::cpu::Cpu;
-use std::fmt;
+use super::memory::Memory;
 use crate::cpu::addressing::AddressingModeType::*;
+use std::fmt;
 
 macro_rules! instructions {
 
     ($( $name:ident => {$($code:expr => ($other:expr, $cost:expr)),+} ),+) => {
 
-        #[allow(non_snake_case)] 
+        #[allow(non_snake_case)]
         pub enum Instruction {
-            $($name(u16, Box<dyn AddressingMode>, u8)),+
+            $($name(u16, MySavior, u8)),+
             ,
             UNKNOWN(u16, u8)
         }
@@ -36,7 +36,7 @@ macro_rules! instructions {
                 $(
                     $(
                         $code => Instruction::$name(line,
-                                                    create_addressing($other, nes, memory), 
+                                                    MySavior::new($other, nes, memory),
                                                     $cost)
                     ),+
                 ),+
@@ -58,12 +58,12 @@ macro_rules! instructions {
     };
 }
 
-instructions!{
+instructions! {
     // -----------------------------------------------
     // Arithmetic operations perform addition and subtractions
     // on the contents of the accumulator.
     // ---------------------------------------------------
-    // ADC add with carry 
+    // ADC add with carry
     // This instruction adds the contents of a memory location to A together
     // with the carry bit.
     ADC => {
@@ -108,7 +108,7 @@ instructions!{
     },
 
     // CPX - Compare X register
-    // Z, C, N = X - M 
+    // Z, C, N = X - M
     // Same as CMP
     CPX => {
         0xE0 => (Immediate, 2),
@@ -127,7 +127,7 @@ instructions!{
     // ------------------------------------------------------
     // Shifts
     // ------------------------------------------------------
-    
+
     // ASL - Arithmetic Shift Left
     // A, Z, C, N = M*2 or M,Z,C,N = M*2 - Same effect as multiplication by 2.
     // Bit 0 is set to 0 and bit 7 is placed in carry. Ignoring 2's complement.
@@ -152,7 +152,7 @@ instructions!{
     },
 
     // ROL - Rotate Left
-    // Shit to the left. Bit 7 is put in carry and old carry is put at bit 0. 
+    // Shit to the left. Bit 7 is put in carry and old carry is put at bit 0.
     ROL => {
         0x2A => (Accumulator, 2),
         0x26 => (ZeroPage, 5),
@@ -160,7 +160,7 @@ instructions!{
         0x2E => (Absolute, 6),
         0x3E => (AbsoluteX, 7)
     },
-    
+
     // ROR - Rotate Right
     // Opposite of ROR
     ROR => {
@@ -178,7 +178,7 @@ instructions!{
     // changing it to the new location. Allowing a subsequent RTS to return
     // to the instruction after the call
     // --------------------------------------------------------------------
-    
+
     // JMP - Sets PC to the address specified by the operand.
     // NB:
     // An original 6502 has does not correctly fetch the target address if the indirect
@@ -217,7 +217,7 @@ instructions!{
         0xB0 => (Relative, 2)
     },
 
-   
+
     // BEQ - Branch if Equal
     // Take the branch if zero flag is set.
     // Relative     $F0 2   2
@@ -245,7 +245,7 @@ instructions!{
     BPL => {
         0x10 => (Relative, 2)
     },
-   
+
     // BVC - Branch if overflow clear
     // Relative $50 2   2
     BVC => {
@@ -317,10 +317,10 @@ instructions!{
     // INC - INCrement a memory location
     // M,Z,N = M + 1
     INC => {
-        0xE6 => (ZeroPage, 5), 
-        0xF6 => (ZeroPageX, 6), 
-        0xEE => (Absolute, 6), 
-        0xFE => (AbsoluteX, 7) 
+        0xE6 => (ZeroPage, 5),
+        0xF6 => (ZeroPageX, 6),
+        0xEE => (Absolute, 6),
+        0xFE => (AbsoluteX, 7)
     },
 
     // INX - INCrement X
@@ -335,10 +335,10 @@ instructions!{
 
     // DEC - DEcrement value in memory
     DEC => {
-        0xC6 => (ZeroPage, 5), 
-        0xD6 => (ZeroPageX, 6), 
-        0xCE => (Absolute, 6), 
-        0xDE => (AbsoluteX, 7) 
+        0xC6 => (ZeroPage, 5),
+        0xD6 => (ZeroPageX, 6),
+        0xCE => (Absolute, 6),
+        0xDE => (AbsoluteX, 7)
     },
 
     DEX => {
@@ -400,7 +400,7 @@ instructions!{
     // between registers and memory. Loading affect flags
     // N and Z
     // --------------------------------------------
-    
+
     // LDA - LoaD A
     // Line in memory, address mode, price
     LDA => {
@@ -422,7 +422,7 @@ instructions!{
         0xAE => (Absolute, 4),
         0xBE => (AbsoluteY, 4)
     },
-    
+
     // LDY - Load Y
     LDY => {
         0xA0 => (Immediate, 2),
@@ -465,7 +465,7 @@ instructions!{
     // Register transfer. X and Y can be moved
     // to and from A
     // ------------------------------------
-    
+
     // TAX - Transfer A to X
     // Set N and Z
     // X = A
@@ -498,7 +498,7 @@ instructions!{
     // The 6502 processor supports a 256 bytes stack fixed between $0100 and $01FF.
     // A special 8-bit register, SP, is used to keep track of the next free byte of space.
     // The Stack is descending. When pusing a byte to the stack, SP is decremented.
-    
+
     // TSX Transfer stack pointer to X.
     // X = S
     // Copies the current contents of the stack register and set Z and N
@@ -525,7 +525,7 @@ instructions!{
     PLA => {
         0x68 => (Implied, 4)
     },
-    
+
     // PHP - Push processor status
     PHP => {
         0x08 => (Implied, 3)
@@ -540,7 +540,7 @@ instructions!{
     // --------------------------------------------
     // System functions.
     // --------------------------------------------
-    
+
     // Force an interruption
     BRK => {
         0x00 => (Implied, 7)
@@ -570,10 +570,10 @@ instructions!{
     // games are using them and they can break the code flow
     // if not found. (e.g. supposed to read 4 bytes but just read 1)
     // ----------------------------------------------------------
-    
+
     // COMBINED INSTRUCTIONS - Combine two instructions in one to
     // go around the compressed size of executables.
-    
+
     // ANC - AND Byte with Accumulator. I
     ANC => {
         0x0B => (Immediate, 2),
@@ -593,10 +593,10 @@ instructions!{
     // ALR
     // AND byte with accumulator, then shift right one bit in accumulator.
     ALR => {
-        0x4B => (Immediate, 2)   
+        0x4B => (Immediate, 2)
     },
 
-    // LAX 
+    // LAX
     // Load accumulator and X register with memory.
     // LDA then TAX
     LAX => {
@@ -619,7 +619,7 @@ instructions!{
     },
 
     // RMW (read modify write) instructions
-    
+
     // DCP
     // Equivalent to DEC value then CMP value
     DCP => {
