@@ -1,5 +1,6 @@
 //
 //
+use crate::apu::Apu;
 use crate::cpu::cpu::Cpu;
 use crate::cpu::memory::Memory;
 use crate::graphic::EmulatorInput;
@@ -16,6 +17,7 @@ use std::io::{Read, Write};
 pub struct Nes {
     cpu: Cpu,
     pub ppu: Ppu,
+    apu: Apu,
     memory: Memory,
     rom_name: String,
     pub is_debug: bool,
@@ -34,6 +36,7 @@ impl Nes {
         Nes {
             cpu,
             ppu,
+            apu: Apu::new(),
             memory,
             rom_name,
             is_debug: false,
@@ -57,6 +60,7 @@ impl Nes {
         Ok(Nes {
             cpu,
             ppu,
+            apu: Apu::new(),
             memory,
             rom_name,
             is_debug: false,
@@ -112,7 +116,12 @@ impl Nes {
     pub fn tick(&mut self, is_debug: bool) -> Result<u64, &'static str> {
         let cpu_cycles = self.cpu.next(&mut self.memory)?;
         self.ppu.next(3 * cpu_cycles, &mut self.memory, is_debug)?;
+        self.apu.next(cpu_cycles, &mut self.memory);
         Ok(cpu_cycles)
+    }
+
+    pub fn audio_samples(&mut self) -> Vec<i16> {
+        self.apu.samples()
     }
 
     pub fn handle_event(&mut self, event: EmulatorInput) {

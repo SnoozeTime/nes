@@ -58,7 +58,7 @@ pub struct Graphics {
     //video_subsystem: VideoSubsystem,
     canvas: WindowCanvas,
     event_pump: EventPump,
-
+    audio: sdl2::audio::AudioQueue<i16>,
     colors: [nesemu::graphic::Color; 64],
     input_map_p1: HashMap<Keycode, InputAction>,
     input_map_p2: HashMap<Keycode, InputAction>,
@@ -68,6 +68,17 @@ impl Graphics {
     pub fn new(zoom_level: i32) -> Result<Graphics, String> {
         let sdl_context = sdl2::init().map_err(|err| err.to_string())?;
         let video_subsystem = sdl_context.video().map_err(|err| err.to_string())?;
+        let audio_subsystem = sdl_context.audio().unwrap();
+
+        let desired_specs = sdl2::audio::AudioSpecDesired {
+            freq: Some(44100),
+            samples: Some(1024),
+            channels: Some(1),
+        };
+        let audio = audio_subsystem
+            .open_queue::<i16, _>(None, &desired_specs)
+            .unwrap();
+        audio.resume();
 
         let width = WIDTH * (zoom_level as u32); //*2;
         let window = video_subsystem
@@ -91,6 +102,7 @@ impl Graphics {
         Ok(Graphics {
             zoom_level,
             canvas,
+            audio,
             event_pump,
             colors: palette::build_default_colors(),
             input_map_p1: build_default_input_p1(),
@@ -262,6 +274,12 @@ fn main_loop(mut ui: Graphics, mut nes: Nes) -> Result<(), &'static str> {
             ui.canvas.copy(&texture, None, None).unwrap();
             ui.canvas.present();
         }
+
+        // Audio.
+        let samples = nes.audio_samples();
+        ui.audio.queue(&samples);
+        trace!(samples = ?samples);
+        trace!(apu = ?nes.memory().apu_mem);
 
         let diff = Instant::now() - now;
         trace!(msg = "Display", duration = ?diff);

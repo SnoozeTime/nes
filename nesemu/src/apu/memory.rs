@@ -1,4 +1,4 @@
-
+#![allow(unused)]
 struct Pulse {
     duty: u8,
     envelope_loop: bool,
@@ -16,7 +16,7 @@ struct Pulse {
 
 impl Pulse {
     fn new() -> Pulse {
-        Pulse { 
+        Pulse {
             duty: 0,
             envelope_loop: false,
             constant_volume: false,
@@ -52,7 +52,6 @@ impl Pulse {
         self.timer = (value as u16 & 0x7) << 8 | (self.timer & 0xFF);
         self.length_counter_load = (value & !0x7) >> 3;
     }
-
 }
 
 struct Triangle {
@@ -63,9 +62,7 @@ struct Triangle {
 }
 
 impl Triangle {
-
     fn new() -> Triangle {
-
         Triangle {
             linear_counter_control: false,
             linear_counter_load: 0,
@@ -76,7 +73,7 @@ impl Triangle {
 
     fn apply_reg1(&mut self, value: u8) {
         self.linear_counter_control = value & 0x80 == 0x80;
-        self.linear_counter_load = value &!0x80;
+        self.linear_counter_load = value & !0x80;
     }
 
     fn apply_reg2(&mut self, _value: u8) {
@@ -95,13 +92,12 @@ impl Triangle {
 
 struct ApuMemory {
     // channels
-   pulse_1: Pulse, 
-   pulse_2: Pulse, 
-   triangle: Triangle,
+    pulse_1: Pulse,
+    pulse_2: Pulse,
+    triangle: Triangle,
 }
 
 impl ApuMemory {
-
     pub fn new() -> ApuMemory {
         ApuMemory {
             pulse_1: Pulse::new(),
@@ -111,15 +107,13 @@ impl ApuMemory {
     }
 
     pub fn write(&mut self, addr: usize, value: u8) {
-        
         match addr {
-
             // pulse 1
             0x4000 => self.pulse_1.apply_reg1(value),
             0x4001 => self.pulse_1.apply_reg2(value),
             0x4002 => self.pulse_1.apply_reg3(value),
             0x4003 => self.pulse_1.apply_reg4(value),
-            
+
             // pulse 2
             0x4004 => self.pulse_2.apply_reg1(value),
             0x4005 => self.pulse_2.apply_reg2(value),
@@ -132,18 +126,15 @@ impl ApuMemory {
             0x400A => self.triangle.apply_reg3(value),
             0x400B => self.triangle.apply_reg4(value),
 
-            // noise 
-//            0x400C => self.triangle_2.apply_reg1(value),
-//            0x400D => self.triangle_2.apply_reg2(value),
-//            0x400E => self.triangle_2.apply_reg3(value),
-//            0x400F => self.triangle_2.apply_reg4(value),
-        
-            _ => {},
+            // noise
+            //            0x400C => self.triangle_2.apply_reg1(value),
+            //            0x400D => self.triangle_2.apply_reg2(value),
+            //            0x400E => self.triangle_2.apply_reg3(value),
+            //            0x400F => self.triangle_2.apply_reg4(value),
+            _ => {}
         }
-
     }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -197,6 +188,5 @@ mod test {
         apu.write(0x400B, 0b11111101);
         assert_eq!(1482, apu.triangle.timer);
         assert_eq!(0b11111, apu.triangle.length_counter_load);
-
     }
 }
