@@ -13,8 +13,12 @@ pub fn get_bg_color(vram: &[u8], colors: &[Color; 64]) -> Color {
 }
 
 pub fn get_color_index_bg(palette_number: u16, vram: &[u8], pixel_value: u16) -> u8 {
-    let idx = (4 * palette_number + pixel_value) as usize;
-    unsafe { *vram.get_unchecked(idx) }
+    if pixel_value == 0 {
+        unsafe { *vram.get_unchecked(0x00) }
+    } else {
+        let idx = (4 * palette_number + pixel_value) as usize;
+        unsafe { *vram.get_unchecked(idx) }
+    }
 }
 
 pub fn get_color_index_sprite(palette_number: u8, vram: &[u8], pixel_value: u8) -> u8 {
