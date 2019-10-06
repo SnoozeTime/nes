@@ -95,7 +95,7 @@ fn main() {
 
     let mut texture = glium::texture::Texture2d::new(&display, image).unwrap();
 
-    let ratio = 16.0 / 15.0;
+    let ratio = 1.0; // 16.0 / 15.0;
     let vertex_buffer = glium::VertexBuffer::new(
         &display,
         &[
@@ -202,7 +202,7 @@ uniform sampler2D tex;
             }
 
             let uniforms = uniform! {
-                 tex: &texture,
+                 tex: texture.sampled().magnify_filter(glium::uniforms::MagnifySamplerFilter::Nearest).minify_filter(glium::uniforms::MinifySamplerFilter::Nearest),
             };
             target
                 .draw(
