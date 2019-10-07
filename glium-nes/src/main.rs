@@ -1,12 +1,20 @@
 use tracing::{info_span, trace};
 #[macro_use]
 extern crate glium;
+#[macro_use]
+extern crate imgui;
 use glium::glutin;
 use glium::glutin::{ElementState, VirtualKeyCode};
 use glium::Surface;
+use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, MenuItem, Ui};
+use imgui_glium_renderer::Renderer;
+use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::time::{Duration, Instant};
+
+mod ui;
+use ui::{AppState, FileExplorer, UiEvent};
 
 fn build_default_input_p1() -> HashMap<VirtualKeyCode, InputAction> {
     let mut m = HashMap::new();
@@ -71,6 +79,19 @@ macro_rules! timed_block {
 
 }
 fn main() {
+    let sdl_context = sdl2::init().unwrap();
+    let audio_subsystem = sdl_context.audio().unwrap();
+
+    let desired_specs = sdl2::audio::AudioSpecDesired {
+        freq: Some(44100),
+        samples: Some(1024),
+        channels: Some(1),
+    };
+    let audio = audio_subsystem
+        .open_queue::<i16, _>(None, &desired_specs)
+        .unwrap();
+    audio.resume();
+
     let input_map_p1 = build_default_input_p1();
     let input_map_p2 = build_default_input_p2();
     let sub = tracing_subscriber::FmtSubscriber::builder()
@@ -90,8 +111,42 @@ fn main() {
 
     let mut events_loop = glutin::EventsLoop::new();
     let wb = glutin::WindowBuilder::new();
-    let cb = glutin::ContextBuilder::new();
+    let cb = glutin::ContextBuilder::new().with_vsync(false);
     let display = glium::Display::new(wb, cb, &events_loop).unwrap();
+
+    let mut imgui = Context::create();
+    imgui.set_ini_filename(None);
+
+    let mut platform = WinitPlatform::init(&mut imgui);
+    {
+        let gl_window = display.gl_window();
+        let window = gl_window.window();
+        platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Rounded);
+    }
+
+    let hidpi_factor = platform.hidpi_factor();
+    let font_size = (13.0 * hidpi_factor) as f32;
+    imgui.fonts().add_font(&[
+        FontSource::DefaultFontData {
+            config: Some(FontConfig {
+                size_pixels: font_size,
+                ..FontConfig::default()
+            }),
+        },
+        FontSource::TtfData {
+            data: include_bytes!("../resources/mplus-1p-regular.ttf"),
+            size_pixels: font_size,
+            config: Some(FontConfig {
+                rasterizer_multiply: 1.75,
+                glyph_ranges: FontGlyphRanges::japanese(),
+                ..FontConfig::default()
+            }),
+        },
+    ]);
+
+    imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
+
+    let mut renderer = Renderer::init(&mut imgui, &display).expect("Failed to initialize renderer");
 
     let mut texture = glium::texture::Texture2d::new(&display, image).unwrap();
 
@@ -162,19 +217,29 @@ uniform sampler2D tex;
 
     // now load the nes emulator.
     let ines = rom::read(String::from("../games/megaman2.nes")).unwrap();
-    let mut nes = Nes::new(ines).unwrap();
+    let mut nes = Nes::empty();
 
     let colors = palette::build_default_colors();
 
+    let gl_window = display.gl_window();
+    let window = gl_window.window();
+    let mut last_frame = Instant::now();
+
+    let mut is_nes_running = false;
+    let mut file_explorer = FileExplorer::default();
+    let mut previous_state = AppState::Nothing;
+    let mut app_state = AppState::Nothing;
     while !closed {
         let now = Instant::now();
 
         // ONE NES FRAME
         // -------------------------------------------------
         timed_block!("NES frame", {
-            let mut total_cycles = CPU_CYCLES_PER_FRAME;
-            while total_cycles > 0 {
-                total_cycles = total_cycles.saturating_sub(nes.tick(false).unwrap());
+            if let AppState::Running = app_state {
+                let mut total_cycles = CPU_CYCLES_PER_FRAME;
+                while total_cycles > 0 {
+                    total_cycles = total_cycles.saturating_sub(nes.tick(false).unwrap());
+                }
             }
         });
         // DISPLAY
@@ -182,6 +247,8 @@ uniform sampler2D tex;
         timed_block!("Display", {
             let mut target = display.draw();
             target.clear_color(0.0, 0.0, 0.0, 1.0);
+            // NES buffer
+            // ----------------------
             if nes.should_display() {
                 let mut frame = image::ImageBuffer::new(256, 240);
                 let dimensions = frame.dimensions();
@@ -213,59 +280,106 @@ uniform sampler2D tex;
                     &Default::default(),
                 )
                 .unwrap();
+
+            // IMGUI
+            // --------------------
+            let io = imgui.io_mut();
+            platform
+                .prepare_frame(io, &window)
+                .expect("Failed to start frame");
+            last_frame = io.update_delta_time(last_frame);
+            let ui = imgui.frame();
+            match ui::run_ui(&ui, &mut app_state, &mut previous_state, &mut file_explorer) {
+                Some(UiEvent::LoadRom) => {
+                    // If can find a rom, load it. Otherwise, restore state before
+                    // opening the file explorer.
+                    if let Some(ref rom) = file_explorer.selected {
+                        let ines = rom::read(rom).unwrap();
+                        nes = Nes::new(ines).unwrap();
+                        app_state = AppState::Running;
+                    } else {
+                        app_state = previous_state;
+                    }
+                }
+                Some(UiEvent::Resume) => app_state = previous_state,
+                Some(UiEvent::SaveState) => {
+                    if let Err(e) = nes.save_state() {
+                        println!("Error while saving {} = {}", nes.get_save_name(), e);
+                    }
+                }
+                Some(UiEvent::LoadState) => {
+                    if let Ok(new_nes) = Nes::load_state(nes.get_save_name()) {
+                        nes = new_nes;
+                    } else {
+                        println!("Could not load {}", nes.get_save_name());
+                    }
+                }
+
+                _ => (),
+            }
+            platform.prepare_render(&ui, &window);
+            let draw_data = ui.render();
+            renderer
+                .render(&mut target, draw_data)
+                .expect("Rendering failed");
+
             target.finish().unwrap();
         });
 
         // AUDIO
         // --------------------------------------------------------
-        // TODO
+        let samples = nes.audio_samples();
+        audio.queue(&samples);
 
         // EVENT HANDLING
         // --------------------------------------------------------
         timed_block!("Process events", {
             let mut emu_events = vec![];
-            events_loop.poll_events(|ev| match ev {
-                glutin::Event::WindowEvent { event, .. } => match event {
-                    glutin::WindowEvent::CloseRequested => closed = true,
-                    glutin::WindowEvent::KeyboardInput { input, .. } => {
-                        if let Some(key) = input.virtual_keycode {
-                            if ElementState::Pressed == input.state {
-                                if let Some(action) = input_map_p1.get(&key) {
-                                    emu_events.push(EmulatorInput::INPUT(
-                                        Player::One,
-                                        *action,
-                                        InputState::Pressed,
-                                    ));
-                                }
+            events_loop.poll_events(|ev| {
+                platform.handle_event(imgui.io_mut(), &window, &ev);
+                match ev {
+                    glutin::Event::WindowEvent { event, .. } => match event {
+                        glutin::WindowEvent::CloseRequested => closed = true,
+                        glutin::WindowEvent::KeyboardInput { input, .. } => {
+                            if let Some(key) = input.virtual_keycode {
+                                if ElementState::Pressed == input.state {
+                                    if let Some(action) = input_map_p1.get(&key) {
+                                        emu_events.push(EmulatorInput::INPUT(
+                                            Player::One,
+                                            *action,
+                                            InputState::Pressed,
+                                        ));
+                                    }
 
-                                if let Some(action) = input_map_p2.get(&key) {
-                                    emu_events.push(EmulatorInput::INPUT(
-                                        Player::Two,
-                                        *action,
-                                        InputState::Pressed,
-                                    ));
-                                }
-                            } else {
-                                if let Some(action) = input_map_p1.get(&key) {
-                                    emu_events.push(EmulatorInput::INPUT(
-                                        Player::One,
-                                        *action,
-                                        InputState::Released,
-                                    ));
-                                }
-                                if let Some(action) = input_map_p2.get(&key) {
-                                    emu_events.push(EmulatorInput::INPUT(
-                                        Player::Two,
-                                        *action,
-                                        InputState::Released,
-                                    ));
+                                    if let Some(action) = input_map_p2.get(&key) {
+                                        emu_events.push(EmulatorInput::INPUT(
+                                            Player::Two,
+                                            *action,
+                                            InputState::Pressed,
+                                        ));
+                                    }
+                                } else {
+                                    if let Some(action) = input_map_p1.get(&key) {
+                                        emu_events.push(EmulatorInput::INPUT(
+                                            Player::One,
+                                            *action,
+                                            InputState::Released,
+                                        ));
+                                    }
+                                    if let Some(action) = input_map_p2.get(&key) {
+                                        emu_events.push(EmulatorInput::INPUT(
+                                            Player::Two,
+                                            *action,
+                                            InputState::Released,
+                                        ));
+                                    }
                                 }
                             }
                         }
-                    }
+                        _ => (),
+                    },
                     _ => (),
-                },
-                _ => (),
+                }
             });
             nes.handle_events(emu_events);
         });

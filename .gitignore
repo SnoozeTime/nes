@@ -3,3 +3,6 @@
 logs/*
 games/*
 saves/*
+roms
+**/*/flamegraph*.svg
+**/*/perf.data*

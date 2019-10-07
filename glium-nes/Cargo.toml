@@ -9,6 +9,12 @@ edition = "2018"
 [dependencies]
 glium = "0.25.1"
 image = "*"
+imgui = { version = "0.2"}
+imgui-glium-renderer = { version = "0.2"} 
+imgui-winit-support = { version = "0.2"}
+
+# for sound
+sdl2 = "0.32"
 
 nesemu = { path = "../nesemu" }
 

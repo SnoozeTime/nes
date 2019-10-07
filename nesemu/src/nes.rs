@@ -161,11 +161,11 @@ impl Nes {
         }
     }
 
-    fn get_save_name(&self) -> String {
+    pub fn get_save_name(&self) -> String {
         format!("saves/saved_{}.json", self.rom_name)
     }
 
-    fn save_state(&self) -> Result<(), String> {
+    pub fn save_state(&self) -> Result<(), String> {
         let mut file = OpenOptions::new()
             .write(true)
             .truncate(true)

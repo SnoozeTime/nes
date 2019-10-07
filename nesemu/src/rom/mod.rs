@@ -3,8 +3,9 @@
 use crate::mapper::Mirroring;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 
-fn load(filename: String) -> Result<Vec<u8>, String> {
+fn load<P: AsRef<Path>>(filename: P) -> Result<Vec<u8>, String> {
     File::open(filename)
         .map_err(|err| err.to_string())
         .and_then(|mut file| {
@@ -15,8 +16,8 @@ fn load(filename: String) -> Result<Vec<u8>, String> {
         })
 }
 
-pub fn read(filename: String) -> Result<INesFile, String> {
-    let rom_path = std::path::Path::new(&filename);
+pub fn read<P: AsRef<Path>>(rom_path: P) -> Result<INesFile, String> {
+    let rom_path = rom_path.as_ref();
     let rom_name = if let Some(x) = rom_path.file_stem() {
         x.to_os_string()
             .into_string()
@@ -24,7 +25,7 @@ pub fn read(filename: String) -> Result<INesFile, String> {
     } else {
         String::from("unknown")
     };
-    let bytes = load(filename)?;
+    let bytes = load(rom_path)?;
     from_bytes(rom_name, bytes)
 }
 
