@@ -2,7 +2,7 @@
 use crate::cpu::memory::Memory;
 use serde_derive::{Deserialize, Serialize};
 use std::default::Default;
-use tracing::trace;
+use tracing::{debug, info, trace};
 mod filters;
 use filters::FilterChain;
 pub mod memory;
@@ -19,6 +19,32 @@ const DUTY_VALUES: [[u8; 8]; 4] = [
     [0, 1, 1, 0, 0, 0, 0, 0],
     [0, 1, 1, 1, 1, 0, 0, 0],
     [1, 0, 0, 1, 1, 1, 1, 1],
+];
+
+/*
+ *1 1111 (1F) => 30
+1 1101 (1D) => 28
+1 1011 (1B) => 26
+1 1001 (19) => 24
+1 0111 (17) => 22
+1 0101 (15) => 20
+1 0011 (13) => 18
+1 0001 (11) => 16
+
+Notes with base length 12 (4/4 at 75 bpm):
+1 1110 (1E) => 32  (96 times 1/3, quarter note triplet)
+1 1100 (1C) => 16  (48 times 1/3, eighth note triplet)
+1 1010 (1A) => 72  (48 times 1 1/2, dotted quarter)
+1 1000 (18) => 192 (Whole note)
+1 0110 (16) => 96  (Half note)
+1 0100 (14) => 48  (Quarter note)
+1 0010 (12) => 24  (Eighth note)
+1 0000 (10) => 12  (Sixteenth)
+ *
+ * */
+const LENGTH_COUNTER_LOOKUP: [u8; 0x20] = [
+    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20, 96, 22,
+    192, 24, 72, 26, 16, 28, 32, 30,
 ];
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -53,6 +79,12 @@ impl ApuMemory {
                 self.pulse_1.envelope.period = value & 0b1111;
                 self.pulse_1.envelope.do_loop = value & 0b00100000 == 0b00100000;
                 self.pulse_1.envelope.enabled = value & 0b00010000 == 0;
+                self.pulse_1.length_counter.halt_flag_set = value & 0b00100000 == 0b00100000;
+                info!(
+                    "got 0x4000 {:08b} => {}",
+                    value, self.pulse_1.length_counter.halt_flag_set
+                );
+                info!(duty = %self.pulse_1.duty_cycle);
             }
             0x4001 => self.pulse_1_reg2 = value,
 
@@ -62,13 +94,19 @@ impl ApuMemory {
             // 0x4003 = xxxx.xHHH
             0x4002 => {
                 self.pulse_1.timer = self.pulse_1.timer & 0b11100000000 | (value as u16);
+                info!(timer = %self.pulse_1.timer);
             }
             0x4003 => {
                 self.pulse_1.timer = (value as u16 & 0b111) << 8 | self.pulse_1.timer & 0b11111111;
 
                 // Counter to 0. When 0, channel is silenced.
                 // 0x4003 = LLLL.L.xxx
-                self.pulse_1.length_counter_load = value >> 3;
+                self.pulse_1.length_counter.value = LENGTH_COUNTER_LOOKUP[(value >> 3) as usize];
+                debug!(
+                    "Will set pulse 1 length counter to {}",
+                    self.pulse_1.length_counter.value
+                );
+                info!(timer = %self.pulse_1.timer);
             }
 
             // PULSE 2
@@ -180,14 +218,31 @@ impl FrameCounter {
         false
     }
 }
+
+// ---------------------------------------------------------
+//
+#[derive(Default, Serialize, Deserialize, Debug)]
+struct LengthCounter {
+    value: u8,
+    halt_flag_set: bool,
+}
+
+impl LengthCounter {
+    fn tick(&mut self) {
+        if !self.halt_flag_set && self.value > 0 {
+            self.value -= 1;
+        }
+        debug!(msg = "Length counter", flag = %self.halt_flag_set,
+               value = %self.value);
+    }
+}
+
 // ----------------------------------------------------------
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Apu {
     /// Keep track how many cycles since the beginning.
     cycles: u64,
-
-    pulse1_timer: u16,
 
     // Rate at which we take a sample
     sample_timer: u64,
@@ -241,6 +296,7 @@ struct Pulse {
     enabled: bool,
 
     envelope: Envelope,
+    length_counter: LengthCounter,
     /// Set by the duty
     /// 00 -> 01000000
     /// 01 -> 01100000
@@ -274,7 +330,13 @@ impl Pulse {
 
         if self.current_timer == 0 {
             // clock the sequencer :D
-            self.seq_index = (self.seq_index.wrapping_sub(1)) % 7;
+            //self.seq_index = (self.seq_index.wrapping_sub(1)) % 7;
+            if self.seq_index == 0 {
+                self.seq_index = 7;
+            } else {
+                self.seq_index -= 1;
+            }
+            trace!("seq index -> {:?}", self.seq_index);
             self.current_timer = self.timer;
         } else {
             self.current_timer -= 1;
@@ -284,9 +346,14 @@ impl Pulse {
     pub fn sample(&self) -> f64 {
         // volume * duty * length counter...
         let duty = DUTY_VALUES[self.duty_cycle as usize][self.seq_index as usize];
-        let value = self.envelope.volume() as f64 * duty as f64;
 
-        trace!(msg = "take sample", value = %value, duty_cycle = %self.duty_cycle, timer = %self.current_timer);
+        let value = if self.length_counter.value != 0 {
+            self.envelope.volume() as f64 * duty as f64
+        } else {
+            0.0
+        };
+
+        trace!(msg = "take sample", value = %value, duty_cycle = %self.duty_cycle, seq_index = %self.seq_index, duty = %duty, timer = %self.current_timer);
         value * 100.0
     }
 }
@@ -299,7 +366,6 @@ impl Apu {
         let samples = Vec::with_capacity(1024);
         Self {
             cycles: 0,
-            pulse1_timer: 0,
             sample_timer,
             sample_timer_rate,
             samples,
@@ -328,12 +394,14 @@ impl Apu {
             } else if mem.apu_mem.frame_counter.is_half() {
                 mem.apu_mem.pulse_1.envelope.tick();
                 mem.apu_mem.pulse_2.envelope.tick();
+                mem.apu_mem.pulse_1.length_counter.tick();
             } else if mem.apu_mem.frame_counter.is_3rd_quarter() {
                 mem.apu_mem.pulse_1.envelope.tick();
                 mem.apu_mem.pulse_2.envelope.tick();
             } else if mem.apu_mem.frame_counter.is_last() {
                 mem.apu_mem.pulse_1.envelope.tick();
                 mem.apu_mem.pulse_2.envelope.tick();
+                mem.apu_mem.pulse_1.length_counter.tick();
             }
 
             // Instead of taking a lot of samples (Frequency of APU is > 1 Mhz). let's just sample at
@@ -355,7 +423,7 @@ impl Apu {
                     0.0
                 };
 
-                let mut mixed = pulse_1_sample + pulse_2_sample;
+                let mut mixed = pulse_1_sample; // + pulse_2_sample;
                 mixed = self.filters.tick(mixed);
 
                 self.samples.push(mixed as i16);

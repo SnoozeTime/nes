@@ -6,3 +6,4 @@ saves/*
 roms
 **/*/flamegraph*.svg
 **/*/perf.data*
+**/*/__pycache__
