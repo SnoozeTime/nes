@@ -1,20 +1,68 @@
 use std::borrow::Cow;
-use std::fs::{self, DirEntry};
+use std::default::Default;
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use tracing::error;
 
 use imgui::*;
-
-#[derive(Default)]
-pub struct FileExplorer {
-    pub selected: Option<PathBuf>,
-}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum AppState {
     Nothing,
     Running,
     Opening,
+}
+
+pub struct Application {
+    current_state: AppState,
+    previous_state: AppState,
+    is_running: bool,
+    file_explorer: FileExplorer,
+}
+
+impl Default for Application {
+    fn default() -> Self {
+        Self {
+            current_state: AppState::Nothing,
+            previous_state: AppState::Nothing,
+            is_running: true,
+            file_explorer: FileExplorer::default(),
+        }
+    }
+}
+
+impl Application {
+    /// Return the rom name to load if selected.
+    pub fn rom_name(&self) -> Option<&PathBuf> {
+        self.file_explorer.selected.as_ref()
+    }
+
+    /// Get the current state of the application
+    pub fn current_state(&self) -> AppState {
+        self.current_state
+    }
+
+    pub fn set_state(&mut self, new_state: AppState) {
+        self.current_state = new_state;
+    }
+
+    pub fn reset_to_previous(&mut self) {
+        self.current_state = self.previous_state;
+    }
+
+    /// Continue to run if returns true
+    pub fn should_run(&self) -> bool {
+        self.is_running
+    }
+
+    pub fn exit(&mut self) {
+        self.is_running = false;
+    }
+}
+#[derive(Default)]
+pub struct FileExplorer {
+    pub selected: Option<PathBuf>,
 }
 
 impl FileExplorer {
@@ -53,7 +101,9 @@ fn visit_dirs(ui: &Ui, file_explorer: &mut FileExplorer, dir: &Path) -> io::Resu
                 ui.tree_node(&im_str!("{}", display_name))
                     .default_open(false)
                     .build(|| {
-                        visit_dirs(ui, file_explorer, &path);
+                        if let Err(e) = visit_dirs(ui, file_explorer, &path) {
+                            error!("Unexpected error while displaying file explorer = {}", e);
+                        }
                     });
             } else {
                 let is_selected = file_explorer.is_path_selected(&path);
@@ -76,19 +126,18 @@ pub enum UiEvent {
     LoadState,
 }
 
-pub fn run_ui(
-    ui: &Ui,
-    app_state: &mut AppState,
-    previous_state: &mut AppState,
-    file_explorer: &mut FileExplorer,
-) -> Option<UiEvent> {
+pub fn run_ui(ui: &Ui, application: &mut Application) -> Option<UiEvent> {
     let mut event = None;
     ui.main_menu_bar(|| {
         ui.menu(im_str!("File"), true, || {
             if MenuItem::new(im_str!("Open rom")).build(&ui) {
-                file_explorer.reset();
-                *previous_state = *app_state;
-                *app_state = AppState::Opening;
+                application.file_explorer.reset();
+                application.previous_state = application.current_state;
+                application.current_state = AppState::Opening;
+            }
+
+            if MenuItem::new(im_str!("Exit")).build(&ui) {
+                application.exit();
             }
         });
         ui.menu(im_str!("State"), true, || {
@@ -103,12 +152,14 @@ pub fn run_ui(
         ui.menu(im_str!("Debug"), false, || {});
     });
 
-    if let AppState::Opening = app_state {
+    if let AppState::Opening = application.current_state {
         Window::new(im_str!("Open ROM"))
             .size([300.0, 300.0], Condition::FirstUseEver)
             .build(&ui, || {
                 let current = std::env::current_dir().unwrap();
-                visit_dirs(ui, file_explorer, &current);
+                if let Err(e) = visit_dirs(ui, &mut application.file_explorer, &current) {
+                    error!("Unexpected error while displaying file explorer = {}", e);
+                }
                 ui.separator();
                 if ui.button(im_str!("Load"), [0.0, 0.0]) {
                     event = Some(UiEvent::LoadRom);
