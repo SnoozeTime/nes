@@ -1,5 +1,9 @@
 use crate::graphic::Color;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 pub const BLACK_INDEX: u8 = 0x0D;
+
 #[derive(Debug)]
 pub struct Palette {
     pub background: Color,
@@ -57,6 +61,26 @@ pub fn get_sprite_palette(palette_number: u8, vram: &[u8], colors: &[Color; 64])
         color2,
         color3,
     }
+}
+
+pub fn load_palette<P: AsRef<Path>>(palette: P) -> Result<[Color; 64], std::io::Error> {
+    let mut f = File::open(palette)?;
+    let mut content: Vec<u8> = vec![];
+    f.read_to_end(&mut content)?;
+
+    if content.len() < 3 * 64 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            String::from("There is less than 64 colors in the palette"),
+        ));
+    }
+
+    let mut colors = [Color::rgb(0, 0, 0); 64];
+    for (i, chunk) in content.chunks(3).enumerate().take(64) {
+        colors[i] = Color::rgb(chunk[0], chunk[1], chunk[2]);
+    }
+
+    Ok(colors)
 }
 
 pub fn build_default_colors() -> [Color; 64] {

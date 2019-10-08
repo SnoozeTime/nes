@@ -76,6 +76,14 @@ struct Opt {
     /// Record all the audio to a Wav file.
     #[structopt(short = "w", parse(from_os_str))]
     recording_name: Option<PathBuf>,
+
+    /// If present, won't play sound
+    #[structopt(long = "no-sound")]
+    no_sound: bool,
+
+    /// Choose the palette file. Will use default palette if absent.
+    #[structopt(long = "palette", parse(from_os_str))]
+    palette: Option<PathBuf>,
 }
 
 fn main() {
@@ -95,11 +103,14 @@ fn main() {
         audio::AudioSystem::init()
     }
     .expect("Cannot initialize audio system");
-    audio.resume();
+
+    if !opt.no_sound {
+        audio.resume();
+    }
 
     let mut events_loop = glutin::EventsLoop::new();
-    let mut graphic_system =
-        graphics::GraphicSystem::init(&events_loop).expect("Cannot initialize graphic system");
+    let mut graphic_system = graphics::GraphicSystem::init(opt.palette, &events_loop)
+        .expect("Cannot initialize graphic system");
 
     // 2. INITIALIZE APPLICATION STATE
     // ------------------------------------------------------------

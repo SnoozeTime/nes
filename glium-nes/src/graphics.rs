@@ -9,13 +9,18 @@ use glium::glutin;
 use glium::Surface;
 use snafu::{ResultExt, Snafu};
 use std::time::Instant;
-use tracing::info;
+use tracing::{error, info};
 
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
 use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
-use nesemu::{graphic::Color, nes::Nes, ppu::palette::build_default_colors};
+use nesemu::{
+    graphic::Color,
+    nes::Nes,
+    ppu::palette::{build_default_colors, load_palette},
+};
 use std::io::Cursor;
+use std::path::Path;
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -76,7 +81,10 @@ pub struct GraphicSystem {
 }
 
 impl GraphicSystem {
-    pub fn init(events_loop: &glutin::EventsLoop) -> Result<Self, GraphicError> {
+    pub fn init<P: AsRef<Path>>(
+        palette: Option<P>,
+        events_loop: &glutin::EventsLoop,
+    ) -> Result<Self, GraphicError> {
         info!("Initialize GraphicSystem");
 
         info!("Initialize glium display");
@@ -197,8 +205,24 @@ uniform sampler2D tex;
                 .context(CannotCreateProgram {})?;
         let last_frame = Instant::now();
 
+        let colors = if let Some(path) = palette {
+            let path = path.as_ref();
+            match load_palette(&path) {
+                Ok(p) => {
+                    info!("Will use palette {}", path.display());
+                    p
+                }
+                Err(e) => {
+                    error!("Error loading {} = {}", path.display(), e);
+                    build_default_colors()
+                }
+            }
+        } else {
+            build_default_colors()
+        };
+
         Ok(Self {
-            colors: build_default_colors(),
+            colors,
             last_frame,
             display,
             platform,
