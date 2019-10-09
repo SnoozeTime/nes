@@ -142,8 +142,38 @@ impl ApuMemory {
                 self.pulse_1.enabled = value & 0b1 == 0b1;
                 self.pulse_2.enabled = value & 0b10 == 0b10;
             }
+
+            0x4017 => {
+                let mode = value & 0b1000_0000;
+                self.frame_counter.mode = mode; // won't be 1 but it's ok, the condition is on 0.
+                if mode > 0 {
+                    self.tick_envelopes();
+                    self.tick_length_counters();
+                }
+            }
             _ => (),
         }
+    }
+
+    pub fn read(&mut self) -> u8 {
+        let mut res = 0;
+        if self.pulse_1.length_counter.value > 0 {
+            res |= 0b1;
+        }
+        if self.pulse_2.length_counter.value > 0 {
+            res |= 0b10;
+        }
+        res
+    }
+
+    fn tick_envelopes(&mut self) {
+        self.pulse_1.envelope.tick();
+        self.pulse_2.envelope.tick();
+    }
+
+    fn tick_length_counters(&mut self) {
+        self.pulse_1.length_counter.tick();
+        self.pulse_2.length_counter.tick();
     }
 
     pub fn is_pulse1_enabled(&self) -> bool {
@@ -401,19 +431,15 @@ impl Apu {
 
             // Length counter and envelopes update.
             if mem.apu_mem.frame_counter.is_1st_quarter() {
-                mem.apu_mem.pulse_1.envelope.tick();
-                mem.apu_mem.pulse_2.envelope.tick();
+                mem.apu_mem.tick_envelopes();
             } else if mem.apu_mem.frame_counter.is_half() {
-                mem.apu_mem.pulse_1.envelope.tick();
-                mem.apu_mem.pulse_2.envelope.tick();
+                mem.apu_mem.tick_envelopes();
                 mem.apu_mem.pulse_1.length_counter.tick();
                 mem.apu_mem.pulse_2.length_counter.tick();
             } else if mem.apu_mem.frame_counter.is_3rd_quarter() {
-                mem.apu_mem.pulse_1.envelope.tick();
-                mem.apu_mem.pulse_2.envelope.tick();
+                mem.apu_mem.tick_envelopes();
             } else if mem.apu_mem.frame_counter.is_last() {
-                mem.apu_mem.pulse_1.envelope.tick();
-                mem.apu_mem.pulse_2.envelope.tick();
+                mem.apu_mem.tick_envelopes();
                 mem.apu_mem.pulse_1.length_counter.tick();
                 mem.apu_mem.pulse_2.length_counter.tick();
             }

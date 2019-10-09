@@ -114,8 +114,9 @@ impl Memory {
                 self.ppu_mem.write(register_type, value, &mut self.mapper);
             }
             // APU registers
-            0x4000..=0x4003 => self.apu_mem.write(address, value),
+            0x4000..=0x4013 => self.apu_mem.write(address, value),
             0x4015 => self.apu_mem.write(address, value),
+            0x4017 => self.apu_mem.write(address, value),
             // PPU
             0x4014 => {
                 self.ppu_mem.write_oamdma(&self.mem, value);
@@ -153,6 +154,7 @@ impl Memory {
                 self.ppu_mem.read(register_type, &self.mapper)
             }
             0x4014 => self.ppu_mem.read(RegisterType::OAMDMA, &self.mapper),
+            0x4015 => self.apu_mem.read(),
             0x4016 => self.joypad_p1.read(),
             0x4017 => self.joypad_p2.read(),
             0x8000..=0xFFFF => self.mapper.read_prg(address),
