@@ -16,7 +16,7 @@ use nesemu::{
 };
 mod graphics;
 mod ui;
-use ui::{AppState, Application, UiEvent};
+use ui::{Application, UiEvent};
 mod audio;
 
 fn build_default_input_p1() -> HashMap<VirtualKeyCode, InputAction> {
@@ -125,7 +125,7 @@ fn main() {
     let mut nes = if let Some(rom) = opt.input {
         let ines = rom::read(rom).unwrap();
         let nes = Nes::new(ines).unwrap();
-        application.set_state(AppState::Running);
+        application.is_game_running = true;
         nes
     } else {
         Nes::empty()
@@ -139,7 +139,7 @@ fn main() {
         // ONE NES FRAME
         // -------------------------------------------------
         timed_block!("NES frame", {
-            if let AppState::Running = application.current_state() {
+            if application.is_game_running {
                 let mut total_cycles = CPU_CYCLES_PER_FRAME;
                 while total_cycles > 0 {
                     total_cycles = total_cycles.saturating_sub(nes.tick(false).unwrap());
@@ -164,12 +164,9 @@ fn main() {
                     if let Some(rom) = application.rom_name() {
                         let ines = rom::read(rom).unwrap();
                         nes = Nes::new(ines).unwrap();
-                        application.set_state(AppState::Running);
-                    } else {
-                        application.reset_to_previous();
+                        application.is_game_running = true;
                     }
                 }
-                Some(UiEvent::Resume) => application.reset_to_previous(),
                 Some(UiEvent::SaveState) => {
                     if let Err(e) = nes.save_state() {
                         println!("Error while saving {} = {}", nes.get_save_name(), e);
@@ -181,6 +178,10 @@ fn main() {
                     } else {
                         println!("Could not load {}", nes.get_save_name());
                     }
+                }
+
+                Some(UiEvent::ChangeSound) => {
+                    nes.apply_new_sound_config(application.sound_levels.to_apu_levels());
                 }
 
                 _ => (),

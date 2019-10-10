@@ -1,6 +1,6 @@
 //
 //
-use crate::apu::Apu;
+use crate::apu::{Apu, ApuLevels};
 use crate::cpu::cpu::Cpu;
 use crate::cpu::memory::Memory;
 use crate::graphic::EmulatorInput;
@@ -176,5 +176,9 @@ impl Nes {
         write!(file, "{}", state).map_err(|err| err.to_string())?;
 
         Ok(())
+    }
+
+    pub fn apply_new_sound_config(&mut self, levels: ApuLevels) {
+        self.apu.levels = levels;
     }
 }

@@ -1,3 +1,5 @@
+use imgui::*;
+use nesemu::apu::ApuLevels;
 use std::borrow::Cow;
 use std::default::Default;
 use std::fs;
@@ -5,29 +7,62 @@ use std::io;
 use std::path::{Path, PathBuf};
 use tracing::error;
 
-use imgui::*;
+pub struct Application {
+    is_running: bool,
+    pub is_game_running: bool,
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum AppState {
-    Nothing,
-    Running,
-    Opening,
+    // File explorer to open a new ROM
+    file_explorer_opened: bool,
+    file_explorer: FileExplorer,
+
+    // Sound configuration -> levels, relative volume and so on,
+    sound_config_opened: bool,
+    pub sound_levels: Levels,
+    // the one being modified.
+    dirty_sound_levels: Levels,
 }
 
-pub struct Application {
-    current_state: AppState,
-    previous_state: AppState,
-    is_running: bool,
-    file_explorer: FileExplorer,
+#[derive(Debug, Clone, Copy)]
+pub struct Levels {
+    master: i32,
+    pulse_1: i32,
+    pulse_2: i32,
+    triangle: i32,
+}
+
+impl Levels {
+    pub fn to_apu_levels(&self) -> ApuLevels {
+        let mut levels = ApuLevels::default();
+        levels.set_master_level(self.master as f64 * 100.0);
+        levels.set_pulse1_level(self.pulse_1 as f64 / 100.0);
+        levels.set_pulse2_level(self.pulse_2 as f64 / 100.0);
+        levels.set_triangle_level(self.triangle as f64 / 100.0);
+        levels
+    }
+}
+
+impl Default for Levels {
+    fn default() -> Self {
+        Self {
+            master: 100,
+            pulse_1: 100,
+            pulse_2: 100,
+            triangle: 100,
+        }
+    }
 }
 
 impl Default for Application {
     fn default() -> Self {
         Self {
-            current_state: AppState::Nothing,
-            previous_state: AppState::Nothing,
             is_running: true,
+            is_game_running: false,
+            file_explorer_opened: false,
             file_explorer: FileExplorer::default(),
+
+            sound_config_opened: false,
+            sound_levels: Levels::default(),
+            dirty_sound_levels: Levels::default(),
         }
     }
 }
@@ -36,19 +71,6 @@ impl Application {
     /// Return the rom name to load if selected.
     pub fn rom_name(&self) -> Option<&PathBuf> {
         self.file_explorer.selected.as_ref()
-    }
-
-    /// Get the current state of the application
-    pub fn current_state(&self) -> AppState {
-        self.current_state
-    }
-
-    pub fn set_state(&mut self, new_state: AppState) {
-        self.current_state = new_state;
-    }
-
-    pub fn reset_to_previous(&mut self) {
-        self.current_state = self.previous_state;
     }
 
     /// Continue to run if returns true
@@ -121,9 +143,9 @@ fn visit_dirs(ui: &Ui, file_explorer: &mut FileExplorer, dir: &Path) -> io::Resu
 
 pub enum UiEvent {
     LoadRom,
-    Resume,
     SaveState,
     LoadState,
+    ChangeSound,
 }
 
 pub fn run_ui(ui: &Ui, application: &mut Application) -> Option<UiEvent> {
@@ -131,9 +153,8 @@ pub fn run_ui(ui: &Ui, application: &mut Application) -> Option<UiEvent> {
     ui.main_menu_bar(|| {
         ui.menu(im_str!("File"), true, || {
             if MenuItem::new(im_str!("Open rom")).build(&ui) {
+                application.file_explorer_opened = true;
                 application.file_explorer.reset();
-                application.previous_state = application.current_state;
-                application.current_state = AppState::Opening;
             }
 
             if MenuItem::new(im_str!("Exit")).build(&ui) {
@@ -149,10 +170,17 @@ pub fn run_ui(ui: &Ui, application: &mut Application) -> Option<UiEvent> {
                 event = Some(UiEvent::LoadState);
             }
         });
+
+        ui.menu(im_str!("Config"), true, || {
+            if MenuItem::new(im_str!("Audio")).build(&ui) {
+                application.dirty_sound_levels = application.sound_levels;
+                application.sound_config_opened = true;
+            }
+        });
         ui.menu(im_str!("Debug"), false, || {});
     });
 
-    if let AppState::Opening = application.current_state {
+    if application.file_explorer_opened {
         Window::new(im_str!("Open ROM"))
             .size([300.0, 300.0], Condition::FirstUseEver)
             .build(&ui, || {
@@ -163,10 +191,42 @@ pub fn run_ui(ui: &Ui, application: &mut Application) -> Option<UiEvent> {
                 ui.separator();
                 if ui.button(im_str!("Load"), [0.0, 0.0]) {
                     event = Some(UiEvent::LoadRom);
+                    application.file_explorer_opened = false;
                 }
                 ui.same_line(0.0);
                 if ui.button(im_str!("Cancel"), [0.0, 0.0]) {
-                    event = Some(UiEvent::Resume);
+                    application.file_explorer_opened = false;
+                }
+            });
+    }
+
+    if application.sound_config_opened {
+        Window::new(im_str!("Audio config"))
+            .size([600.0, 400.0], Condition::FirstUseEver)
+            .build(&ui, || {
+                Slider::new(im_str!("Master"), 0..=100)
+                    .build(ui, &mut application.dirty_sound_levels.master);
+                Slider::new(im_str!("Pulse 1"), 0..=100)
+                    .build(ui, &mut application.dirty_sound_levels.pulse_1);
+                Slider::new(im_str!("Pulse 2"), 0..=100)
+                    .build(ui, &mut application.dirty_sound_levels.pulse_2);
+                Slider::new(im_str!("Triangle"), 0..=100)
+                    .build(ui, &mut application.dirty_sound_levels.triangle);
+                ui.separator();
+                if ui.button(im_str!("Ok"), [0.0, 0.0]) {
+                    application.sound_levels = application.dirty_sound_levels;
+                    event = Some(UiEvent::ChangeSound);
+                    application.sound_config_opened = false;
+                }
+                ui.same_line(0.0);
+
+                if ui.button(im_str!("Apply"), [0.0, 0.0]) {
+                    application.sound_levels = application.dirty_sound_levels;
+                    event = Some(UiEvent::ChangeSound);
+                }
+                ui.same_line(0.0);
+                if ui.button(im_str!("Cancel"), [0.0, 0.0]) {
+                    application.sound_config_opened = false;
                 }
             });
     }
