@@ -22,25 +22,7 @@ const DUTY_VALUES: [[u8; 8]; 4] = [
 ];
 
 /*
- *1 1111 (1F) => 30
-1 1101 (1D) => 28
-1 1011 (1B) => 26
-1 1001 (19) => 24
-1 0111 (17) => 22
-1 0101 (15) => 20
-1 0011 (13) => 18
-1 0001 (11) => 16
-
-Notes with base length 12 (4/4 at 75 bpm):
-1 1110 (1E) => 32  (96 times 1/3, quarter note triplet)
-1 1100 (1C) => 16  (48 times 1/3, eighth note triplet)
-1 1010 (1A) => 72  (48 times 1 1/2, dotted quarter)
-1 1000 (18) => 192 (Whole note)
-1 0110 (16) => 96  (Half note)
-1 0100 (14) => 48  (Quarter note)
-1 0010 (12) => 24  (Eighth note)
-1 0000 (10) => 12  (Sixteenth)
- *
+ * Look up table for the length counter value. The index is written to $4015
  * */
 const LENGTH_COUNTER_LOOKUP: [u8; 0x20] = [
     10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20, 96, 22,
@@ -49,10 +31,6 @@ const LENGTH_COUNTER_LOOKUP: [u8; 0x20] = [
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ApuMemory {
-    /// 0x4015
-    /// status: Determine whether the channels are silenced or not
-    pub status_reg: u8,
-
     /// 0x4000 to 0x4003 (included)
     /// Pulse 1 - This is a square wave.
     /// --------------------------------------------
@@ -102,7 +80,11 @@ impl ApuMemory {
 
                 // Counter to 0. When 0, channel is silenced.
                 // 0x4003 = LLLL.L.xxx
-                self.pulse_1.length_counter.value = LENGTH_COUNTER_LOOKUP[(value >> 3) as usize];
+                if self.pulse_1.enabled {
+                    self.pulse_1.length_counter.value =
+                        LENGTH_COUNTER_LOOKUP[(value >> 3) as usize];
+                }
+
                 debug!(
                     "Will set pulse 1 length counter to {}",
                     self.pulse_1.length_counter.value
@@ -134,13 +116,15 @@ impl ApuMemory {
 
                 // Counter to 0. When 0, channel is silenced.
                 // 0x4003 = LLLL.L.xxx
-                self.pulse_2.length_counter.value = LENGTH_COUNTER_LOOKUP[(value >> 3) as usize];
+                if self.pulse_2.enabled {
+                    self.pulse_2.length_counter.value =
+                        LENGTH_COUNTER_LOOKUP[(value >> 3) as usize];
+                }
             }
 
             0x4015 => {
-                self.status_reg = value;
-                self.pulse_1.enabled = value & 0b1 == 0b1;
-                self.pulse_2.enabled = value & 0b10 == 0b10;
+                self.pulse_1.set_enabled(value & 0b1 == 0b1);
+                self.pulse_2.set_enabled(value & 0b10 == 0b10);
             }
 
             0x4017 => {
@@ -174,26 +158,6 @@ impl ApuMemory {
     fn tick_length_counters(&mut self) {
         self.pulse_1.length_counter.tick();
         self.pulse_2.length_counter.tick();
-    }
-
-    pub fn is_pulse1_enabled(&self) -> bool {
-        self.status_reg & 0b1 == 0b1
-    }
-
-    pub fn is_pulse2_enabled(&self) -> bool {
-        self.status_reg & 0b10 == 0b10
-    }
-
-    pub fn is_triangle_enabled(&self) -> bool {
-        self.status_reg & 0b100 == 0b100
-    }
-
-    pub fn is_noise_enabled(&self) -> bool {
-        self.status_reg & 0b1000 == 0b1000
-    }
-
-    pub fn is_dmc_enabled(&self) -> bool {
-        self.status_reg & 0b10000 == 0b10000
     }
 }
 
@@ -275,7 +239,7 @@ impl LengthCounter {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Apu {
     /// Keep track how many cycles since the beginning.
-    cycles: u64,
+    pub cycles: u64,
 
     // Rate at which we take a sample
     sample_timer: u64,
@@ -370,7 +334,6 @@ impl Pulse {
             } else {
                 self.seq_index += 1;
             }
-            debug!("seq index -> {:?}", self.seq_index);
             self.current_timer = self.timer;
         } else {
             self.current_timer -= 1;
@@ -382,6 +345,13 @@ impl Pulse {
         self.seq_index = 0;
         // TODO reset envelope
         //self.current_timer = self.timer;
+    }
+
+    fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+        if !enabled {
+            self.length_counter.value = 0;
+        }
     }
 
     pub fn sample(&self) -> f64 {
@@ -416,17 +386,18 @@ impl Apu {
     }
 
     pub fn next(&mut self, cpu_ticks: u64, mem: &mut Memory) {
-        self.cycles += cpu_ticks;
+        //self.cycles += cpu_ticks;
 
         for _ in 0..cpu_ticks {
-            // Frame counter timer.
-            mem.apu_mem.frame_counter.tick();
-
+            self.cycles += 1;
             // Clock everything.
             if self.cycles & 1 == 0 {
                 // clock pulse
                 mem.apu_mem.pulse_1.tick();
                 mem.apu_mem.pulse_2.tick();
+
+                // Frame counter timer.
+                mem.apu_mem.frame_counter.tick();
             }
 
             // Length counter and envelopes update.
@@ -434,14 +405,12 @@ impl Apu {
                 mem.apu_mem.tick_envelopes();
             } else if mem.apu_mem.frame_counter.is_half() {
                 mem.apu_mem.tick_envelopes();
-                mem.apu_mem.pulse_1.length_counter.tick();
-                mem.apu_mem.pulse_2.length_counter.tick();
+                mem.apu_mem.tick_length_counters();
             } else if mem.apu_mem.frame_counter.is_3rd_quarter() {
                 mem.apu_mem.tick_envelopes();
             } else if mem.apu_mem.frame_counter.is_last() {
                 mem.apu_mem.tick_envelopes();
-                mem.apu_mem.pulse_1.length_counter.tick();
-                mem.apu_mem.pulse_2.length_counter.tick();
+                mem.apu_mem.tick_length_counters();
             }
 
             // Instead of taking a lot of samples (Frequency of APU is > 1 Mhz). let's just sample at
@@ -466,7 +435,7 @@ impl Apu {
 
                 let mut mixed = pulse_1_sample + pulse_2_sample;
                 debug!(msg = "sample", sample = %mixed);
-                //mixed = self.filters.tick(mixed);
+                mixed = self.filters.tick(mixed);
 
                 self.samples.push(mixed as i16);
             }

@@ -142,13 +142,13 @@
 ;;  On the pulse1 generator
 .scope play_a220
   pha
-  lda #%10011111
+  lda #%10111111
   sta nes.apu.pulse1.control
 
-  lda #%11111011
+  lda #%01011100
   sta nes.apu.pulse1.ft
 
-  lda #%11111001
+  lda #%00011001
   sta nes.apu.pulse1.ct
 
   pla
@@ -161,14 +161,14 @@
 ;;  On the pulse2 generator
 .scope play_a440
   pha
-  lda #%10011111
-  sta nes.apu.pulse2.control
+  lda #%10111111
+  sta nes.apu.pulse1.control
 
   lda #%11111101
-  sta nes.apu.pulse2.ft
+  sta nes.apu.pulse1.ft
 
-  lda #%11111000
-  sta nes.apu.pulse2.ct
+  lda #%00011000
+  sta nes.apu.pulse1.ct
 
   pla
   rts
